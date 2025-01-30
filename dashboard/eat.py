@@ -70,20 +70,20 @@ class Simulation:
    """Represents a simulation's context
 
    Attributes:
-      state: state abbreviation (e.g. "NC")
-      district_id: district NCES ID
-      interdistrict: whether this simulation was done between districts
-      bottomless: whether this simulation has a capacity threshold (False) or
-         not (True)
-      school_descrease_threshold: max proportion (e.g. 0.1) that schools were
-         allowed to decrease their population by in this simulation
-      folder_name_check: Parity check, make sure the specific folder name of
-         this simulation contains this substring (e.g.,
+      state (str): state abbreviation (e.g. "NC")
+      district_id (int): district NCES ID
+      interdistrict (bool): whether this simulation was done between districts
+      bottomless (bool): whether this simulation has a capacity threshold
+         (False) or not (True)
+      school_descrease_threshold (str): max proportion (e.g. 0.1) that schools
+         were allowed to decrease their population by in this simulation
+      folder_name_check (str | None): Parity check, make sure the specific
+         folder name of this simulation contains this substring (e.g.,
          ``"constrained_bh_wa"``) (default is not to check for a substring)
-      time_to_compute: time to compute this simulation, in seconds (extra
-         detail from CPSAT)
-      branches: extra detail from CPSAT
-      conflicts: extra detail from CPSAT
+      time_to_compute (float): time to compute this simulation, in seconds
+         (extra detail from CPSAT)
+      branches (int): extra detail from CPSAT
+      conflicts (int): extra detail from CPSAT
    """
    state: str
    district_id: int
@@ -293,11 +293,11 @@ class TravelTimes:
    """Represents the travel times aspect of a simulation's results
 
    Attributes:
-      status_quo: Original travel times for each demographic
-      switcher_previous: Original travel times for each demographic, for those
-         who switched schools after the simulation
-      switcher_new: New travel times for each demographic, for those who
-         switched schools after the simulation
+      status_quo (Population): Original travel times for each demographic
+      switcher_previous (Population): Original travel times for each
+         demographic, for those who switched schools after the simulation
+      switcher_new (Population): New travel times for each demographic, for
+         those who switched schools after the simulation
    """
    status_quo: Population
    switcher_previous: Population
@@ -327,16 +327,16 @@ class Analytics:
    """High-level results for a given simulation!
 
    Attributes:
-      simulation: info about this particular simulation
-      pre_dissimilarity: dissimilarity score before simulation
-      post_dissimilarity: dissimilarity score after simulation
-      all_population: demographics of entire simulation
-      switched_population: demographics of those in this simulation who switch
-         schools after the simulation
-      travel_times: travel times results, totaled for each demographic, in
-         seconds
-      travel_times_per_individual: travel time results, per person for a given
+      simulation (Simulation): info about this particular simulation
+      pre_dissimilarity (float): dissimilarity score before simulation
+      post_dissimilarity (float): dissimilarity score after simulation
+      all_population (Population): demographics of entire simulation
+      switched_population (Population): demographics of those in this
+         simulation who switch schools after the simulation
+      travel_times (TravelTimes): travel times results, totaled for each
          demographic, in seconds
+      travel_times_per_individual (TravelTimes): travel time results, per
+         person for a given demographic, in seconds
    """
    simulation: Simulation
    # dissimilarity results
@@ -405,30 +405,34 @@ class School:
    """Represents a school
 
    Attributes:
-      ncessch_id: NCES school ID
-      school_name: name of school
-      district_id: ID for the district this school is in
-      grade_span_before: list of grades offered, before running the algorithm
-      grade_span_after: list of grades offereed, after running the algorithm
-      grades_population_before: mapping from grade to demographics, before
+      ncessch_id (int): NCES school ID
+      school_name (str): name of school
+      district_id (int): ID for the district this school is in
+      grade_span_before (list[str]): list of grades offered, before running the
          algorithm
-      grades_population_after: mapping from grade to demographics, after
+      grade_span_after (list[str]): list of grades offereed, after running the
          algorithm
-      cluster_neighbors: neighboring schools in same cluster
-      population_before: demographics before algorithm
-      population_after: demographics after algorithm
-      travel_times_previous: if this school is merged, *status quo* travel
-         times, in seconds, *for students who will switch* (deprecated)
-      travel_times_new: if this school is merged, new travel times, in seconds,
-         for students who switched (deprecated)
-      centroid: ``(lat, lng)`` of school attendance boundaries
-      location: ``(lat, lng)`` of school itself
-      switched_population: demographics of those in this school who switched
-         to *new* schools after mergers
-      travel_times: travel times results, totaled for each demographic, in
-         seconds
-      travel_times_per_individual: travel time results, per person for a given
+      grades_population_before (dict[str, Population]): mapping from grade to
+         demographics, before algorithm
+      grades_population_after (dict[str, Population]): mapping from grade to
+         demographics, after algorithm
+      cluster_neighbors (list[School]): neighboring schools in same cluster
+      population_before (Population): demographics before algorithm
+      population_after (Population): demographics after algorithm
+      travel_times_previous (Population): if this school is merged, *status
+         quo* travel times, in seconds, *for students who will switch*
+         (deprecated)
+      travel_times_new (Population): if this school is merged, new travel
+         times, in seconds, for students who switched (deprecated)
+      centroid (tuple[float,float]|None): ``(lat, lng)`` of school attendance
+         boundaries
+      location (tuple[float,float]|None): ``(lat, lng)`` of school itself
+      switched_population (Population): demographics of those in this school
+         who switched to *new* schools after mergers
+      travel_times (TravelTimes): travel times results, totaled for each
          demographic, in seconds
+      travel_times_per_individual (TravelTimes): travel time results, per
+         person for a given demographic, in seconds
    """
    ncessch_id: int
    school_name: str
@@ -685,29 +689,30 @@ class Impact:
    """Represents per-school impacts on segregation, for a district
 
    Attributes:
-      district: The district these results refer to
-      district_concentration: relative frequency of demographics (instead of
-         absolute counts) (at the district level)
-      school_concentrations_pre: relative frequency of demographics, before
-         mergers (at the school level)
-      school_concentrations_post: relative frequency of demographics, after
-         mergers (at the school level)
-      overconcentrated_schools_pre: schools for a specific demographic that
-         have concentrations of these students *above* the district's
-         concentration, before mergers
-      overconcentrated_schools_post: schools for a specific demographic that
-         have concentrations of these students *above* the district's
-         concentration, after mergers
-      average_overconcentrated_concentration_before: of these overconcentrated
-         schools, the average concentration (at the school level) of
-         demographics, before mergers
-      average_overconcentrated_concentration_after: of these same
-         overconcentrated schools, the average concentration (at the school
-         level) of demographics, after mergers
-      focal_demos: most highly clustered demographics
-      greatest_changing_schools: for each demographic, a list of schools
-         **sorted by extent of impact** (defined as greatest change in
-         school concentration)
+      district (District): The district these results refer to
+      district_concentration (Population): relative frequency of demographics
+         (instead of absolute counts) (at the district level)
+      school_concentrations_pre (dict[School,Population]): relative frequency
+         of demographics, before mergers (at the school level)
+      school_concentrations_post (dict[School,Population]): relative frequency
+         of demographics, after mergers (at the school level)
+      overconcentrated_schools_pre (dict[DemoType, list[School]]): schools for
+         a specific demographic that have concentrations of these students
+         *above* the district's concentration, before mergers
+      overconcentrated_schools_post (dict[DemoType, list[School]]): schools for
+         a specific demographic that have concentrations of these students
+         *above* the district's concentration, after mergers
+      average_overconcentrated_concentration_before (dict[DemoType, Population]):
+         of these overconcentrated schools, the average concentration (at the
+         school level) of demographics, before mergers
+      average_overconcentrated_concentration_after (dict[DemoType, Population]):
+         of these same overconcentrated schools, the average concentration (at
+         the school level) of demographics, after mergers
+      focal_demos (list[DemoType]): most highly clustered demographics
+         (descending order)
+      greatest_changing_schools (dict[DemoType, list[School]]): for each
+         demographic, a list of schools **sorted by descending extent of
+         impact** (defined as greatest change in school concentration)
    """
    district: District
 
