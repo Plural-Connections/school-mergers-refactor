@@ -9,6 +9,8 @@ Check the READMEs of the respective folders for more detailed information.
 1. [`mergers_core/`](./mergers_core) — Set up and run CP-SAT simulations
 2. [`dashboard/`](./dashboard) — Summarize, plot, & map high-level impacts
 
+The code for the [School Mergers Dashboard](https://mergers.schooldiversity.org/) is under [`dashboard/`](./dashboard).
+
 ## Necessary data
 
 This code repo operates on a mass of CSV and shapes files which are available here: [`school_mergers_data.zip`](https://plural-connections.s3.us-east-1.amazonaws.com/school-mergers/school_mergers_data.zip).

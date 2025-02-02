@@ -14,11 +14,17 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-To run the dashboard locally, run `main.py` with Streamlit (`streamlit run main.py`). The interface runs at <http://localhost:8501> and may take half a minute to first start up.
+To run the dashboard locally, run `main.py` with Streamlit.
+
+```bash
+streamlit run main.py
+```
+
+The interface runs at <http://localhost:8501> and may take half a minute to first start up.
 
 See below for the functionality of respective files.
 
-## Project organization
+## Code organization
 
 ### Root
 
