@@ -220,7 +220,7 @@ md(
 
 if district_id == 3701500:
    st.info((
-      "As a part of a US Department of Education-funded Fostering Diverse Schools (FDS) project, Winston-Salem / Forsyth County Schools is exploring how policy changes might foster more diverse and integrated schools in their district. No new attendance boundary proposals have been made, and they will not be made until after several months of listening to the community and hearing their feedback. Once proposals are on the table, they will undergo further vetting and refinement based on community input. [Additional information about this project can be found here](https://www.wsfcs.k12.nc.us/o/wsfcs/page/fostering-diverse-schools). If you have any questions, please feel free to reach out to <hello@pluralconnections.org>."
+      "As a part of a US Department of Education-funded Fostering Diverse Schools (FDS) project, Winston-Salem / Forsyth County Schools is exploring how residential boundary changes might foster more socioeconomically diverse and integrated schools.  That project is not considering school mergers as a policy pathway.  If you wish to learn more about the project, please visit the project website: <https://www.wsfcs.k12.nc.us/o/wsfcs/page/fostering-diverse-schools>."
    ))
    st.stop()
 
