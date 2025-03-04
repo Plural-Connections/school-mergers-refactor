@@ -1,6 +1,6 @@
 # dashboard
 
-This folder contains the code used in [the paper for data analysis] and at our [School Mergers Dashboard](https://mergers.schooldiversity.org/).
+This folder contains the code used in [the school mergers paper](https://academic.oup.com/pnasnexus/article/4/3/pgaf050/8046446) for data analysis and at our [School Mergers Dashboard](https://mergers.schooldiversity.org/).
 
 Contact Madison Landry (`landry.ma` at northeastern dot edu) for help.
 

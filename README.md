@@ -1,6 +1,8 @@
 # public-school-mergers
 
-Public repo containing code and data release for School Mergers paper
+Public repo containing code and data release for the [School Mergers paper](https://academic.oup.com/pnasnexus/article/4/3/pgaf050/8046446)
+
+[The 74: School 'Pairings' Can Foster Racial, Socioeconomic Integration](https://www.the74million.org/article/new-research-school-pairings-can-foster-racial-socioeconomic-integration/)
 
 ## Pipeline
 
