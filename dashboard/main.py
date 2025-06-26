@@ -219,12 +219,20 @@ md(
 )
 
 if district_id == 3701500:
-   st.info((
-      "As a part of a US Department of Education-funded Fostering Diverse Schools (FDS) project, Winston-Salem / Forsyth County Schools is exploring how residential boundary changes might foster more socioeconomically diverse and integrated schools.  That project is not considering school mergers as a policy pathway.  If you wish to learn more about the project, please visit the project website: <https://www.wsfcs.k12.nc.us/o/wsfcs/page/fostering-diverse-schools>."
-   ))
-   st.stop()
+    st.info(
+        (
+            "As a part of a US Department of Education-funded Fostering Diverse Schools (FDS) project, Winston-Salem / Forsyth County Schools is exploring how residential boundary changes might foster more socioeconomically diverse and integrated schools.  That project is not considering school mergers as a policy pathway.  If you wish to learn more about the project, please visit the project website: <https://www.wsfcs.k12.nc.us/o/wsfcs/page/fostering-diverse-schools>."
+        )
+    )
+    st.stop()
 
-context = eat.context(state, district_id, interdistrict, school_decrease_threshold, folder_name_check=folder_name_check)
+context = eat.context(
+    state,
+    district_id,
+    interdistrict,
+    school_decrease_threshold,
+    folder_name_check=folder_name_check,
+)
 
 results = None
 survey_link = ""

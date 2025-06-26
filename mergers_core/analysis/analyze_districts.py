@@ -2,6 +2,7 @@ from mergers_core.utils.header import *
 from mergers_core.models.constants import *
 import geopandas as gpd
 
+
 def compute_dissimilarity_index(df_dist):
     vals = []
     cat_total = df_dist["num_white"].sum()

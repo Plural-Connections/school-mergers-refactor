@@ -35,10 +35,13 @@ def compute_travel_time_matrices(
                     #     [(block_lat, block_long), (lat_long["lat"], lat_long["long"])]
                     # )
 
-                    travel_times[curr_blocks["GEOID20"][i]][
-                        s2
-                    ] = get_travel_time_for_coord_pair(
-                        [(block_long, block_lat), (lat_long["long"], lat_long["lat"])]
+                    travel_times[curr_blocks["GEOID20"][i]][s2] = (
+                        get_travel_time_for_coord_pair(
+                            [
+                                (block_long, block_lat),
+                                (lat_long["long"], lat_long["lat"]),
+                            ]
+                        )
                     )
                 else:
                     continue

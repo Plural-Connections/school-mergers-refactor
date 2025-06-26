@@ -1,4 +1,5 @@
 import os, sys
+
 sys.path.insert(0, os.path.abspath(".."))
 
 project = "School Mergers"
@@ -7,12 +8,12 @@ author = "Madison Landry"
 release = "v2025.1"
 
 extensions = [
-   "sphinx.ext.autodoc",
-   "sphinx_autodoc_typehints",
-   "sphinx.ext.intersphinx",
-   "sphinx.ext.autosummary",
-   "sphinx.ext.napoleon",
-   "enum_tools.autoenum",
+    "sphinx.ext.autodoc",
+    "sphinx_autodoc_typehints",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "enum_tools.autoenum",
 ]
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 autosummary_generate = True
@@ -22,8 +23,8 @@ autodoc_typehints = "both"
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
 napoleon_attr_annotations = True  # not working?
-#napoleon_preprocess_types = True
-#napoleon_use_ivar = True
+# napoleon_preprocess_types = True
+# napoleon_use_ivar = True
 
 templates_path = ["_templates"]
 exclude_patterns = []
