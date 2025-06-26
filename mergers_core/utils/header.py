@@ -1,25 +1,18 @@
 import matplotlib
-
-# matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-# import matplotlib as mpl
 from datetime import datetime
 from collections import Counter, defaultdict
 from copy import deepcopy
 from pathlib import Path
-
-# from graph_tool.all import *
 from scipy import sparse
-
 import networkx as nx
 import pandas as pd
 import hashlib
 import glob
-
-# import cPickle
-# import urlparse
-# import nltk
+import tldextract
+import urlparse
+import nltk
+import cPickle
 import numpy as np
 import scipy as sp
 import itertools
