@@ -68,12 +68,14 @@ def load_and_process_data(state, district_id, interdistrict):
 
 def initialize_variables(model, df_schools_in_play):
     # Variable to track which schools are matched with which schools
-    matches = {}
     nces_ids = set(df_schools_in_play["NCESSCH"].tolist())
-    for s in nces_ids:
-        matches[s] = {}
-        for s2 in nces_ids:
-            matches[s][s2] = model.NewBoolVar("{},{}_matched".format(s, s2))
+    matches = {
+        school: {
+            school_2: model.NewBoolVar(f"{school},{school_2}_matched")
+            for school_2 in nces_ids
+        }
+        for school in nces_ids
+    }
 
     # Variable to track which grades are offered by which schools
     grades_start = {}
@@ -82,53 +84,54 @@ def initialize_variables(model, df_schools_in_play):
     grades_interval = {}
     grades_interval_binary = {}
     all_grades = list(GRADE_TO_IND.values())
-    for s in nces_ids:
-        grades_start[s] = model.NewIntVar(
-            all_grades[0], all_grades[-1], "{}_start_grade".format(s)
+    for school in nces_ids:
+        grades_start[school] = model.NewIntVar(
+            all_grades[0], all_grades[-1], f"{school}_start_grade"
         )
-        grades_end[s] = model.NewIntVar(
-            all_grades[0], all_grades[-1], "{}_end_grade".format(s)
+        grades_end[school] = model.NewIntVar(
+            all_grades[0], all_grades[-1], f"{school}_end_grade"
         )
-
-        grades_duration[s] = model.NewIntVar(
-            0, all_grades[-1], "{}_grade_duration".format(s)
+        grades_duration[school] = model.NewIntVar(
+            0, all_grades[-1], f"{school}_grade_duration"
         )
-        # is_present = model.NewBoolVar(f"{s}_interval_is_present")
-        # model.Add(is_present == False)
-        grades_interval[s] = model.NewIntervalVar(
-            grades_start[s],
-            grades_duration[s],
-            grades_end[s],
+        grades_interval[school] = model.NewIntervalVar(
+            grades_start[school],
+            grades_duration[school],
+            grades_end[school],
             # is_present,
-            f"{s}_grade_interval",
+            f"{school}_grade_interval",
         )
-        grades_interval_binary[s] = [
-            model.NewIntVar(0, 1, "{},{}".format(s, i)) for i in GRADE_TO_IND.values()
+        grades_interval_binary[school] = [
+            model.NewIntVar(0, 1, "{},{}".format(school, i))
+            for i in GRADE_TO_IND.values()
         ]
-        for i in range(0, len(grades_interval_binary[s])):
-            i_less_than = model.NewBoolVar("{},{}_less".format(s, i))
-            model.Add(i <= grades_end[s]).OnlyEnforceIf(i_less_than)
-            model.Add(i > grades_end[s]).OnlyEnforceIf(i_less_than.Not())
-            i_greater_than = model.NewBoolVar("{},{}_greater".format(s, i))
-            model.Add(i >= grades_start[s]).OnlyEnforceIf(i_greater_than)
-            model.Add(i < grades_start[s]).OnlyEnforceIf(i_greater_than.Not())
-            i_in_range = model.NewBoolVar("{},{}_in_range".format(s, i))
+
+        for i in range(0, len(grades_interval_binary[school])):
+            i_less_than = model.NewBoolVar("{},{}_less".format(school, i))
+            model.Add(i <= grades_end[school]).OnlyEnforceIf(i_less_than)
+            model.Add(i > grades_end[school]).OnlyEnforceIf(i_less_than.Not())
+            i_greater_than = model.NewBoolVar(f"{school},{i}_greater")
+            model.Add(i >= grades_start[school]).OnlyEnforceIf(i_greater_than)
+            model.Add(i < grades_start[school]).OnlyEnforceIf(i_greater_than.Not())
+            i_in_range = model.NewBoolVar("{},{}_in_range".format(school, i))
             model.AddMultiplicationEquality(i_in_range, [i_less_than, i_greater_than])
-            model.Add(grades_interval_binary[s][i] == 1).OnlyEnforceIf(i_in_range)
-            model.Add(grades_interval_binary[s][i] == 0).OnlyEnforceIf(i_in_range.Not())
+            model.Add(grades_interval_binary[school][i] == 1).OnlyEnforceIf(i_in_range)
+            model.Add(grades_interval_binary[school][i] == 0).OnlyEnforceIf(
+                i_in_range.Not()
+            )
 
     # Add in hints to reflect the status quo
-    for s in nces_ids:
+    for school in nces_ids:
         # Initialization: each school serves all grades
-        for i in range(0, len(grades_interval_binary[s])):
-            model.AddHint(grades_interval_binary[s][i], 1)
+        for i in range(0, len(grades_interval_binary[school])):
+            model.AddHint(grades_interval_binary[school][i], 1)
 
         # Initialization: each school is only "matched" to itself
         for s2 in nces_ids:
-            if s == s2:
-                model.AddHint(matches[s][s2], True)
+            if school == s2:
+                model.AddHint(matches[school][s2], True)
             else:
-                model.AddHint(matches[s][s2], False)
+                model.AddHint(matches[school][s2], False)
 
     return (
         matches,
@@ -332,12 +335,8 @@ def set_objective_white_nonwhite_dissimilarity(
     students_switching_terms = []
     for s in matches:
         # For the constraint in the inner loop that tracks the total number of students assigned to a schoool
-        sum_s_white = model.NewIntVar(
-            0, MAX_TOTAL_STUDENTS, f"{s}_white_students".format(s)
-        )
-        sum_s_total = model.NewIntVar(
-            0, MAX_TOTAL_STUDENTS, f"{s}_all_students".format(s)
-        )
+        sum_s_white = model.NewIntVar(0, MAX_TOTAL_STUDENTS, f"{s}_white_students")
+        sum_s_total = model.NewIntVar(0, MAX_TOTAL_STUDENTS, f"{s}_all_students")
         model.Add(
             sum_s_white
             == sum(
