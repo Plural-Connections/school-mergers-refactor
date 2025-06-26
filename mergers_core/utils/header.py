@@ -10,9 +10,8 @@ import pandas as pd
 import hashlib
 import glob
 import tldextract
-import urlparse
 import nltk
-import cPickle
+import pickle
 import numpy as np
 import scipy as sp
 import itertools
@@ -43,52 +42,34 @@ def clean_nces_add_leading_zeros(leaid, schid):
     return leaid + schid
 
 
-def write_pkl(output_file, output_obj):
-    cPickle.dump(output_obj, open(output_file, "wb"))
-
-
 def read_pkl(input_file):
-    return cPickle.load(open(input_file, "rb"))
-
-
-def write_dict(output_file, output_dict, indent=4):
-    f = open(output_file, "w")
-    f.write(json.dumps(output_dict, indent=indent))
-    # f.write(json.dumps(output_dict))
-    f.close()
-
-
-def write_obj(output_file, output_arr):
-    f = open(output_file, "w")
-    f.write(str(output_arr))
-    f.close()
+    with open(input_file, "rb") as f:
+        return pickle.load(f)
 
 
 def write_pkl(output_file, output_obj):
-    f = open(output_file, "w")
-    cPickle.dump(output_obj, f)
-    f.close()
+    with open(output_file, "w") as f:
+        pickle.dump(output_obj, f)
 
 
 def read_dict(input_file):
-    f = open(input_file, "r")
-    curr_dict = json.loads(f.read())
-    f.close()
-    return curr_dict
+    with open(input_file, "r") as f:
+        return json.loads(f.read())
+
+
+def write_dict(output_file, output_dict, indent=4):
+    with open(output_file, "w") as f:
+        f.write(json.dumps(output_dict, indent=indent))
 
 
 def read_obj(input_file):
-    f = open(input_file, "r")
-    curr_obj = eval(f.read())
-    f.close()
-    return curr_obj
+    with open(input_file, "r") as f:
+        return eval(f.read())
 
 
-def read_pkl(input_file):
-    f = open(input_file, "r")
-    curr_obj = cPickle.load(f)
-    f.close()
-    return curr_obj
+def write_obj(output_file, output_arr):
+    with open(output_file, "w") as f:
+        f.write(str(output_arr))
 
 
 """
