@@ -10,26 +10,27 @@ def generate_year_state_sweep_configs(
     total_cluster_tasks_per_group=500,
     min_elem_schools=4,
     batch_root="min_num_elem_{}_constrained_bh_wa",
-    # dists_to_remove="data/results/min_num_elem_schools_4_bottomless/consolidated_simulation_results_min_num_elem_schools_4_bottomless.csv",
     dists_to_remove=None,
     output_dir="data/sweep_configs/{}/",
 ):
-    interdistrict = [False]
-    objective = ["bh_wa"]
-    school_decrease_threshold = [0.2]
-    batch = batch_root.format(min_elem_schools)
+    interdistrict_options = [False]
+    objective_options = ["bh_wa"]
+    school_decrease_threshold_options = [0.2]
+    batch_name = batch_root.format(min_elem_schools)
     write_to_s3 = True
 
-    # TODO: comment out for entire state or country-level sims
-    df_d = pd.read_csv(districts_to_process_file, dtype={"district_id": str})
-    df_d = df_d[df_d["num_schools"] >= min_elem_schools].reset_index(drop=True)
+    df_districts = pd.read_csv(districts_to_process_file, dtype={"district_id": str})
+    df_districts = df_districts[
+        df_districts["num_schools"] >= min_elem_schools
+    ].reset_index(drop=True)
 
     if dists_to_remove:
-        df_r = pd.read_csv(dists_to_remove, dtype={"district_id": str})
-        df_d = df_d[~df_d["district_id"].isin(df_r["district_id"])].reset_index(
-            drop=True
-        )
-    sweeps = {
+        df_removed = pd.read_csv(dists_to_remove, dtype={"district_id": str})
+        df_districts = df_districts[
+            ~df_districts["district_id"].isin(df_removed["district_id"])
+        ].reset_index(drop=True)
+
+    sweep_configs = {
         "state": [],
         "district_id": [],
         "school_decrease_threshold": [],
@@ -39,80 +40,68 @@ def generate_year_state_sweep_configs(
         "write_to_s3": [],
     }
 
-    # Make directory for simulation sweeps
-    Path(output_dir.format(batch)).mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_dir.format(batch_name))
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    # Iterate through params for sweeps
-    for i in range(0, len(df_d)):
-        for d in interdistrict:
-            for t in school_decrease_threshold:
-                for o in objective:
-                    sweeps["state"].append(df_d["state"][i])
-                    sweeps["district_id"].append(df_d["district_id"][i])
-                    sweeps["school_decrease_threshold"].append(t)
-                    sweeps["interdistrict"].append(d)
-                    sweeps["objective"].append(o)
-                    sweeps["batch"].append(batch)
-                    sweeps["write_to_s3"].append(write_to_s3)
+    for _, district in df_districts.iterrows():
+        for interdistrict in interdistrict_options:
+            for threshold in school_decrease_threshold_options:
+                for objective in objective_options:
+                    sweep_configs["state"].append(district["state"])
+                    sweep_configs["district_id"].append(district["district_id"])
+                    sweep_configs["school_decrease_threshold"].append(threshold)
+                    sweep_configs["interdistrict"].append(interdistrict)
+                    sweep_configs["objective"].append(objective)
+                    sweep_configs["batch"].append(batch_name)
+                    sweep_configs["write_to_s3"].append(write_to_s3)
 
-    # Create groups to run on cluster
-    df_out = pd.DataFrame(data=sweeps).sample(frac=1)
+    df_out = pd.DataFrame(data=sweep_configs).sample(frac=1)
     num_jobs_per_group = int(
         np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
         * total_cluster_tasks_per_group
     )
     num_cluster_groups = int(np.ceil(len(df_out) / num_jobs_per_group))
-    for i in range(0, num_cluster_groups):
-        df_curr = df_out.iloc[(i * num_jobs_per_group) : ((i + 1) * num_jobs_per_group)]
-        df_curr.to_csv(output_dir.format(batch) + str(i) + ".csv", index=False)
+    for i in range(num_cluster_groups):
+        df_chunk = df_out.iloc[i * num_jobs_per_group : (i + 1) * num_jobs_per_group]
+        df_chunk.to_csv(output_path / f"{i}.csv", index=False)
 
 
 def run_sweep_for_chunk(
-    chunk_ID,
+    chunk_id,
     num_total_chunks,
-    group_ID,
+    group_id,
     solver_function=solve_and_output_results,
     sweeps_dir="data/sweep_configs/min_num_elem_4_constrained_bh_wa/",
 ):
-    df = pd.read_csv(sweeps_dir + str(group_ID) + ".csv", dtype={"district_id": str})
+    df_configs = pd.read_csv(
+        os.path.join(sweeps_dir, f"{group_id}.csv"), dtype={"district_id": str}
+    )
 
     configs = []
-    for i in range(0, len(df)):
-        config_dict = {
-            "state": df["state"][i],
-            "district_id": df["district_id"][i],
-            "school_decrease_threshold": df["school_decrease_threshold"][i],
-            "interdistrict": df["interdistrict"][i],
-            "batch": df["batch"][i],
-            "write_to_s3": df["write_to_s3"][i],
-        }
-        if "objective" in df.columns:
-            config_dict["objective"] = df["objective"][i]
-
+    for _, row in df_configs.iterrows():
+        config_dict = row.to_dict()
         configs.append(config_dict)
 
-    remainder = len(df) % num_total_chunks
-    chunk_size = max(1, int(np.floor(len(df) / num_total_chunks)))
-    if remainder > 0 and len(df) > num_total_chunks:
-        chunk_size += 1
+    chunk_size = len(df_configs) // num_total_chunks
+    remainder = len(df_configs) % num_total_chunks
 
-    configs_to_compute = configs[
-        (chunk_ID * chunk_size) : ((chunk_ID + 1) * chunk_size)
-    ]
+    start_index = chunk_id * chunk_size + min(chunk_id, remainder)
+    end_index = start_index + chunk_size + (1 if chunk_id < remainder else 0)
 
-    for curr_config in configs_to_compute:
+    configs_to_compute = configs[start_index:end_index]
+
+    for config in configs_to_compute:
         try:
-            solver_function(**curr_config)
+            solver_function(**config)
         except Exception as e:
             print(e)
             pass
 
 
 if __name__ == "__main__":
-    # generate_year_state_sweep_configs()
     if len(sys.argv) < 4:
         print(
             "Error: need to specify <chunk_ID>, <num_chunks>, and <group_id> for cluster run"
         )
-        exit()
+        sys.exit(1)
     run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))

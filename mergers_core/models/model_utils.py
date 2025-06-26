@@ -10,26 +10,28 @@ def estimate_travel_time_impacts(
     blocks_file="data/attendance_boundaries/2122/{}/estimated_student_counts_per_block.csv",
     travel_times_file="data/travel_times_files/2122/{}/block_to_school_driving_times.json",
 ):
-    df_b = pd.read_csv(
+    df_blocks = pd.read_csv(
         blocks_file.format(state), dtype={"ncessch": str, "block_id": str}
     )
     travel_times = read_dict(travel_times_file.format(state))
-    cat_cols = [c for c in df_b.keys() if c.startswith("num_")]
+    category_columns = [col for col in df_blocks.keys() if col.startswith("num_")]
 
-    # Compute status quo total driving times per cat
+    # Compute status quo total driving times per category
     status_quo_total_driving_times_per_cat = Counter()
-    for i in range(0, len(df_schools_in_play)):
-        nces_id = df_schools_in_play["NCESSCH"][i]
-        df_b_s = df_b[df_b["ncessch"] == nces_id].reset_index(drop=True)
-        for c in cat_cols:
-            for j in range(0, len(df_b_s)):
-                driving_time_b_s = travel_times[df_b_s["block_id"][j]][nces_id]
-                if driving_time_b_s and not np.isnan(driving_time_b_s):
+    for _, school_in_play in df_schools_in_play.iterrows():
+        nces_id = school_in_play["NCESSCH"]
+        df_blocks_school = df_blocks[df_blocks["ncessch"] == nces_id].reset_index(
+            drop=True
+        )
+        for col in category_columns:
+            for _, block in df_blocks_school.iterrows():
+                driving_time = travel_times[block["block_id"]][nces_id]
+                if driving_time and not np.isnan(driving_time):
                     status_quo_total_driving_times_per_cat[
-                        f"all_status_quo_time_{c}"
-                    ] += (driving_time_b_s * df_b_s[c][j])
+                        f"all_status_quo_time_{col}"
+                    ] += (driving_time * block[col])
 
-    # Now, compute how many students we expect to switch from a given school A to a given school B, per cat
+    # Compute how many students we expect to switch from a given school A to a given school B, per category
     # and compute the estimated travel times for those students
     num_students_switching_per_school_per_cat = defaultdict(dict)
     clusters = [c.split(", ") for c in school_cluster_lists]
@@ -41,82 +43,85 @@ def estimate_travel_time_impacts(
         cluster_key = ", ".join(cluster)
 
         # Determine which grades are served by which schools in a given cluster
-        for s in cluster:
-            s_school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == s].iloc[0]
-            for g in GRADE_TO_IND:
-                if s_school_grades[g]:
-                    schools_serving_each_grade_per_cluster[cluster_key][g] = s
-        for s in cluster:
-            s_school_enrollments = df_schools_in_play[
-                df_schools_in_play["NCESSCH"] == s
+        for school in cluster:
+            school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == school].iloc[0]
+            for grade in GRADE_TO_IND:
+                if school_grades[grade]:
+                    schools_serving_each_grade_per_cluster[cluster_key][grade] = school
+        for school in cluster:
+            school_enrollments = df_schools_in_play[
+                df_schools_in_play["NCESSCH"] == school
             ].iloc[0]
-            for g in GRADE_TO_IND:
-                school_serving_g = schools_serving_each_grade_per_cluster[cluster_key][
-                    g
-                ]
-                if s != school_serving_g:
+            for grade in GRADE_TO_IND:
+                school_serving_grade = schools_serving_each_grade_per_cluster[
+                    cluster_key
+                ][grade]
+                if school != school_serving_grade:
                     if (
-                        not school_serving_g
-                        in num_students_switching_per_school_per_cat[s]
+                        school_serving_grade
+                        not in num_students_switching_per_school_per_cat[school]
                     ):
-                        num_students_switching_per_school_per_cat[s][
-                            school_serving_g
+                        num_students_switching_per_school_per_cat[school][
+                            school_serving_grade
                         ] = Counter()
-                    for r in race_keys:
-                        num_students_switching_per_school_per_cat[s][school_serving_g][
-                            r
-                        ] += s_school_enrollments[f"{r}_{g}"]
+                    for race in race_keys:
+                        num_students_switching_per_school_per_cat[school][
+                            school_serving_grade
+                        ][race] += school_enrollments[f"{race}_{grade}"]
 
-    # Now, estimate changes in driving times for students switching schools
+    # Estimate changes in driving times for students switching schools
     status_quo_total_driving_times_for_switchers_per_cat = Counter()
     status_quo_total_driving_times_for_switchers_per_school_per_cat = defaultdict(
         Counter
     )
     new_total_driving_times_for_switchers_per_cat = Counter()
     new_total_driving_times_for_switchers_per_school_per_cat = defaultdict(Counter)
-    for s in num_students_switching_per_school_per_cat:
-        df_b_s = df_b[df_b["ncessch"] == s].reset_index(drop=True)
-        for s2 in num_students_switching_per_school_per_cat[s]:
+    for school_1, school_2_data in num_students_switching_per_school_per_cat.items():
+        df_blocks_school = df_blocks[df_blocks["ncessch"] == school_1].reset_index(
+            drop=True
+        )
+        for school_2, switcher_data in school_2_data.items():
             switchers_per_block_and_cat = defaultdict(Counter)
-            for c in cat_cols:
+            for col in category_columns:
                 # Determine est number of switchers per block (decimal students are fine)
-                df_b_s[f"per_of_total_{c}"] = df_b_s[c] / df_b_s[c].sum()
-                df_b_s = df_b_s.fillna(0)
-                for i in range(0, len(df_b_s)):
-                    switchers_per_block_and_cat[df_b_s["block_id"][i]][c] += (
-                        df_b_s[f"per_of_total_{c}"][i]
-                        * num_students_switching_per_school_per_cat[s][s2][c]
+                df_blocks_school[f"percent_of_total_{col}"] = (
+                    df_blocks_school[col] / df_blocks_school[col].sum()
+                )
+                df_blocks_school = df_blocks_school.fillna(0)
+                for _, block in df_blocks_school.iterrows():
+                    switchers_per_block_and_cat[block["block_id"]][col] += (
+                        block[f"percent_of_total_{col}"] * switcher_data[col]
                     )
                     # Estimate status quo and new travel times (# per block x travel time per block)
-                    if travel_times[df_b_s["block_id"][i]][s] and not np.isnan(
-                        travel_times[df_b_s["block_id"][i]][s]
+                    if travel_times[block["block_id"]][school_1] and not np.isnan(
+                        travel_times[block["block_id"]][school_1]
                     ):
                         status_quo_total_driving_times_for_switchers_per_cat[
-                            f"switcher_status_quo_time_{c}"
+                            f"switcher_status_quo_time_{col}"
                         ] += (
-                            switchers_per_block_and_cat[df_b_s["block_id"][i]][c]
-                            * travel_times[df_b_s["block_id"][i]][s]
+                            switchers_per_block_and_cat[block["block_id"]][col]
+                            * travel_times[block["block_id"]][school_1]
                         )
                         status_quo_total_driving_times_for_switchers_per_school_per_cat[
-                            s
-                        ][f"switcher_status_quo_time_{c}"] += (
-                            switchers_per_block_and_cat[df_b_s["block_id"][i]][c]
-                            * travel_times[df_b_s["block_id"][i]][s]
+                            school_1
+                        ][f"switcher_status_quo_time_{col}"] += (
+                            switchers_per_block_and_cat[block["block_id"]][col]
+                            * travel_times[block["block_id"]][school_1]
                         )
-                    if travel_times[df_b_s["block_id"][i]][s2] and not np.isnan(
-                        travel_times[df_b_s["block_id"][i]][s2]
+                    if travel_times[block["block_id"]][school_2] and not np.isnan(
+                        travel_times[block["block_id"]][school_2]
                     ):
                         new_total_driving_times_for_switchers_per_cat[
-                            f"switcher_new_time_{c}"
+                            f"switcher_new_time_{col}"
                         ] += (
-                            switchers_per_block_and_cat[df_b_s["block_id"][i]][c]
-                            * travel_times[df_b_s["block_id"][i]][s2]
+                            switchers_per_block_and_cat[block["block_id"]][col]
+                            * travel_times[block["block_id"]][school_2]
                         )
-                        new_total_driving_times_for_switchers_per_school_per_cat[s][
-                            f"switcher_new_time_{c}"
-                        ] += (
-                            switchers_per_block_and_cat[df_b_s["block_id"][i]][c]
-                            * travel_times[df_b_s["block_id"][i]][s2]
+                        new_total_driving_times_for_switchers_per_school_per_cat[
+                            school_1
+                        ][f"switcher_new_time_{col}"] += (
+                            switchers_per_block_and_cat[block["block_id"]][col]
+                            * travel_times[block["block_id"]][school_2]
                         )
 
     return (
@@ -131,7 +136,6 @@ def estimate_travel_time_impacts(
 def check_solution_validity_and_compute_outcomes(
     df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="post"
 ):
-    # print(pre_or_post)
     race_keys = list(RACE_KEYS.values())
     df_mergers_curr = df_mergers_g.copy(deep=True)
     df_grades_curr = df_grades.copy(deep=True)
@@ -147,56 +151,50 @@ def check_solution_validity_and_compute_outcomes(
 
     grades_served_per_cluster = defaultdict(set)
     school_clusters = defaultdict(list)
-    for c in school_cluster_lists:
-        schools = c.split(", ")
-        for s in schools:
-            school_clusters[s] = schools
-            s_school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == s].iloc[0]
-            for g in GRADE_TO_IND:
-                if s_school_grades[g]:
-                    grades_served_per_cluster[c].add(g)
+    for cluster in school_cluster_lists:
+        schools = cluster.split(", ")
+        for school in schools:
+            school_clusters[school] = schools
+            school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == school].iloc[0]
+            for grade in GRADE_TO_IND:
+                if school_grades[grade]:
+                    grades_served_per_cluster[cluster].add(grade)
 
     num_per_cat_per_school = defaultdict(Counter)
     num_per_school_per_grade_per_cat = {}
-    # grades_served_across_matched_schools = defaultdict(set)
-    for s in school_clusters:
-        s_school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == s].iloc[0]
-        num_per_school_per_grade_per_cat[s] = {r: Counter() for r in race_keys}
-        for s2 in school_clusters[s]:
-            s2_school_enrollments = df_schools_in_play[
-                df_schools_in_play["NCESSCH"] == s2
+    for school in school_clusters:
+        school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == school].iloc[0]
+        num_per_school_per_grade_per_cat[school] = {r: Counter() for r in race_keys}
+        for school_2 in school_clusters[school]:
+            school_2_enrollments = df_schools_in_play[
+                df_schools_in_play["NCESSCH"] == school_2
             ].iloc[0]
-            for g in GRADE_TO_IND:
-                if s_school_grades[g]:
-                    for r in race_keys:
-                        num_per_cat_per_school[r][s] += s2_school_enrollments[
-                            f"{r}_{g}"
+            for grade in GRADE_TO_IND:
+                if school_grades[grade]:
+                    for race in race_keys:
+                        num_per_cat_per_school[race][school] += school_2_enrollments[
+                            f"{race}_{grade}"
                         ]
-                        num_per_school_per_grade_per_cat[s][r][
-                            g
-                        ] += s2_school_enrollments[f"{r}_{g}"]
+                        num_per_school_per_grade_per_cat[school][race][
+                            grade
+                        ] += school_2_enrollments[f"{race}_{grade}"]
 
-    ##### Now that we've built some helpful data structures above, do some solution validity checking
-
-    # First, check if all students are accounted for in the re-assignment
+    # Solution validity checking
     total_cols = [f"num_total_{g}" for g in GRADE_TO_IND]
     total_students_dict = sum(num_per_cat_per_school["num_total"].values())
     total_students_df = df_schools_in_play[total_cols].sum(axis=1).sum()
 
-    # Next, check if all grades are represented across a cluster
-    for c in grades_served_per_cluster:
-        if len(grades_served_per_cluster[c]) != len(GRADE_TO_IND):
+    for cluster in grades_served_per_cluster:
+        if len(grades_served_per_cluster[cluster]) != len(GRADE_TO_IND):
             raise Exception(
-                f"Only {len(grades_served_per_cluster[c])} of {len(GRADE_TO_IND)} grades represented across cluster {c}"
+                f"Only {len(grades_served_per_cluster[cluster])} of {len(GRADE_TO_IND)} grades represented across cluster {cluster}"
             )
 
     if total_students_dict != total_students_df:
-        print(total_students_dict, total_students_df)
         raise Exception("All students not accounted for in re-assignment")
 
-    # Next, make sure that grades assigned to schools are contiguous
-    for i in range(0, len(df_grades_curr)):
-        curr_grade_seq = df_grades_curr[list(GRADE_TO_IND.keys())].iloc[i].tolist()
+    for _, row in df_grades_curr.iterrows():
+        curr_grade_seq = row[list(GRADE_TO_IND.keys())].tolist()
         start_grade = None
         end_grade = None
         for i, g in enumerate(curr_grade_seq):
@@ -208,24 +206,22 @@ def check_solution_validity_and_compute_outcomes(
                 continue
             if start_grade and end_grade and g:
                 raise Exception(
-                    f"Grade levels schools are serving are not contiguous: {df_grades_curr['NCESSCH'][i]}, {', '.join(curr_grade_seq)}"
+                    f"Grade levels schools are serving are not contiguous: {row['NCESSCH']}, {', '.join(curr_grade_seq)}"
                 )
 
-    ##### End solution quality checking
-
-    # Now, go through and compute dissim values for white/non-white
+    # Compute dissimilarity values for white/non-white
     dissim_vals = []
-    for s in school_clusters:
+    for school in school_clusters:
         dissim_vals.append(
             np.abs(
                 (
-                    num_per_cat_per_school["num_white"][s]
+                    num_per_cat_per_school["num_white"][school]
                     / sum(num_per_cat_per_school["num_white"].values())
                 )
                 - (
                     (
-                        num_per_cat_per_school["num_total"][s]
-                        - num_per_cat_per_school["num_white"][s]
+                        num_per_cat_per_school["num_total"][school]
+                        - num_per_cat_per_school["num_white"][school]
                     )
                     / (
                         sum(num_per_cat_per_school["num_total"].values())
@@ -237,15 +233,15 @@ def check_solution_validity_and_compute_outcomes(
 
     dissim_val = 0.5 * np.sum(dissim_vals)
 
-    # Now, go through and compute dissim values for black-hispanic and white-asian
+    # Compute dissimilarity values for black-hispanic and white-asian
     bh_wa_dissim_vals = []
-    for s in school_clusters:
+    for school in school_clusters:
         bh_wa_dissim_vals.append(
             np.abs(
                 (
                     (
-                        num_per_cat_per_school["num_black"][s]
-                        + num_per_cat_per_school["num_hispanic"][s]
+                        num_per_cat_per_school["num_black"][school]
+                        + num_per_cat_per_school["num_hispanic"][school]
                     )
                     / (
                         sum(num_per_cat_per_school["num_black"].values())
@@ -254,8 +250,8 @@ def check_solution_validity_and_compute_outcomes(
                 )
                 - (
                     (
-                        num_per_cat_per_school["num_white"][s]
-                        + num_per_cat_per_school["num_asian"][s]
+                        num_per_cat_per_school["num_white"][school]
+                        + num_per_cat_per_school["num_asian"][school]
                     )
                     / (
                         sum(num_per_cat_per_school["num_white"].values())
@@ -267,38 +263,36 @@ def check_solution_validity_and_compute_outcomes(
 
     bh_wa_dissim_val = 0.5 * np.sum(bh_wa_dissim_vals)
 
-    # Now, go through and compute the number of students per group who will switch schools
+    # Compute the number of students per group who will switch schools
     clusters = [c.split(", ") for c in school_cluster_lists]
-    # merged_schools = filter(lambda x: len(x) > 1, clusters)
     num_students_switching = {f"{r}_switched": 0 for r in race_keys}
     num_students_switching_per_school = {}
     num_total_students = {f"{r}_all": 0 for r in race_keys}
     schools = []
     for cluster in clusters:
-        for s in cluster:
-            schools.append(s)
-            s_school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == s].iloc[0]
-            s_school_enrollments = df_schools_in_play[
-                df_schools_in_play["NCESSCH"] == s
+        for school in cluster:
+            schools.append(school)
+            school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == school].iloc[0]
+            school_enrollments = df_schools_in_play[
+                df_schools_in_play["NCESSCH"] == school
             ].iloc[0]
-            num_students_switching_per_school[s] = {
+            num_students_switching_per_school[school] = {
                 f"{r}_switched": 0 for r in race_keys
             }
-            for g in GRADE_TO_IND:
-                for r in race_keys:
-                    num_total_students[f"{r}_all"] += s_school_enrollments[f"{r}_{g}"]
-                    if not s_school_grades[g]:
-                        num_students_switching[f"{r}_switched"] += s_school_enrollments[
-                            f"{r}_{g}"
-                        ]
-                        num_students_switching_per_school[s][
-                            f"{r}_switched"
-                        ] += s_school_enrollments[f"{r}_{g}"]
+            for grade in GRADE_TO_IND:
+                for race in race_keys:
+                    num_total_students[f"{race}_all"] += school_enrollments[
+                        f"{race}_{grade}"
+                    ]
+                    if not school_grades[grade]:
+                        num_students_switching[
+                            f"{race}_switched"
+                        ] += school_enrollments[f"{race}_{grade}"]
+                        num_students_switching_per_school[school][
+                            f"{race}_switched"
+                        ] += school_enrollments[f"{race}_{grade}"]
 
-    # print(num_total_students)
-    # print(schools)
-    # exit()
-    # Now, go through and estimate impacts on travel times
+    # Estimate impacts on travel times
     (
         status_quo_total_driving_times_per_cat,
         status_quo_total_driving_times_for_switchers_per_cat,
@@ -312,7 +306,6 @@ def check_solution_validity_and_compute_outcomes(
         df_schools_in_play,
     )
 
-    # Return results
     return (
         dissim_val,
         bh_wa_dissim_val,
@@ -357,16 +350,16 @@ def output_solver_solution(
     grades_served_data = {"NCESSCH": []}
     grades_served_data.update({g: [] for g in GRADE_TO_IND.keys()})
     ind_to_grade = [k for k in GRADE_TO_IND]
-    for s in matches:
-        for s2 in matches[s]:
-            val = solver.BooleanValue(matches[s][s2])
+    for school in matches:
+        for school_2 in matches[school]:
+            val = solver.BooleanValue(matches[school][school_2])
             if val:
-                match_data["school_1"].append(s)
-                match_data["school_2"].append(s2)
+                match_data["school_1"].append(school)
+                match_data["school_2"].append(school_2)
 
-        grades_served_data["NCESSCH"].append(s)
-        for i in range(0, len(grades_interval_binary[s])):
-            val = solver.BooleanValue(grades_interval_binary[s][i])
+        grades_served_data["NCESSCH"].append(school)
+        for i in range(0, len(grades_interval_binary[school])):
+            val = solver.BooleanValue(grades_interval_binary[school][i])
             grades_served_data[ind_to_grade[i]].append(val)
 
     if write_to_s3:
@@ -435,7 +428,6 @@ def output_solver_solution(
     data_to_output.update(status_quo_total_driving_times_per_cat)
     data_to_output.update(status_quo_total_driving_times_for_switchers_per_cat)
     data_to_output.update(new_total_driving_times_for_switchers_per_cat)
-    # print(json.dumps(data_to_output, indent=4))
 
     print(
         f"Pre dissim: {pre_dissim}\n",
@@ -604,7 +596,6 @@ def produce_post_solver_files(
     data_to_output.update(status_quo_total_driving_times_per_cat)
     data_to_output.update(status_quo_total_driving_times_for_switchers_per_cat)
     data_to_output.update(new_total_driving_times_for_switchers_per_cat)
-    # print(json.dumps(data_to_output, indent=4))
 
     print(
         f"Pre dissim: {pre_dissim}\n",
@@ -671,7 +662,6 @@ def produce_post_solver_files_parallel(
     # Compute pre/post dissim and other outcomes of interest
     all_jobs = []
     for state in os.listdir(solutions_dir.format(batch)):
-        print(state)
         if "consolidated" in state:
             continue
         for district_id in os.listdir(os.path.join(solutions_dir.format(batch), state)):
@@ -736,11 +726,7 @@ def produce_post_solver_files_parallel(
             except Exception as e:
                 print(f"Exception {state}, {district_id}, {e}")
                 pass
-            # break
 
-    # print(all_jobs[0])
-    # produce_post_solver_files(*all_jobs[0])
-    # exit()
     print("Starting parallel processing ...")
     from multiprocessing import Pool
 
@@ -776,9 +762,7 @@ def consolidate_results_files(
         ~df["results_folder"].isin(df_f["results_folder"].tolist())
     ].reset_index(drop=True)
 
-    # print(df_duplicates.head(20))
     print("Num duplicates: ", len(df_duplicates))
-    # exit()
     # Delete duplicate results' folders
     for i in range(0, len(df_duplicates)):
         shutil.rmtree(
@@ -830,4 +814,3 @@ def compare_batch_totals(
 if __name__ == "__main__":
     produce_post_solver_files_parallel()
     consolidate_results_files()
-    # compare_batch_totals()
