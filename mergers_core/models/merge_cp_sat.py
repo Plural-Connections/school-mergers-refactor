@@ -656,37 +656,25 @@ def set_objective_bh_wa_dissimilarity(
         # --- Calculate Student Counts for the New School Configuration ---
         # Sum the number of BH and WA students that will be assigned to the
         # building of 'school'.
-        sum_s_bh = model.NewIntVar(
-            0, constants.MAX_TOTAL_STUDENTS, f"{school}_bh_students"
+        sum_s_bh = sum(
+            [
+                (
+                    total_per_grade_per_school[school]["num_black"][i]
+                    + total_per_grade_per_school[school]["num_hispanic"][i]
+                )
+                * grades_interval_binary[school][i]
+                for i in constants.GRADE_TO_IND.values()
+            ]
         )
-        sum_s_wa = model.NewIntVar(
-            0, constants.MAX_TOTAL_STUDENTS, f"{school}_wa_students"
-        )
-        model.Add(
-            sum_s_bh
-            == sum(
-                [
-                    (
-                        total_per_grade_per_school[school]["num_black"][i]
-                        + total_per_grade_per_school[school]["num_hispanic"][i]
-                    )
-                    * grades_interval_binary[school][i]
-                    for i in constants.GRADE_TO_IND.values()
-                ]
-            )
-        )
-        model.Add(
-            sum_s_wa
-            == sum(
-                [
-                    (
-                        total_per_grade_per_school[school]["num_white"][i]
-                        + total_per_grade_per_school[school]["num_asian"][i]
-                    )
-                    * grades_interval_binary[school][i]
-                    for i in constants.GRADE_TO_IND.values()
-                ]
-            )
+        sum_s_wa = sum(
+            [
+                (
+                    total_per_grade_per_school[school]["num_white"][i]
+                    + total_per_grade_per_school[school]["num_asian"][i]
+                )
+                * grades_interval_binary[school][i]
+                for i in constants.GRADE_TO_IND.values()
+            ]
         )
 
         total_bh_students_at_school = [sum_s_bh]
@@ -696,17 +684,9 @@ def set_objective_bh_wa_dissimilarity(
         for school_2 in matches[school]:
             if school == school_2:
                 continue
-            sum_s2_bh = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school_2}_bh_students"
-            )
-            sum_s2_wa = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school_2}_wa_students"
-            )
 
-            # Add BH students from school_2 for the grades served by school.
-            model.Add(
-                sum_s2_bh
-                == sum(
+            sum_s2_bh = (
+                sum(
                     [
                         (
                             total_per_grade_per_school[school_2]["num_black"][i]
@@ -716,14 +696,12 @@ def set_objective_bh_wa_dissimilarity(
                         for i in constants.GRADE_TO_IND.values()
                     ]
                 )
-            ).OnlyEnforceIf(matches[school][school_2])
-            model.Add(sum_s2_bh == 0).OnlyEnforceIf(matches[school][school_2].Not())
+                * matches[school][school_2]
+            )
             total_bh_students_at_school.append(sum_s2_bh)
 
-            # Add WA students from school_2 for the grades served by school.
-            model.Add(
-                sum_s2_wa
-                == sum(
+            sum_s2_wa = (
+                sum(
                     [
                         (
                             total_per_grade_per_school[school_2]["num_white"][i]
@@ -733,8 +711,8 @@ def set_objective_bh_wa_dissimilarity(
                         for i in constants.GRADE_TO_IND.values()
                     ]
                 )
-            ).OnlyEnforceIf(matches[school][school_2])
-            model.Add(sum_s2_wa == 0).OnlyEnforceIf(matches[school][school_2].Not())
+                * matches[school][school_2]
+            )
             total_wa_students_at_school.append(sum_s2_wa)
 
         # --- Calculate Dissimilarity Index Term for the School ---
@@ -797,7 +775,7 @@ def set_objective_bh_wa_dissimilarity(
 
 def solve_and_output_results(
     state="NC",
-    district_id="3701500",
+    district_id="0602160",
     school_decrease_threshold=0.2,
     dissim_weight=1,
     interdistrict=False,
