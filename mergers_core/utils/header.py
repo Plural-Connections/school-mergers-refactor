@@ -29,19 +29,6 @@ import distutils
 import shutil
 
 
-def clean_nces_add_leading_zeros(district_id, school_id):
-    leaid = str(district_id)
-    schid = str(school_id)
-
-    while len(leaid) < 7:
-        leaid = "0" + leaid
-
-    while len(schid) < 5:
-        schid = "0" + schid
-
-    return leaid + schid
-
-
 def read_pkl(input_file: os.PathLike):
     with open(input_file, "rb") as f:
         return pickle.load(f)
