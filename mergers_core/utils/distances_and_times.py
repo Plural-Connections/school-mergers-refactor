@@ -1,9 +1,10 @@
 from numpy.core.shape_base import block
 from pandas.core.internals import blocks
-from mergers_core.utils.header import *
+import mergers_core.utils.header as header
 import geopandas as gpd
 import haversine as hs
 import openrouteservice
+import numpy as np
 
 # coords = ((-71.0854323,42.3664655),(-71.1267582,42.3417178))
 client = openrouteservice.Client(base_url="http://localhost:8080/ors/")

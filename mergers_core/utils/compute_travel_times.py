@@ -1,9 +1,13 @@
-from mergers_core.utils.header import *
+import mergers_core.utils.header as header
 from mergers_core.utils.distances_and_times import (
     get_distance_for_coord_pair,
     get_travel_time_for_coord_pair,
 )
 import us
+import pandas as pd
+from collections import defaultdict
+from pathlib import Path
+import os
 
 
 def compute_travel_time_matrices(
@@ -13,7 +17,7 @@ def compute_travel_time_matrices(
     blocks_file="data/attendance_boundaries/2122/{}/blocks_to_elementary.csv",
     output_dir="data/travel_times_files/2122/{}/",
 ):
-    school_ids = read_json(input_file.format(state))
+    school_ids = header.read_json(input_file.format(state))
     df_locs = pd.read_csv(lat_longs_file, dtype={"nces_id": str})
     df_blocks = pd.read_csv(
         blocks_file.format(state), dtype={"ncessch": str, "GEOID20": str}
@@ -47,7 +51,7 @@ def compute_travel_time_matrices(
                     continue
 
     Path(output_dir.format(state)).mkdir(parents=True, exist_ok=True)
-    write_dict(
+    header.write_dict(
         os.path.join(output_dir.format(state), "block_to_school_driving_times.json"),
         travel_times,
     )

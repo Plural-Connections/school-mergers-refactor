@@ -1,6 +1,11 @@
-from mergers_core.utils.header import *
-from mergers_core.models.constants import *
+import mergers_core.utils.header as header
+import mergers_core.models.constants as constants
 import geopandas as gpd
+import pandas as pd
+import numpy as np
+import glob
+import os
+from collections import Counter
 
 
 def compute_dissimilarity_index(df_dist):
@@ -32,13 +37,15 @@ def get_school_demos(df):
         "num_pacific_islander": [],
     }
 
-    cols_black = ["num_black_{}".format(g) for g in GRADE_TO_IND]
-    cols_asian = ["num_asian_{}".format(g) for g in GRADE_TO_IND]
-    cols_native = ["num_native_{}".format(g) for g in GRADE_TO_IND]
-    cols_hisp = ["num_hispanic_{}".format(g) for g in GRADE_TO_IND]
-    cols_pacific_islander = ["num_pacific_islander_{}".format(g) for g in GRADE_TO_IND]
-    cols_white = ["num_white_{}".format(g) for g in GRADE_TO_IND]
-    cols_total = ["num_total_{}".format(g) for g in GRADE_TO_IND]
+    cols_black = ["num_black_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_asian = ["num_asian_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_native = ["num_native_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_hisp = ["num_hispanic_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_pacific_islander = [
+        "num_pacific_islander_{}".format(g) for g in constants.GRADE_TO_IND
+    ]
+    cols_white = ["num_white_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_total = ["num_total_{}".format(g) for g in constants.GRADE_TO_IND]
     for i in range(0, len(df)):
         schools_data["district_id"].append(df["district_id"][i])
         schools_data["NCESSCH"].append(df["NCESSCH"][i])
@@ -174,7 +181,7 @@ def analyze_districts_in_sample(
 
     mod = smf.ols(
         formula="in_sample ~ dist_num_total + dist_num_white + white_nonwhite_dissim",
-        data=df_closed_only,
+        data=df_all_closed_enroll,
     )
     res = mod.fit()
     print(res.summary())
@@ -391,7 +398,7 @@ def estimate_dissim_with_optouts(
         #     break
         district_id = df_choice["district_id"][i]
         print(district_id)
-        school_enrollments = read_json(
+        school_enrollments = header.read_json(
             glob.glob(
                 os.path.join(post_merger_enrollments_file.format(batch, district_id)),
                 recursive=True,

@@ -1,6 +1,9 @@
-from mergers_core.utils.header import *
+import mergers_core.utils.header as header
 from mergers_core.utils.produce_files_for_solver import GRADE_KEYS
 import us
+import pandas as pd
+import numpy as np
+from collections import Counter, defaultdict
 
 
 def block_allocation(curr_school, curr_blocks, r, block_students_by_cat, cat_keys):

@@ -4,13 +4,14 @@
 Generates shape file (geopandas csv dumps) per district for a given state
 """
 
-from mergers_core.utils.header import *
+import mergers_core.utils.header as header
 import pandas as pd
 
 import folium
 import geopandas as gpd
 import os
 import us
+from pathlib import Path
 
 # Set up the location of all the static data.
 # DATA_DIR = "../s3/"

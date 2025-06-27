@@ -1,7 +1,12 @@
-from mergers_core.utils.header import *
 from ortools.sat.python import cp_model
+import mergers_core.utils.header as header
 import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import output_solver_solution
+import pandas as pd
+import numpy as np
+from collections import Counter, defaultdict
+from pathlib import Path
+import os
 
 
 def load_and_process_data(state, district_id, interdistrict):
@@ -47,7 +52,7 @@ def load_and_process_data(state, district_id, interdistrict):
 
     # Load permissible merger data based on whether the scenario is interdistrict.
     if interdistrict:
-        permissible_matches = read_json(
+        permissible_matches = header.read_json(
             f"data/solver_files/2122/{state}/between_within_district_allowed_mergers.json"
         )
         # Identify all districts that are involved in the potential mergers.
@@ -56,7 +61,7 @@ def load_and_process_data(state, district_id, interdistrict):
                 [school_2[:7] for school_2 in permissible_matches[school]]
             )
     else:
-        permissible_matches = read_json(
+        permissible_matches = header.read_json(
             f"data/solver_files/2122/{state}/within_district_allowed_mergers.json"
         )
         all_districts_involved.add(district_id)
@@ -881,7 +886,7 @@ def solve_and_output_results(
             df_r.to_csv(s3_bucket + curr_output_dir, index=False)
         else:
             Path(curr_output_dir).mkdir(parents=True, exist_ok=True)
-            write_json(os.path.join(curr_output_dir, "output.json"), result)
+            header.write_json(os.path.join(curr_output_dir, "output.json"), result)
 
 
 if __name__ == "__main__":

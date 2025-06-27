@@ -1,6 +1,12 @@
-from mergers_core.utils.header import *
+import mergers_core.utils.header as header
 import geopandas as gpd
 import us
+import pandas as pd
+import numpy as np
+import os
+import shutil
+from pathlib import Path
+from collections import defaultdict
 
 CCD_FILES = {
     "2016-2017": (
@@ -238,7 +244,7 @@ def output_neighboring_districts(
         for i in range(0, len(df_shapes))
     }
     # write_dict(output_file, neighbors_data)
-    write_dict(output_file_district_centroids, district_centroids)
+    header.write_dict(output_file_district_centroids, district_centroids)
 
 
 """
@@ -253,14 +259,14 @@ def output_updated_district_centroids(
 ):
     df = pd.read_csv(input_file, dtype={"LEAID": str})
     df["LEAID"] = df["LEAID"].str.rjust(7, "0")
-    curr_centroids = read_json(curr_centroids_file)
+    curr_centroids = header.read_json(curr_centroids_file)
     district_centroids = {}
     for i in range(0, len(df)):
         if not df["LEAID"][i] in curr_centroids:
             district_centroids[df["LEAID"][i]] = [df["LAT"][i], df["LON"][i]]
         else:
             district_centroids[df["LEAID"][i]] = curr_centroids[df["LEAID"][i]]
-    write_dict(output_file, district_centroids)
+    header.write_dict(output_file, district_centroids)
 
 
 def output_allowed_mergers(
@@ -296,7 +302,7 @@ def output_allowed_mergers(
             )
 
     district_neighbors = defaultdict(list)
-    curr = read_json(neighboring_districts_file)
+    curr = header.read_json(neighboring_districts_file)
     df_schools = pd.read_csv(schools_file, dtype={"NCESSCH": str})
     for d in curr:
         district_neighbors[d] = curr[d]
@@ -351,10 +357,10 @@ def output_allowed_mergers(
             )
         curr_path = os.path.join(output_dir.format(state))
         Path(curr_path).mkdir(parents=True, exist_ok=True)
-        write_dict(
+        header.write_dict(
             os.path.join(curr_path, output_file_within), allowable_within_district
         )
-        write_dict(
+        header.write_dict(
             os.path.join(curr_path, output_file_between),
             allowable_between_within_district,
         )

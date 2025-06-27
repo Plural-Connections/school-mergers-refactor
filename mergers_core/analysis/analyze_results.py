@@ -1,7 +1,13 @@
-from mergers_core.utils.header import *
+import mergers_core.utils.header as header
 import geopandas as gpd
 import folium
 import us
+import pandas as pd
+import numpy as np
+import glob
+import os
+import random
+from collections import Counter, defaultdict
 
 
 def quick_analysis(
@@ -78,7 +84,7 @@ def viz_assignments(
     df_lat_long = pd.read_csv(lat_long_file, dtype={"nces_id": str})[
         ["nces_id", "lat", "long"]
     ].rename(columns={"lat": "zoned_lat", "long": "zoned_long"})
-    district_centroids = read_json(district_centroids_file)
+    district_centroids = header.read_json(district_centroids_file)
     df_asgn_orig = (
         pd.read_csv(orig_boundaries.format(state), dtype={"ncessch": str})
         .drop_duplicates(subset=["block_id"])
