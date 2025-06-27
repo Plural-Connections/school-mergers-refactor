@@ -13,7 +13,7 @@ def compute_travel_time_matrices(
     blocks_file="data/attendance_boundaries/2122/{}/blocks_to_elementary.csv",
     output_dir="data/travel_times_files/2122/{}/",
 ):
-    school_ids = read_dict(input_file.format(state))
+    school_ids = read_json(input_file.format(state))
     df_locs = pd.read_csv(lat_longs_file, dtype={"nces_id": str})
     df_blocks = pd.read_csv(
         blocks_file.format(state), dtype={"ncessch": str, "GEOID20": str}

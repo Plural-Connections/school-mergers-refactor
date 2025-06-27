@@ -78,7 +78,7 @@ def viz_assignments(
     df_lat_long = pd.read_csv(lat_long_file, dtype={"nces_id": str})[
         ["nces_id", "lat", "long"]
     ].rename(columns={"lat": "zoned_lat", "long": "zoned_long"})
-    district_centroids = read_dict(district_centroids_file)
+    district_centroids = read_json(district_centroids_file)
     df_asgn_orig = (
         pd.read_csv(orig_boundaries.format(state), dtype={"ncessch": str})
         .drop_duplicates(subset=["block_id"])

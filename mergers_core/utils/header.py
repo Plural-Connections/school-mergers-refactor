@@ -29,9 +29,9 @@ import distutils
 import shutil
 
 
-def clean_nces_add_leading_zeros(leaid, schid):
-    leaid = str(leaid)
-    schid = str(schid)
+def clean_nces_add_leading_zeros(district_id, school_id):
+    leaid = str(district_id)
+    schid = str(school_id)
 
     while len(leaid) < 7:
         leaid = "0" + leaid
@@ -42,98 +42,80 @@ def clean_nces_add_leading_zeros(leaid, schid):
     return leaid + schid
 
 
-def read_pkl(input_file):
+def read_pkl(input_file: os.PathLike):
     with open(input_file, "rb") as f:
         return pickle.load(f)
 
 
-def write_pkl(output_file, output_obj):
+def write_pkl(output_file: os.PathLike, output_obj) -> None:
     with open(output_file, "w") as f:
         pickle.dump(output_obj, f)
 
 
-def read_dict(input_file):
+def read_json(input_file: os.PathLike) -> dict:
     with open(input_file, "r") as f:
         return json.loads(f.read())
 
 
-def write_dict(output_file, output_dict, indent=4):
+def write_json(output_file: os.PathLike, output_dict: dict, indent=4):
     with open(output_file, "w") as f:
         f.write(json.dumps(output_dict, indent=indent))
 
 
-def read_obj(input_file):
+def read_obj(input_file: os.PathLike):
     with open(input_file, "r") as f:
         return eval(f.read())
 
 
-def write_obj(output_file, output_arr):
+def write_obj(output_file: os.PathLike, output_obj):
     with open(output_file, "w") as f:
-        f.write(str(output_arr))
-
-
-"""
-	Helper function to compute the jaccard index of two sets, set1 and set2.
-	i.e.:
-		|set1 intersect set2| / |set1 union set2|
-
-	Inputs:
-		set1 = first set
-		set2 = second set
-
-	Output:
-		jaccard_index = computed using the formula above
-
-"""
+        f.write(str(output_obj))
 
 
 def compute_jaccard(set1, set2):
+    """Helper function to compute the jaccard index of two sets, set1 and set2.
+    i.e.:
+        |set1 intersect set2| / |set1 union set2|
+
+    Inputs:
+        set1 = first set
+        set2 = second set
+
+    Output:
+        jaccard_index = computed using the formula above
+    """
     return float(len(set1.intersection(set2))) / len(set1.union(set2))
 
 
-"""
-	Helper function to compute the simple overlap index of set1 and set 2.
-
-	i.e.:
-		|set1 intersect set2| / |set1|
-
-	NOTE: this assumes that |set1| = |set2|
-
-
-	Inputs:
-		set1 = first set
-		set2 = second set
-
-	Output:
-		overlap_index = computed using the formula above
-
-"""
-
-
 def compute_overlap(set1, set2):
-    return float(len(set1.intersection(set2))) / len(set1)
+    """Helper function to compute the simple overlap index of set1 and set 2.
+    i.e.:
+        |set1 ∩ set2| / |set1|
+    NOTE: this assumes that |set1| = |set2|
 
+    Inputs:
+        set1 = first set
+        set2 = second set
 
-"""
-	Normalizes an array
-"""
+    Output:
+        overlap_index = computed using the formula above
+    """
+    return len(set1.intersection(set2)) / len(set1)
 
 
 def normalize_array(arr):
+    """Normalizes an array."""
     return np.divide(arr, float(np.sum(arr)))
 
 
-"""
-	Compute the symmetric kl divergence between two distributions.  Skips values that are 0.
-	Inputs:
-		p_k, q_k = distributions we'd like to compute the kl-divergence between
-
-	Outputs:
-		kl_divergence = I wonder what this is ...
-"""
-
-
 def symmetric_kl_divergence(p_k, q_k):
+    """Compute the symmetric kl divergence between two distributions.  Skips values that are 0.
+    Inputs:
+        p_k, q_k = distributions we'd like to compute the kl-divergence between
+
+    Outputs:
+        kl_divergence = I wonder what this is ...
+    """
     p_k = normalize_array(p_k)
     q_k = normalize_array(q_k)
 
@@ -149,17 +131,11 @@ def symmetric_kl_divergence(p_k, q_k):
     return total
 
 
-"""
-	Compute the kl divergence between two distributions.  Skips values that are 0.
-	Inputs:
-		p_k, q_k = distributions we'd like to compute the kl-divergence between
-
-	Outputs:
-		kl_divergence = I wonder what this is ...
-"""
-
-
 def kl_divergence(p_k, q_k):
+    """Compute the kl divergence between two distributions.  Skips values that are 0.
+    Parameters:
+        p_k, q_k = distributions we'd like to compute the kl-divergence between
+    """
     p_k = normalize_array(p_k)
     q_k = normalize_array(q_k)
 
@@ -172,65 +148,42 @@ def kl_divergence(p_k, q_k):
     return total
 
 
-"""
-	Hellinger distance ...
-"""
-
-
 def hellinger(p, q):
+    """Hellinger distance."""
     return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
 
 
-"""
-	Parses a URL and returns the domain
-"""
-
-
 def get_domain_from_url(url):
-    parse_result = urlparse.urlparse(url)
+    """Parses a URL and returns the domain."""
     tld_result = tldextract.extract(url)
     return tld_result.domain
 
 
-"""
-	Returns a hash for an input string
-"""
-
-
 def get_hash(input_str):
+    """Returns a hash for an input string."""
     hash_obj = hashlib.sha224(input_str)
     hex_digest = hash_obj.hexdigest()
     return hex_digest
 
 
-"""
-	Removes non ascii characters from string
-"""
-
-
 def remove_non_ascii(text):
+    """Removes non ascii characters from string."""
     return "".join([i if ord(i) < 128 else " " for i in text])
 
 
-"""
-	Checks if a word is ascii or not
-"""
-
-
 def is_ascii(word):
+    """Checks if a word is ascii or not."""
     check = string.ascii_letters + "."
     if word not in check:
         return False
     return True
 
 
-"""
-	From: https://stackoverflow.com/questions/39512260/calculating-gini-coefficient-in-python-numpy
-"""
-
-
 def gini(x):
-    """Compute Gini coefficient of array of values"""
+    """Compute Gini coefficient of array of values.
+
+    Credit: https://stackoverflow.com/questions/39512260/calculating-gini-coefficient-in-python-numpy
+    """
     x = np.array(x)
     diffsum = 0
     for i, xi in enumerate(x[:-1], 1):

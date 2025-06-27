@@ -13,7 +13,7 @@ def estimate_travel_time_impacts(
     df_blocks = pd.read_csv(
         blocks_file.format(state), dtype={"ncessch": str, "block_id": str}
     )
-    travel_times = read_dict(travel_times_file.format(state))
+    travel_times = read_json(travel_times_file.format(state))
     category_columns = [col for col in df_blocks.keys() if col.startswith("num_")]
 
     # Compute status quo total driving times per category

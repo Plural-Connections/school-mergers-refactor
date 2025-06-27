@@ -253,7 +253,7 @@ def output_updated_district_centroids(
 ):
     df = pd.read_csv(input_file, dtype={"LEAID": str})
     df["LEAID"] = df["LEAID"].str.rjust(7, "0")
-    curr_centroids = read_dict(curr_centroids_file)
+    curr_centroids = read_json(curr_centroids_file)
     district_centroids = {}
     for i in range(0, len(df)):
         if not df["LEAID"][i] in curr_centroids:
@@ -296,7 +296,7 @@ def output_allowed_mergers(
             )
 
     district_neighbors = defaultdict(list)
-    curr = read_dict(neighboring_districts_file)
+    curr = read_json(neighboring_districts_file)
     df_schools = pd.read_csv(schools_file, dtype={"NCESSCH": str})
     for d in curr:
         district_neighbors[d] = curr[d]

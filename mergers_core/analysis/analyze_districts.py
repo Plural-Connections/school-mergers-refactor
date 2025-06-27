@@ -391,7 +391,7 @@ def estimate_dissim_with_optouts(
         #     break
         district_id = df_choice["district_id"][i]
         print(district_id)
-        school_enrollments = read_dict(
+        school_enrollments = read_json(
             glob.glob(
                 os.path.join(post_merger_enrollments_file.format(batch, district_id)),
                 recursive=True,
