@@ -217,14 +217,89 @@ def initialize_variables(model, df_schools_in_play):
     )
 
 
+def _get_students_at_school(
+    model, matches, grades_at_school, school, students_per_grade_per_school
+):
+    """
+    Calculates the number of students that will be assigned to a school building.
+
+    This function determines the total student population for a given school
+    building ('school') based on a potential merger scenario. It calculates this
+    by summing two groups of students:
+    1.  Students from the original 'school' who are in the grade levels that
+        the school will serve after the merger.
+    2.  Students from a merged school ('school2') who are in the grade levels
+        that 'school' will serve. This is calculated for each potential merger.
+
+    Args:
+        model (cp_model.CpModel): The CP-SAT model instance.
+        matches (dict): A nested dictionary of boolean variables, where
+            matches[s1][s2] is true if school s1 and s2 are merged.
+        grades_at_school (dict): A dictionary mapping each school ID to a list
+            of binary variables, one for each grade level, indicating if the
+            school serves that grade.
+        school (str): The NCESSCH ID of the school building for which to
+            calculate the student population.
+        students_per_grade_per_school (defaultdict): A nested dictionary
+            containing the number of students for each grade and racial
+            category within each school.
+
+    Returns:
+        list: A list of CP-SAT integer variables representing the different
+        groups of students that will make up the new population of the school
+        building. The sum of this list would represent the total enrollment.
+    """
+    # Calculate the base number of students this school will serve from its
+    # original student body based on its new grade assignments.
+    students_at_school = sum(
+        [
+            students_per_grade_per_school[school]["num_total"][grade]
+            * grades_at_school[school][grade]
+            for grade in constants.GRADE_TO_IND.values()
+        ]
+    )
+    model.Add(0 <= students_at_school <= constants.MAX_TOTAL_STUDENTS)
+
+    results: list = [students_at_school]
+
+    # Calculate the number of students school would receive from a merger.
+    for school2 in matches[school]:
+        transfer_from_school2 = model.NewIntVar(
+            0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school2}_total_students"
+        )
+        if school != school2:
+            # Sum students from s2 for the grades that s will now serve.
+            model.Add(
+                transfer_from_school2
+                == sum(
+                    [
+                        students_per_grade_per_school[school2]["num_total"][i]
+                        * grades_at_school[school][i]
+                        for i in constants.GRADE_TO_IND.values()
+                    ]
+                )
+            ).OnlyEnforceIf(matches[school][school2])
+            model.Add(transfer_from_school2 == 0).OnlyEnforceIf(
+                matches[school][school2].Not()
+            )
+        else:
+            model.Add(
+                transfer_from_school2 == 0
+            )  # No students transfer if it's the same school.
+
+        results.append(transfer_from_school2)
+
+    return results
+
+
 def set_constraints(
     model,
     school_capacities,
     school_decrease_threshold,
-    total_per_grade_per_school,
+    students_per_grade_per_school,
     permissible_matches,
     matches,
-    grades_interval_binary,
+    grades_at_school,
 ):
     """
     Defines the set of rules and limitations for the school merger problem.
@@ -237,147 +312,96 @@ def set_constraints(
         school_capacities (dict): Maps school ID to its student capacity.
         school_decrease_threshold (float): The maximum allowable percentage
             decrease in a school's enrollment.
-        total_per_grade_per_school (defaultdict): Student counts by grade,
+        students_per_grade_per_school (defaultdict): Student counts by grade,
             school, and race.
         permissible_matches (dict): Defines which schools are allowed to merge.
         matches (dict): Dictionary of boolean match variables.
-        grades_interval_binary (dict): Dictionary of binary grade variables.
+        grades_at_school (dict): Dictionary of binary grade variables.
     """
     # --- Match Symmetry and Transitivity Constraint ---
     # Ensures that if A is matched with B, B is matched with A.
     # Also enforces transitivity for 3-way mergers: if A-B and B-C, then A-C.
     # This creates cohesive merged groups.
     # NOTE: This is hardcoded for a maximum of 3 schools per merger.
-    for school in matches:
-        for school_2 in matches:
+    for school1 in matches:
+        for school2 in matches:
             # Symmetry: If s1 is matched with s2, s2 must be matched with s1.
-            model.Add(matches[school_2][school] == True).OnlyEnforceIf(
-                matches[school][school_2]
-            )
-            model.Add(matches[school][school_2] == True).OnlyEnforceIf(
-                matches[school_2][school]
-            )
-            # Transitivity for 3-school merges.
-            for school_3 in matches:
-                s2_s3_matched_to_s1 = model.NewBoolVar(
-                    f"{school_2}_{school_3}_should_be_matched_to_{school}"
+            model.AddImplication(matches[school1][school2], matches[school2][school1])
+            # Transitivity for 3-school merges: if A-B and B-C, then A-C
+            # A-B AND B-C => A-C
+            for school3 in matches:
+                ab_and_bc = model.NewBoolVar(
+                    f"{school1}-{school2}-{school3}_transitivity"
                 )
-                model.AddMultiplicationEquality(
-                    s2_s3_matched_to_s1,
-                    [matches[school][school_2], matches[school_2][school_3]],
+                model.AddMultiplicationEquality(  # Multiplication parallels AND
+                    ab_and_bc, [matches[school1][school2], matches[school2][school3]]
                 )
-                model.Add(matches[school][school_3] == True).OnlyEnforceIf(
-                    s2_s3_matched_to_s1
-                )
-                model.Add(matches[school_3][school] == True).OnlyEnforceIf(
-                    s2_s3_matched_to_s1
+                model.AddImplication(
+                    ab_and_bc,
+                    matches[school1][school3],
                 )
 
-    student_count_sums = defaultdict(list)
     grades_represented_sums = defaultdict(list)
-    for school in matches:
+    for school1 in matches:
+        # The number of students at a school is the sum of the students at grades that
+        # stayed at the school and the sum of the students from grades that transferred
+        # to that school.
+        students_at_this_school = _get_students_at_school(
+            model, matches, grades_at_school, school1, students_per_grade_per_school
+        )
+
+        # --- Capacity Constraint ---
+        # The total number of students in a school building cannot exceed its capacity.
+        model.Add(sum(students_at_this_school) <= school_capacities[school1])
+
         # --- Merger Size Constraint ---
-        # A school can be matched with itself (no merger) or 2 other schools.
-        model.Add(sum([matches[school][school_2] for school_2 in matches]) >= 1)
-        model.Add(sum([matches[school][school_2] for school_2 in matches]) <= 3)
+        # No school can be merged with more than 2 other schools (reminder that all
+        # schools are merged with themselves)
+        model.Add(1 <= sum([matches[school1][school2] for school2 in matches]) <= 3)
 
-        # Calculate the base number of students school 's' will serve from its
-        # original student body based on its new grade assignments.
-        sum_s = model.NewIntVar(
-            0, constants.MAX_TOTAL_STUDENTS, f"{school}_total_students"
-        )
-        model.Add(
-            sum_s
-            == sum(
-                [
-                    total_per_grade_per_school[school]["num_total"][i]
-                    * grades_interval_binary[school][i]
-                    for i in constants.GRADE_TO_IND.values()
-                ]
-            )
-        )
-        student_count_sums[school].append(sum_s)
+        # Calculate the number of grade levels this school will offer postmerger.
+        num_grades_in_school = sum(grades_at_school[school1])
+        model.Add(0 <= num_grades_in_school <= len(constants.GRADE_TO_IND))
+        grades_represented_sums[school1].append(num_grades_in_school)
 
-        # Calculate the number of grade levels school 's' will offer.
-        num_grades_s = model.NewIntVar(
-            0, len(constants.GRADE_TO_IND), f"{school}_num_grade_levels"
-        )
-        model.Add(num_grades_s == sum(grades_interval_binary[school]))
-        grades_represented_sums[school].append(num_grades_s)
-
-        for school_2 in matches[school]:
+        for school2 in matches[school1]:
             # --- Permissible Match Constraint ---
             # A school can only be matched with schools from its pre-approved list.
-            if school_2 not in permissible_matches[school]:
-                model.Add(matches[school][school_2] == False)
+            if school2 not in permissible_matches[school1]:
+                model.Add(
+                    matches[school1][school2] == 0
+                )  # Dark secret: BoolVars are just IntVars with a domain of [0,1]
 
             # --- No Grade Overlap Constraint ---
             # If two schools are merged, they cannot serve the same grade levels.
-            if school != school_2:
-                for i in range(0, len(list(constants.GRADE_TO_IND.values()))):
-                    curr_prod = model.NewIntVar(
-                        0, 1, f"grade_int_prod_{school}_{school_2}"
-                    )
-                    # Product of binary grade variables must be 0 if matched.
-                    model.AddMultiplicationEquality(
-                        curr_prod,
-                        [
-                            grades_interval_binary[school][i],
-                            grades_interval_binary[school_2][i],
-                        ],
-                    )
-                    model.Add(curr_prod == 0).OnlyEnforceIf(matches[school][school_2])
+            if school1 != school2:
+                for i in range(len(constants.GRADE_TO_IND)):
+                    model.Add(
+                        grades_at_school[school1][i] + grades_at_school[school2][i] == 1
+                    ).OnlyEnforceIf(matches[school1][school2])
 
-            # Calculate the number of students school 's' will receive from
-            # school 's2' if they are merged.
-            sum_s2 = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school_2}_total_students"
-            )
+            # --- Grade Completeness Constraint ---
 
-            if school != school_2:
-                # Sum students from s2 for the grades that s will now serve.
-                model.Add(
-                    sum_s2
-                    == sum(
-                        [
-                            total_per_grade_per_school[school_2]["num_total"][i]
-                            * grades_interval_binary[school][i]
-                            for i in constants.GRADE_TO_IND.values()
-                        ]
-                    )
-                ).OnlyEnforceIf(matches[school][school_2])
-                model.Add(sum_s2 == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            else:
-                model.Add(sum_s2 == 0)  # No student transfer if it's the same school.
-
-            student_count_sums[school].append(sum_s2)
-
-            # --- Grade Completeness Constraint (Part 1) ---
-            # Track the number of grades served by s2 if merged with s.
+            # Number of grades school2 serves after a merger with school1.
             num_grades_s2 = model.NewIntVar(
-                0, len(constants.GRADE_TO_IND), f"{school}_{school_2}_num_grade_levels"
+                0, len(constants.GRADE_TO_IND), f"{school1}_{school2}_num_grade_levels"
             )
-
-            if school != school_2:
+            if school1 != school2:
                 model.Add(
-                    num_grades_s2 == sum(grades_interval_binary[school_2])
-                ).OnlyEnforceIf(matches[school][school_2])
+                    num_grades_s2 == sum(grades_at_school[school2])
+                ).OnlyEnforceIf(matches[school1][school2])
                 model.Add(num_grades_s2 == 0).OnlyEnforceIf(
-                    matches[school][school_2].Not()
+                    matches[school1][school2].Not()
                 )
             else:
                 model.Add(num_grades_s2 == 0)
 
-            grades_represented_sums[school].append(num_grades_s2)
+            grades_represented_sums[school1].append(num_grades_s2)
 
-        # --- Grade Completeness Constraint (Part 2) ---
+        # --- Grade Completeness Constraint (cont.) ---
         # The total number of unique grades served by a merged group of schools
         # must equal the total number of possible grades.
-        model.Add(sum(grades_represented_sums[school]) == len(constants.GRADE_TO_IND))
-
-        # --- Capacity Constraint ---
-        # The total number of students in a school building cannot exceed its capacity.
-        model.Add(sum(student_count_sums[school]) <= school_capacities[school])
+        model.Add(sum(grades_represented_sums[school1]) == len(constants.GRADE_TO_IND))
 
         # --- Enrollment Floor Constraint ---
         # A school's new total enrollment cannot fall below a certain percentage
@@ -388,7 +412,7 @@ def set_constraints(
                 (1 - school_decrease_threshold)
                 * sum(
                     [
-                        total_per_grade_per_school[school]["num_total"][i]
+                        students_per_grade_per_school[school1]["num_total"][i]
                         for i in constants.GRADE_TO_IND.values()
                     ]
                 ),
@@ -396,7 +420,7 @@ def set_constraints(
             )
         )
         model.Add(
-            constants.SCALING[0] * sum(student_count_sums[school])
+            constants.SCALING[0] * sum(students_at_this_school)
             >= school_cap_lower_bound
         )
 
@@ -404,28 +428,26 @@ def set_constraints(
         # This complex set of constraints ensures that if students from school 's'
         # are sent to school 's2' (which serves higher grades), the number of
         # students from 's' does not exceed 's2's capacity.
-        max_grade_served_s = model.NewIntVar(0, 20, f"{school}_grade_max")
+        max_grade_served_s = model.NewIntVar(0, 20, f"{school1}_grade_max")
         all_grades_served_s = []
         for grade in constants.GRADE_TO_IND.values():
-            all_grades_served_s.append(grades_interval_binary[school][grade] * grade)
+            all_grades_served_s.append(grades_at_school[school1][grade] * grade)
         model.AddMaxEquality(max_grade_served_s, all_grades_served_s)
 
-        for school_2 in matches[school]:
-            if school == school_2:
+        for school2 in matches[school1]:
+            if school1 == school2:
                 continue
 
             # Determine if s2 serves higher grades than s.
             max_grades_served_s_s2 = model.NewIntVar(
-                0, 20, f"{school}_{school_2}_grade_max"
+                0, 20, f"{school1}_{school2}_grade_max"
             )
             all_grades_served_s2 = []
             for grade in constants.GRADE_TO_IND.values():
-                all_grades_served_s2.append(
-                    grades_interval_binary[school_2][grade] * grade
-                )
+                all_grades_served_s2.append(grades_at_school[school2][grade] * grade)
             model.AddMaxEquality(max_grades_served_s_s2, all_grades_served_s2)
             s2_serving_higher_grades_than_s = model.NewBoolVar(
-                f"{school}_{school_2}_higher_grade"
+                f"{school1}_{school2}_higher_grade"
             )
             model.Add(max_grades_served_s_s2 > max_grade_served_s).OnlyEnforceIf(
                 s2_serving_higher_grades_than_s
@@ -434,15 +456,15 @@ def set_constraints(
                 s2_serving_higher_grades_than_s.Not()
             )
             # Condition is true if s and s2 are matched AND s2 serves higher grades.
-            condition = model.NewBoolVar(f"{school}_{school_2}_condition")
+            condition = model.NewBoolVar(f"{school1}_{school2}_condition")
             model.AddMultiplicationEquality(
-                condition, [s2_serving_higher_grades_than_s, matches[school][school_2]]
+                condition, [s2_serving_higher_grades_than_s, matches[school1][school2]]
             )
 
             # If the condition is met, the students assigned to school 's' must
             # fit within the capacity of school 's2'.
             model.Add(
-                sum(student_count_sums[school]) <= school_capacities[school_2]
+                sum(students_at_this_school) <= school_capacities[school2]
             ).OnlyEnforceIf(condition)
 
             # The enrollment floor constraint also applies to the feeder school.
@@ -452,7 +474,7 @@ def set_constraints(
                     (1 - school_decrease_threshold)
                     * sum(
                         [
-                            total_per_grade_per_school[school_2]["num_total"][i]
+                            students_per_grade_per_school[school2]["num_total"][i]
                             for i in constants.GRADE_TO_IND.values()
                         ]
                     ),
@@ -460,7 +482,7 @@ def set_constraints(
                 )
             )
             model.Add(
-                constants.SCALING[0] * sum(student_count_sums[school])
+                constants.SCALING[0] * sum(students_at_this_school)
                 >= school_cap_lower_bound
             ).OnlyEnforceIf(condition)
 
@@ -779,7 +801,7 @@ def set_objective_bh_wa_dissimilarity(
 
 
 def solve_and_output_results(
-    state="NC",
+    state="CA",
     district_id="0602160",
     school_decrease_threshold=0.2,
     dissim_weight=1,
