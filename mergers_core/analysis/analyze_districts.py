@@ -37,15 +37,15 @@ def get_school_demos(df):
         "num_pacific_islander": [],
     }
 
-    cols_black = ["num_black_{}".format(g) for g in constants.GRADE_TO_IND]
-    cols_asian = ["num_asian_{}".format(g) for g in constants.GRADE_TO_IND]
-    cols_native = ["num_native_{}".format(g) for g in constants.GRADE_TO_IND]
-    cols_hisp = ["num_hispanic_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_black = ["num_black_{}".format(g) for g in constants.GRADE_TO_INDEX]
+    cols_asian = ["num_asian_{}".format(g) for g in constants.GRADE_TO_INDEX]
+    cols_native = ["num_native_{}".format(g) for g in constants.GRADE_TO_INDEX]
+    cols_hisp = ["num_hispanic_{}".format(g) for g in constants.GRADE_TO_INDEX]
     cols_pacific_islander = [
-        "num_pacific_islander_{}".format(g) for g in constants.GRADE_TO_IND
+        "num_pacific_islander_{}".format(g) for g in constants.GRADE_TO_INDEX
     ]
-    cols_white = ["num_white_{}".format(g) for g in constants.GRADE_TO_IND]
-    cols_total = ["num_total_{}".format(g) for g in constants.GRADE_TO_IND]
+    cols_white = ["num_white_{}".format(g) for g in constants.GRADE_TO_INDEX]
+    cols_total = ["num_total_{}".format(g) for g in constants.GRADE_TO_INDEX]
     for i in range(0, len(df)):
         schools_data["district_id"].append(df["district_id"][i])
         schools_data["NCESSCH"].append(df["NCESSCH"][i])

@@ -92,14 +92,14 @@ def load_and_process_data(state, district_id, interdistrict):
         for race in constants.RACE_KEYS.values():
             total_per_grade_per_school[df_schools_in_play["NCESSCH"][i]][race] = [
                 int(df_schools_in_play[f"{race}_{grade}"][i])
-                for grade in constants.GRADE_TO_IND
+                for grade in constants.GRADE_TO_INDEX
             ]
 
             # Sum up the total population for each racial category across all schools.
             total_pop_per_cat_across_schools[race] += sum(
                 [
                     int(df_schools_in_play[f"{race}_{grade}"][i])
-                    for grade in constants.GRADE_TO_IND
+                    for grade in constants.GRADE_TO_INDEX
                 ]
             )
 
@@ -153,7 +153,7 @@ def initialize_variables(model, df_schools_in_play):
     grades_duration = {}
     grades_interval = {}
     grades_interval_binary = {}  # Binary representation of grades served.
-    all_grades = list(constants.GRADE_TO_IND.values())
+    all_grades = list(constants.GRADE_TO_INDEX.values())
 
     for school in nces_ids:
         # Variables for the start, end, and duration of the grade sequence.
@@ -176,7 +176,7 @@ def initialize_variables(model, df_schools_in_play):
         # Create a binary variable for each grade to indicate if it's served.
         grades_interval_binary[school] = [
             model.NewIntVar(0, 1, f"{school},{i}")
-            for i in constants.GRADE_TO_IND.values()
+            for i in constants.GRADE_TO_INDEX.values()
         ]
 
         # Link the interval variables (start, end) to the binary grade indicators.
@@ -255,7 +255,7 @@ def _get_students_at_school(
         [
             students_per_grade_per_school[school]["num_total"][grade]
             * grades_at_school[school][grade]
-            for grade in constants.GRADE_TO_IND.values()
+            for grade in constants.GRADE_TO_INDEX.values()
         ]
     )
     model.Add(0 <= students_at_school <= constants.MAX_TOTAL_STUDENTS)
@@ -275,7 +275,7 @@ def _get_students_at_school(
                     [
                         students_per_grade_per_school[school2]["num_total"][i]
                         * grades_at_school[school][i]
-                        for i in constants.GRADE_TO_IND.values()
+                        for i in constants.GRADE_TO_INDEX.values()
                     ]
                 )
             ).OnlyEnforceIf(matches[school][school2])
@@ -341,7 +341,6 @@ def set_constraints(
                     matches[school1][school3],
                 )
 
-    grades_represented_sums = defaultdict(list)
     for school1 in matches:
         # The number of students at a school is the sum of the students at grades that
         # stayed at the school and the sum of the students from grades that transferred
@@ -359,32 +358,34 @@ def set_constraints(
         # schools are merged with themselves)
         model.Add(1 <= sum([matches[school1][school2] for school2 in matches]) <= 3)
 
-        # Calculate the number of grade levels this school will offer postmerger.
-        num_grades_in_school = sum(grades_at_school[school1])
-        model.Add(0 <= num_grades_in_school <= len(constants.GRADE_TO_IND))
-        grades_represented_sums[school1].append(num_grades_in_school)
-
         for school2 in matches[school1]:
             # --- Permissible Match Constraint ---
             # A school can only be matched with schools from its pre-approved list.
-            if school2 not in permissible_matches[school1]:
-                model.Add(
-                    matches[school1][school2] == 0
-                )  # Dark secret: BoolVars are just IntVars with a domain of [0,1]
+            model.Add(matches[school1][school2] is False).OnlyEnforceIf(
+                school2 not in permissible_matches[school1]
+            )
 
             # --- No Grade Overlap Constraint ---
             # If two schools are merged, they cannot serve the same grade levels.
             if school1 != school2:
-                for i in range(len(constants.GRADE_TO_IND)):
+                for i in range(len(constants.GRADE_TO_INDEX)):
                     model.Add(
                         grades_at_school[school1][i] + grades_at_school[school2][i] == 1
                     ).OnlyEnforceIf(matches[school1][school2])
 
-            # --- Grade Completeness Constraint ---
+        # --- Grade Completeness Constraint ---
+        # Ensure that a group of merged schools combined serve a full set of grades.
 
+        # Calculate the number of grade levels this school will offer postmerger.
+        num_grades_in_school = sum(grades_at_school[school1])
+        model.Add(0 <= num_grades_in_school <= len(constants.GRADE_TO_INDEX))
+        num_grades_represented = [num_grades_in_school]
+        for school2 in matches[school1]:
             # Number of grades school2 serves after a merger with school1.
             num_grades_s2 = model.NewIntVar(
-                0, len(constants.GRADE_TO_IND), f"{school1}_{school2}_num_grade_levels"
+                0,
+                len(constants.GRADE_TO_INDEX),
+                f"{school1}_{school2}_num_grade_levels",
             )
             if school1 != school2:
                 model.Add(
@@ -396,24 +397,21 @@ def set_constraints(
             else:
                 model.Add(num_grades_s2 == 0)
 
-            grades_represented_sums[school1].append(num_grades_s2)
+            num_grades_represented.append(num_grades_s2)
 
-        # --- Grade Completeness Constraint (cont.) ---
-        # The total number of unique grades served by a merged group of schools
-        # must equal the total number of possible grades.
-        model.Add(sum(grades_represented_sums[school1]) == len(constants.GRADE_TO_IND))
+        model.Add(sum(num_grades_represented) == len(constants.GRADE_TO_INDEX))
 
         # --- Enrollment Floor Constraint ---
         # A school's new total enrollment cannot fall below a certain percentage
         # of its original enrollment, preventing excessively small schools.
-        school_cap_lower_bound = int(
+        this_school_enrollment_lower_bound = int(
             constants.SCALING[0]
             * np.round(
                 (1 - school_decrease_threshold)
                 * sum(
                     [
                         students_per_grade_per_school[school1]["num_total"][i]
-                        for i in constants.GRADE_TO_IND.values()
+                        for i in constants.GRADE_TO_INDEX.values()
                     ]
                 ),
                 decimals=constants.SCALING[1],
@@ -421,16 +419,16 @@ def set_constraints(
         )
         model.Add(
             constants.SCALING[0] * sum(students_at_this_school)
-            >= school_cap_lower_bound
+            >= this_school_enrollment_lower_bound
         )
 
         # --- Feeder Pattern Capacity Constraints ---
-        # This complex set of constraints ensures that if students from school 's'
-        # are sent to school 's2' (which serves higher grades), the number of
-        # students from 's' does not exceed 's2's capacity.
+        # If we decide to match school1 with school2, and school2 serves
+
+        # The maximum grade served by school1
         max_grade_served_s = model.NewIntVar(0, 20, f"{school1}_grade_max")
         all_grades_served_s = []
-        for grade in constants.GRADE_TO_IND.values():
+        for grade in constants.GRADE_TO_INDEX.values():
             all_grades_served_s.append(grades_at_school[school1][grade] * grade)
         model.AddMaxEquality(max_grade_served_s, all_grades_served_s)
 
@@ -439,43 +437,48 @@ def set_constraints(
                 continue
 
             # Determine if s2 serves higher grades than s.
-            max_grades_served_s_s2 = model.NewIntVar(
+            max_grade_served_s2 = model.NewIntVar(
                 0, 20, f"{school1}_{school2}_grade_max"
             )
             all_grades_served_s2 = []
-            for grade in constants.GRADE_TO_IND.values():
+            for grade in constants.GRADE_TO_INDEX.values():
                 all_grades_served_s2.append(grades_at_school[school2][grade] * grade)
-            model.AddMaxEquality(max_grades_served_s_s2, all_grades_served_s2)
+            model.AddMaxEquality(max_grade_served_s2, all_grades_served_s2)
+
             s2_serving_higher_grades_than_s = model.NewBoolVar(
                 f"{school1}_{school2}_higher_grade"
             )
-            model.Add(max_grades_served_s_s2 > max_grade_served_s).OnlyEnforceIf(
+            model.Add(max_grade_served_s2 > max_grade_served_s).OnlyEnforceIf(
                 s2_serving_higher_grades_than_s
             )
-            model.Add(max_grades_served_s_s2 <= max_grade_served_s).OnlyEnforceIf(
+            model.Add(max_grade_served_s2 <= max_grade_served_s).OnlyEnforceIf(
                 s2_serving_higher_grades_than_s.Not()
             )
-            # Condition is true if s and s2 are matched AND s2 serves higher grades.
-            condition = model.NewBoolVar(f"{school1}_{school2}_condition")
+
+            # True if s and s2 are matched AND s2 serves higher grades.
+            matched_and_s2_higher_grade = model.NewBoolVar(
+                f"{school1}_{school2}_condition"
+            )
             model.AddMultiplicationEquality(
-                condition, [s2_serving_higher_grades_than_s, matches[school1][school2]]
+                matched_and_s2_higher_grade,
+                [s2_serving_higher_grades_than_s, matches[school1][school2]],
             )
 
-            # If the condition is met, the students assigned to school 's' must
-            # fit within the capacity of school 's2'.
+            # If the condition is met, the students assigned to school1 must
+            # fit within the capacity of school2.
             model.Add(
                 sum(students_at_this_school) <= school_capacities[school2]
-            ).OnlyEnforceIf(condition)
+            ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
             # The enrollment floor constraint also applies to the feeder school.
-            school_cap_lower_bound = int(
+            this_school_enrollment_lower_bound = int(
                 constants.SCALING[0]
                 * np.round(
                     (1 - school_decrease_threshold)
                     * sum(
                         [
                             students_per_grade_per_school[school2]["num_total"][i]
-                            for i in constants.GRADE_TO_IND.values()
+                            for i in constants.GRADE_TO_INDEX.values()
                         ]
                     ),
                     decimals=constants.SCALING[1],
@@ -483,8 +486,8 @@ def set_constraints(
             )
             model.Add(
                 constants.SCALING[0] * sum(students_at_this_school)
-                >= school_cap_lower_bound
-            ).OnlyEnforceIf(condition)
+                >= this_school_enrollment_lower_bound
+            ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
 
 def set_objective_white_nonwhite_dissimilarity(
@@ -532,7 +535,7 @@ def set_objective_white_nonwhite_dissimilarity(
                 [
                     students_per_grade_per_school[school]["num_white"][i]
                     * grades_offered[school][i]
-                    for i in constants.GRADE_TO_IND.values()
+                    for i in constants.GRADE_TO_INDEX.values()
                 ]
             )
         )
@@ -542,7 +545,7 @@ def set_objective_white_nonwhite_dissimilarity(
                 [
                     students_per_grade_per_school[school]["num_total"][i]
                     * grades_offered[school][i]
-                    for i in constants.GRADE_TO_IND.values()
+                    for i in constants.GRADE_TO_INDEX.values()
                 ]
             )
         )
@@ -568,7 +571,7 @@ def set_objective_white_nonwhite_dissimilarity(
                     [
                         students_per_grade_per_school[school_2]["num_white"][i]
                         * grades_offered[school][i]
-                        for i in constants.GRADE_TO_IND.values()
+                        for i in constants.GRADE_TO_INDEX.values()
                     ]
                 )
             ).OnlyEnforceIf(matches[school][school_2])
@@ -582,7 +585,7 @@ def set_objective_white_nonwhite_dissimilarity(
                     [
                         students_per_grade_per_school[school_2]["num_total"][i]
                         * grades_offered[school][i]
-                        for i in constants.GRADE_TO_IND.values()
+                        for i in constants.GRADE_TO_INDEX.values()
                     ]
                 )
             ).OnlyEnforceIf(matches[school][school_2])
@@ -690,7 +693,7 @@ def set_objective_bh_wa_dissimilarity(
                     + total_per_grade_per_school[school]["num_hispanic"][i]
                 )
                 * grades_interval_binary[school][i]
-                for i in constants.GRADE_TO_IND.values()
+                for i in constants.GRADE_TO_INDEX.values()
             ]
         )
         sum_s_wa = sum(
@@ -700,7 +703,7 @@ def set_objective_bh_wa_dissimilarity(
                     + total_per_grade_per_school[school]["num_asian"][i]
                 )
                 * grades_interval_binary[school][i]
-                for i in constants.GRADE_TO_IND.values()
+                for i in constants.GRADE_TO_INDEX.values()
             ]
         )
 
@@ -720,7 +723,7 @@ def set_objective_bh_wa_dissimilarity(
                             + total_per_grade_per_school[school_2]["num_hispanic"][i]
                         )
                         * grades_interval_binary[school][i]
-                        for i in constants.GRADE_TO_IND.values()
+                        for i in constants.GRADE_TO_INDEX.values()
                     ]
                 )
                 * matches[school][school_2]
@@ -735,7 +738,7 @@ def set_objective_bh_wa_dissimilarity(
                             + total_per_grade_per_school[school_2]["num_asian"][i]
                         )
                         * grades_interval_binary[school][i]
-                        for i in constants.GRADE_TO_IND.values()
+                        for i in constants.GRADE_TO_INDEX.values()
                     ]
                 )
                 * matches[school][school_2]

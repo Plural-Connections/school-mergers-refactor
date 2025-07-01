@@ -22,7 +22,7 @@ RACE_KEYS = {
     "Total": "num_total",
 }
 
-GRADE_TO_IND = {
+GRADE_TO_INDEX = {
     "PK": 0,
     "KG": 1,
     "1": 2,

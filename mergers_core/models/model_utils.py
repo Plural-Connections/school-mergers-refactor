@@ -53,14 +53,14 @@ def estimate_travel_time_impacts(
         # Determine which grades are served by which schools in a given cluster
         for school in cluster:
             school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == school].iloc[0]
-            for grade in constants.GRADE_TO_IND:
+            for grade in constants.GRADE_TO_INDEX:
                 if school_grades[grade]:
                     schools_serving_each_grade_per_cluster[cluster_key][grade] = school
         for school in cluster:
             school_enrollments = df_schools_in_play[
                 df_schools_in_play["NCESSCH"] == school
             ].iloc[0]
-            for grade in constants.GRADE_TO_IND:
+            for grade in constants.GRADE_TO_INDEX:
                 school_serving_grade = schools_serving_each_grade_per_cluster[
                     cluster_key
                 ][grade]
@@ -151,7 +151,7 @@ def check_solution_validity_and_compute_outcomes(
         df_mergers_curr = pd.DataFrame(
             {"school_cluster": df_grades["NCESSCH"].tolist()}
         )
-        for g in constants.GRADE_TO_IND:
+        for g in constants.GRADE_TO_INDEX:
             df_grades_curr[g] = [True for i in range(0, len(df_grades))]
 
     # Make a dataframe based on which grades are offered by which schools
@@ -164,7 +164,7 @@ def check_solution_validity_and_compute_outcomes(
         for school in schools:
             school_clusters[school] = schools
             school_grades = df_grades_curr[df_grades_curr["NCESSCH"] == school].iloc[0]
-            for grade in constants.GRADE_TO_IND:
+            for grade in constants.GRADE_TO_INDEX:
                 if school_grades[grade]:
                     grades_served_per_cluster[cluster].add(grade)
 
@@ -177,7 +177,7 @@ def check_solution_validity_and_compute_outcomes(
             school_2_enrollments = df_schools_in_play[
                 df_schools_in_play["NCESSCH"] == school_2
             ].iloc[0]
-            for grade in constants.GRADE_TO_IND:
+            for grade in constants.GRADE_TO_INDEX:
                 if school_grades[grade]:
                     for race in race_keys:
                         num_per_cat_per_school[race][school] += school_2_enrollments[
@@ -188,21 +188,21 @@ def check_solution_validity_and_compute_outcomes(
                         ] += school_2_enrollments[f"{race}_{grade}"]
 
     # Solution validity checking
-    total_cols = [f"num_total_{g}" for g in constants.GRADE_TO_IND]
+    total_cols = [f"num_total_{g}" for g in constants.GRADE_TO_INDEX]
     total_students_dict = sum(num_per_cat_per_school["num_total"].values())
     total_students_df = df_schools_in_play[total_cols].sum(axis=1).sum()
 
     for cluster in grades_served_per_cluster:
-        if len(grades_served_per_cluster[cluster]) != len(constants.GRADE_TO_IND):
+        if len(grades_served_per_cluster[cluster]) != len(constants.GRADE_TO_INDEX):
             raise Exception(
-                f"Only {len(grades_served_per_cluster[cluster])} of {len(constants.GRADE_TO_IND)} grades represented across cluster {cluster}"
+                f"Only {len(grades_served_per_cluster[cluster])} of {len(constants.GRADE_TO_INDEX)} grades represented across cluster {cluster}"
             )
 
     if total_students_dict != total_students_df:
         raise Exception("All students not accounted for in re-assignment")
 
     for _, row in df_grades_curr.iterrows():
-        curr_grade_seq = row[list(constants.GRADE_TO_IND.keys())].tolist()
+        curr_grade_seq = row[list(constants.GRADE_TO_INDEX.keys())].tolist()
         start_grade = None
         end_grade = None
         for i, g in enumerate(curr_grade_seq):
@@ -231,8 +231,7 @@ def check_solution_validity_and_compute_outcomes(
                         num_per_cat_per_school["num_total"][school]
                         - num_per_cat_per_school["num_white"][school]
                     )
-                    /
-                    (
+                    / (
                         sum(num_per_cat_per_school["num_total"].values())
                         - sum(num_per_cat_per_school["num_white"].values())
                     )
@@ -252,20 +251,17 @@ def check_solution_validity_and_compute_outcomes(
                         num_per_cat_per_school["num_black"][school]
                         + num_per_cat_per_school["num_hispanic"][school]
                     )
-                    /
-                    (
+                    / (
                         sum(num_per_cat_per_school["num_black"].values())
                         + sum(num_per_cat_per_school["num_hispanic"].values())
                     )
                 )
-                -
-                (
+                - (
                     (
                         num_per_cat_per_school["num_white"][school]
                         + num_per_cat_per_school["num_asian"][school]
                     )
-                    /
-                    (
+                    / (
                         sum(num_per_cat_per_school["num_white"].values())
                         + sum(num_per_cat_per_school["num_asian"].values())
                     )
@@ -291,7 +287,7 @@ def check_solution_validity_and_compute_outcomes(
             num_students_switching_per_school[school] = {
                 f"{r}_switched": 0 for r in race_keys
             }
-            for grade in constants.GRADE_TO_IND:
+            for grade in constants.GRADE_TO_INDEX:
                 for race in race_keys:
                     num_total_students[f"{race}_all"] += school_enrollments[
                         f"{race}_{grade}"
@@ -360,8 +356,8 @@ def output_solver_solution(
     # Extract solver variables
     match_data = {"school_1": [], "school_2": []}
     grades_served_data = {"NCESSCH": []}
-    grades_served_data.update({g: [] for g in constants.GRADE_TO_IND.keys()})
-    ind_to_grade = [k for k in constants.GRADE_TO_IND]
+    grades_served_data.update({g: [] for g in constants.GRADE_TO_INDEX.keys()})
+    ind_to_grade = [k for k in constants.GRADE_TO_INDEX]
     for school in matches:
         for school_2 in matches[school]:
             val = solver.BooleanValue(matches[school][school_2])
@@ -826,4 +822,3 @@ def compare_batch_totals(
 if __name__ == "__main__":
     produce_post_solver_files_parallel()
     consolidate_results_files()
-
