@@ -175,8 +175,7 @@ def initialize_variables(model, df_schools_in_play):
         )
         # Create a binary variable for each grade to indicate if it's served.
         grades_interval_binary[school] = [
-            model.NewIntVar(0, 1, f"{school},{i}")
-            for i in constants.GRADE_TO_INDEX.values()
+            model.NewBoolVar(f"{school},{i}") for i in constants.GRADE_TO_INDEX.values()
         ]
 
         # Link the interval variables (start, end) to the binary grade indicators.
@@ -258,7 +257,8 @@ def _get_students_at_school(
             for grade in constants.GRADE_TO_INDEX.values()
         ]
     )
-    model.Add(0 <= students_at_school <= constants.MAX_TOTAL_STUDENTS)
+    model.Add(students_at_school >= 0)
+    model.Add(students_at_school <= constants.MAX_TOTAL_STUDENTS)
 
     results: list = [students_at_school]
 
@@ -380,7 +380,9 @@ def set_constraints(
 
     for school1 in matches:
         # --- Each school can only be paired, tripled, or left unchanged ---
-        model.Add(1 <= sum([matches[school1][school2] for school2 in matches]) <= 3)
+        num_matches = sum([matches[school1][school2] for school2 in matches])
+        model.Add(num_matches >= 1)
+        model.Add(num_matches <= 3)
 
     for school1 in matches:
         # --- Enrollment must be within a specified minimum and maximum capacity ---
@@ -430,7 +432,8 @@ def set_constraints(
 
         # Calculate the number of grade levels this school will offer postmerger.
         num_grades_in_school = sum(grades_at_school[school1])
-        model.Add(0 <= num_grades_in_school <= len(constants.GRADE_TO_INDEX))
+        model.Add(num_grades_in_school >= 0)
+        model.Add(num_grades_in_school <= len(constants.GRADE_TO_INDEX))
         num_grades_represented = [num_grades_in_school]
         for school2 in matches[school1]:
             # Number of grades school2 serves after a merger with school1.
