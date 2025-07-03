@@ -326,20 +326,20 @@ def set_constraints(
         Ms,s′=1 ∧ Ms′,s′′=1 ⇒ Ms,s′′=1 ∀ s,s′,s′′∈S
 
         Schools can only be paired, tripled, or left unchanged:
-        ∑s′∈S(Ms,s′) ∈ {1,2,3} ∀ s∈S
+        ∑_s′∈S(Ms,s′) ∈ {1,2,3} ∀ s∈S
 
         The grade span served by any school must be contiguous:
         Rs,g=1 IF (g_s^start≤g<g_s^end); 0 OTHERWISE ∀ s∈S ∀ g∈G
         (enforced by the grades interval being constructed from an IntervalVar)
 
         Each school's enrollment must be within its capacity bounds:
-        p_min⋅∑g∈G(Es,g) ≤ ∑g∈G(∑s′∈S(Ms,s′))⋅Rs,g⋅Es,g ≤ Capacity(s) ∀ s∈S
+        p_min⋅∑_g∈G(Es,g) ≤ ∑_g∈G(∑_s′∈S(Ms,s′))⋅Rs,g⋅Es,g ≤ Capacity(s) ∀ s∈S
 
         Each school's future enrollment (the enrollment expected after students have
-        moved up grades) must not exceed its capacity or lower bound.
+        moved up grades) must stay within the enrollment bounds.
         g_s′^end>g_s^end ∧ Ms,s′=1 ⇒
-            p_min⋅∑g∈G(Es′,g)
-            ≤ ∑g∈G(∑s′′∈S(Ms,s′′))⋅Rs,g⋅Es′′,g ≤
+            p_min⋅∑_g∈G(Es′,g)
+            ≤ ∑_g∈G(∑_s′′∈S(Ms,s′′))⋅Rs,g⋅Es′′,g ≤
             Capacity(s′)
         ∀ s,s′∈S s≠s′
 
