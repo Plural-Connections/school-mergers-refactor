@@ -315,21 +315,35 @@ def set_constraints(
         all i. Further, R ∈ {0,1}^|S|×|S|. Rij = 1 implies that school i serves
         grade level j. The entries of these two matrices represent the key
         decision variables for the algorithm.
+        E is the matrix of people enrolled in a certain grade at a certain school.
+        g_s^{start,end} is the first or last grade at school s.
+        'capacity bounds' refers to the requirement that a school is not permitted to
+        admit more than its capacity of students or less than p_min *
+        current_enrollment.
 
         Mergers are symmetric and transitive:
-        Ms,s′=1 ⇒ Ms′,s = 1            ∀ s,s′∈S
-        Ms,s′=1 ∧ Ms′,s′′=1 ⇒ Ms,s′′=1 ∀ s,s′, s′′∈S
+        Ms,s′=1 ⇒ Ms′,s=1              ∀ s,s′∈S
+        Ms,s′=1 ∧ Ms′,s′′=1 ⇒ Ms,s′′=1 ∀ s,s′,s′′∈S
 
         Schools can only be paired, tripled, or left unchanged:
         ∑s′∈S(Ms,s′) ∈ {1,2,3} ∀ s∈S
 
-        The grade span served by any school must be contiguous postmerger:
-        Rs,g={1, if g_s^start≤g<g_s^end; 0, otherwise ∀ s∈S ∀ g∈G
+        The grade span served by any school must be contiguous:
+        Rs,g=1 IF (g_s^start≤g<g_s^end); 0 OTHERWISE ∀ s∈S ∀ g∈G
+        (enforced by the grades interval being constructed from an IntervalVar)
 
-        Each school's enrollment must be within a specified minimum and maximum capacity:
-        pmin⋅∑g∈G(Es,g) ≤ ∑g∈G(∑s′∈S(Ms,s′))⋅Rs,g⋅Es,g ≤ Capacity(s) ∀ s∈S
+        Each school's enrollment must be within its capacity bounds:
+        p_min⋅∑g∈G(Es,g) ≤ ∑g∈G(∑s′∈S(Ms,s′))⋅Rs,g⋅Es,g ≤ Capacity(s) ∀ s∈S
 
-    Args:
+        Each school's future enrollment (the enrollment expected after students have
+        moved up grades) must not exceed its capacity or lower bound.
+        g_s′^end>g_s^end ∧ Ms,s′=1 ⇒
+            p_min⋅∑g∈G(Es′,g)
+            ≤ ∑g∈G(∑s′′∈S(Ms,s′′))⋅Rs,g⋅Es′′,g ≤
+            Capacity(s′)
+        ∀ s,s′∈S s≠s′
+
+    Arguments:
         model (cp_model.CpModel): The CP-SAT model instance.
         school_capacities (dict): Maps school ID to its student capacity.
         school_decrease_threshold (float): The maximum allowable percentage
@@ -340,7 +354,8 @@ def set_constraints(
         matches (dict): Dictionary of boolean match variables.
         grades_at_school (dict): Dictionary of binary grade variables.
     """
-    # --- Match Symmetry and Transitivity Constraint ---
+
+    # --- Symmetry and transitivity ---
     # Ensures that if A is matched with B, B is matched with A.
     # Also enforces transitivity for 3-way mergers: if A-B and B-C, then A-C.
     # This creates cohesive merged groups.
@@ -349,8 +364,8 @@ def set_constraints(
         for school2 in matches:
             # Symmetry: If s1 is matched with s2, s2 must be matched with s1.
             model.AddImplication(matches[school1][school2], matches[school2][school1])
-            # Transitivity for 3-school merges: if A-B and B-C, then A-C
-            # A-B AND B-C => A-C
+
+            # Transitivity for 3-school merges: A-B and B-C, then A-C
             for school3 in matches:
                 ab_and_bc = model.NewBoolVar(
                     f"{school1}-{school2}-{school3}_transitivity"
@@ -364,25 +379,39 @@ def set_constraints(
                 )
 
     for school1 in matches:
-        # The number of students at a school is the sum of the students at grades that
-        # stayed at the school and the sum of the students from grades that transferred
-        # to that school.
+        # --- Each school can only be paired, tripled, or left unchanged ---
+        model.Add(1 <= sum([matches[school1][school2] for school2 in matches]) <= 3)
+
+    for school1 in matches:
+        # --- Enrollment must be within a specified minimum and maximum capacity ---
         students_at_this_school = _get_students_at_school(
             model, matches, grades_at_school, school1, students_per_grade_per_school
         )
-
-        # --- Capacity Constraint ---
-        # The total number of students in a school building cannot exceed its capacity.
         model.Add(sum(students_at_this_school) <= school_capacities[school1])
 
-        # --- Merger Size Constraint ---
-        # No school can be merged with more than 2 other schools (reminder that all
-        # schools are merged with themselves)
-        model.Add(1 <= sum([matches[school1][school2] for school2 in matches]) <= 3)
+        school_current_population = sum(
+            [
+                students_per_grade_per_school[school1]["num_total"][i]
+                for i in constants.GRADE_TO_INDEX.values()
+            ]
+        )
+        enrollment_lower_bound = int(
+            constants.SCALING[0]
+            * np.round(
+                (1 - school_decrease_threshold) * school_current_population,
+                decimals=constants.SCALING[1],
+            )
+        )
+        model.Add(
+            constants.SCALING[0] * sum(students_at_this_school)
+            >= enrollment_lower_bound
+        )
 
+    for school1 in matches:
         for school2 in matches[school1]:
             # --- Permissible Match Constraint ---
             # A school can only be matched with schools from its pre-approved list.
+            # Primarily used for adjacency checking.
             model.Add(matches[school1][school2] is False).OnlyEnforceIf(
                 school2 not in permissible_matches[school1]
             )
@@ -395,6 +424,7 @@ def set_constraints(
                         grades_at_school[school1][i] + grades_at_school[school2][i] == 1
                     ).OnlyEnforceIf(matches[school1][school2])
 
+    for school1 in matches:
         # --- Grade Completeness Constraint ---
         # Ensure that a group of merged schools combined serve a full set of grades.
 
@@ -423,31 +453,11 @@ def set_constraints(
 
         model.Add(sum(num_grades_represented) == len(constants.GRADE_TO_INDEX))
 
-        # --- Enrollment Floor Constraint ---
-        # A school's new total enrollment cannot fall below a certain percentage
-        # of its original enrollment, preventing excessively small schools.
-        this_school_enrollment_lower_bound = int(
-            constants.SCALING[0]
-            * np.round(
-                (1 - school_decrease_threshold)
-                * sum(
-                    [
-                        students_per_grade_per_school[school1]["num_total"][i]
-                        for i in constants.GRADE_TO_INDEX.values()
-                    ]
-                ),
-                decimals=constants.SCALING[1],
-            )
-        )
-        model.Add(
-            constants.SCALING[0] * sum(students_at_this_school)
-            >= this_school_enrollment_lower_bound
-        )
-
+    for school1 in matches:
         # --- Feeder Pattern Capacity Constraints ---
-        # If we decide to match school1 with school2, and school2 serves
-
-        # The maximum grade served by school1
+        # If school s and school s' are merged AND s' serves higher grades than s, then
+        # the total number of students assigned to s must not exceed the
+        # capacity of s'.
         max_grade_served_s = model.NewIntVar(0, 20, f"{school1}_grade_max")
         all_grades_served_s = []
         for grade in constants.GRADE_TO_INDEX.values():
