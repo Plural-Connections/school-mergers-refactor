@@ -304,8 +304,30 @@ def set_constraints(
     """
     Defines the set of rules and limitations for the school merger problem.
 
-    This function translates the real-world operational requirements into
-    mathematical constraints that the CP-SAT solver can understand.
+    The main constraints, expressed mathematically, are:
+
+        Given two sets S and G, where S is the set of elementary schools in the
+        district, and G is the set of grades served across S.
+
+        M ∈ {0,1}^|S|×|S|, where S is the set of elementary schools in the
+        district. Mij = 1 implies that schools i and j should be merged. A
+        school is always considered as “merged” with itself, i.e. Mii = 1 for
+        all i. Further, R ∈ {0,1}^|S|×|S|. Rij = 1 implies that school i serves
+        grade level j. The entries of these two matrices represent the key
+        decision variables for the algorithm.
+
+        Mergers are symmetric and transitive:
+        Ms,s′=1 ⇒ Ms′,s = 1            ∀ s,s′∈S
+        Ms,s′=1 ∧ Ms′,s′′=1 ⇒ Ms,s′′=1 ∀ s,s′, s′′∈S
+
+        Schools can only be paired, tripled, or left unchanged:
+        ∑s′∈S(Ms,s′) ∈ {1,2,3} ∀ s∈S
+
+        The grade span served by any school must be contiguous postmerger:
+        Rs,g={1, if g_s^start≤g<g_s^end; 0, otherwise ∀ s∈S ∀ g∈G
+
+        Each school's enrollment must be within a specified minimum and maximum capacity:
+        pmin⋅∑g∈G(Es,g) ≤ ∑g∈G(∑s′∈S(Ms,s′))⋅Rs,g⋅Es,g ≤ Capacity(s) ∀ s∈S
 
     Args:
         model (cp_model.CpModel): The CP-SAT model instance.
