@@ -505,6 +505,25 @@ def set_constraints(
                 sum(students_at_this_school) <= school_capacities[school2]
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
+            # The enrollment floor constraint also applies to the feeder school.
+            this_school_enrollment_lower_bound = int(
+                constants.SCALING[0]
+                * np.round(
+                    (1 - school_decrease_threshold)
+                    * sum(
+                        [
+                            students_per_grade_per_school[school2]["num_total"][i]
+                            for i in constants.GRADE_TO_INDEX.values()
+                        ]
+                    ),
+                    decimals=constants.SCALING[1],
+                )
+            )
+            model.Add(
+                constants.SCALING[0] * sum(students_at_this_school)
+                >= this_school_enrollment_lower_bound
+            ).OnlyEnforceIf(matched_and_s2_higher_grade)
+
 
 def set_objective_white_nonwhite_dissimilarity(
     model,
