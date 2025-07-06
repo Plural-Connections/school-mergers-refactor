@@ -94,7 +94,6 @@ def load_and_process_data(state, district_id, interdistrict):
     df_schools_in_play = df_schools[
         df_schools["leaid"].isin(districts_involved)
     ].reset_index(drop=True)
-    print(df_schools_in_play)
 
     # Aggregate student counts by grade and race for each school.
     students_per_grade_per_school: dict[dict[list[int]]] = defaultdict(
@@ -709,7 +708,7 @@ def set_objective_bh_wa_dissimilarity(
     model,
     dissim_weight,
     total_per_grade_per_school,
-    total_pop_per_cat_across_schools,
+    total_across_schools_by_category,
     matches,
     grades_interval_binary,
 ):
@@ -732,7 +731,6 @@ def set_objective_bh_wa_dissimilarity(
         grades_interval_binary (dict): Dictionary of binary grade variables.
     """
     dissim_objective_terms = []
-    students_switching_terms = []
     for school in matches:
         # --- Calculate Student Counts for the New School Configuration ---
         # Sum the number of BH and WA students that will be assigned to the
@@ -758,41 +756,51 @@ def set_objective_bh_wa_dissimilarity(
             ]
         )
 
-        total_bh_students_at_school = [sum_s_bh]
-        total_wa_students_at_school = [sum_s_wa]
-
         # Add students from any matched schools (school_2).
+        total_bh_students_at_school = [sum_s_bh]
         for school_2 in matches[school]:
             if school == school_2:
                 continue
 
-            sum_s2_bh = (
-                sum(
-                    [
-                        (
-                            total_per_grade_per_school[school_2]["num_black"][i]
-                            + total_per_grade_per_school[school_2]["num_hispanic"][i]
-                        )
-                        * grades_interval_binary[school][i]
-                        for i in constants.GRADE_TO_INDEX.values()
-                    ]
-                )
-                * matches[school][school_2]
+            sum_s2_bh = model.NewIntVar(
+                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_bh_{school},{school_2}"
+            )
+            students_at_s2 = sum(
+                [
+                    (
+                        total_per_grade_per_school[school_2]["num_black"][i]
+                        + total_per_grade_per_school[school_2]["num_hispanic"][i]
+                    )
+                    * grades_interval_binary[school][i]
+                    for i in constants.GRADE_TO_INDEX.values()
+                ]
+            )
+            model.AddMultiplicationEquality(
+                sum_s2_bh,
+                [
+                    students_at_s2,
+                    matches[school][school_2],
+                ],
             )
             total_bh_students_at_school.append(sum_s2_bh)
 
-            sum_s2_wa = (
-                sum(
-                    [
-                        (
-                            total_per_grade_per_school[school_2]["num_white"][i]
-                            + total_per_grade_per_school[school_2]["num_asian"][i]
-                        )
-                        * grades_interval_binary[school][i]
-                        for i in constants.GRADE_TO_INDEX.values()
-                    ]
-                )
-                * matches[school][school_2]
+        total_wa_students_at_school = [sum_s_wa]
+        for school_2 in matches[school]:
+            students_at_s2_wa = sum(
+                [
+                    (
+                        total_per_grade_per_school[school_2]["num_white"][i]
+                        + total_per_grade_per_school[school_2]["num_asian"][i]
+                    )
+                    * grades_interval_binary[school][i]
+                    for i in constants.GRADE_TO_INDEX.values()
+                ]
+            )
+            sum_s2_wa = model.NewIntVar(
+                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_wa_{school},{school_2}"
+            )
+            model.AddMultiplicationEquality(
+                sum_s2_wa, [students_at_s2_wa, matches[school][school_2]]
             )
             total_wa_students_at_school.append(sum_s2_wa)
 
@@ -820,8 +828,8 @@ def set_objective_bh_wa_dissimilarity(
         model.AddDivisionEquality(
             bh_ratio_at_school,
             scaled_total_bh_students_at_school,
-            total_pop_per_cat_across_schools["num_black"]
-            + total_pop_per_cat_across_schools["num_hispanic"],
+            total_across_schools_by_category["num_black"]
+            + total_across_schools_by_category["num_hispanic"],
         )
 
         # (WA students at school / total WA students in district)
@@ -829,8 +837,8 @@ def set_objective_bh_wa_dissimilarity(
         model.AddDivisionEquality(
             wa_ratio_at_school,
             scaled_total_wa_students_at_school,
-            total_pop_per_cat_across_schools["num_white"]
-            + total_pop_per_cat_across_schools["num_asian"],
+            total_across_schools_by_category["num_white"]
+            + total_across_schools_by_category["num_asian"],
         )
 
         # Absolute difference of the two ratios.
@@ -847,11 +855,7 @@ def set_objective_bh_wa_dissimilarity(
 
     # --- Set Final Objective ---
     # Minimize the sum of the absolute differences (the dissimilarity index).
-    dissim_val = model.NewIntVar(
-        0, constants.MAX_TOTAL_STUDENTS * constants.SCALING[0], ""
-    )
-    model.Add(dissim_val == sum(dissim_objective_terms))
-    model.Minimize(dissim_val)
+    model.Minimize(sum(dissim_objective_terms))
 
 
 def solve_and_output_results(
@@ -887,7 +891,6 @@ def solve_and_output_results(
         matches,
         grades_interval_binary,
     ) = initialize_variables(model, df_schools_in_play)
-    print(f"Matches:\n{matches}\n\n\ngrades_interval_binary: {grades_interval_binary}")
 
     print("Setting constraints ...")
     set_constraints(
@@ -920,6 +923,9 @@ def solve_and_output_results(
             matches,
             grades_interval_binary,
         )
+
+    for idx, var in enumerate(model.Proto().variables):
+        print(f"{idx}: {var.name}")
 
     print("Solving ...")
     solver = cp_model.CpSolver()
