@@ -9,6 +9,21 @@ from pathlib import Path
 import os
 
 
+def _load_and_filter_nces_schools(filename: os.PathLike, district_id: str | list[str]):
+    dataframe = pd.read_csv(filename, dtype={"NCESSCH": str})
+    # District ID is the first 7 characters of the NCES school ID
+    dataframe["leaid"] = dataframe["NCESSCH"].str[:7]
+
+    if isinstance(district_id, str):
+        filtered = dataframe[dataframe["leaid"] == district_id]
+    else:
+        filtered = dataframe[dataframe["leaid"].isin(district_id)]
+
+    filtered = filtered.reset_index(drop=True)
+
+    return filtered, dataframe
+
+
 def load_and_process_data(state, district_id, interdistrict):
     """
     Loads and preprocesses all necessary data for the CP-SAT model.
@@ -37,18 +52,15 @@ def load_and_process_data(state, district_id, interdistrict):
               enrollment and demographic data for all schools involved in the
               potential mergers.
     """
-    # Load school enrollment data for the specified state.
-    df_schools = pd.read_csv(
-        f"data/solver_files/2122/{state}/school_enrollments.csv", dtype={"NCESSCH": str}
+    df_schools_current_district, df_schools = _load_and_filter_nces_schools(
+        f"data/solver_files/2122/{state}/school_enrollments.csv", district_id
     )
-    df_schools["leaid"] = df_schools["NCESSCH"].str[:7]
-    # Filter for schools within the target district.
-    df_schools_curr_d = df_schools[df_schools["leaid"] == district_id].reset_index(
-        drop=True
+
+    unique_schools: list[str] = list(
+        set(df_schools_current_district["NCESSCH"].tolist())
     )
-    district_schools = list(set(df_schools_curr_d["NCESSCH"].tolist()))
-    permissible_matches = {}
-    all_districts_involved = set()
+    permissible_matches: dict = dict()
+    districts_involved: set = set()
 
     # Load permissible merger data based on whether the scenario is interdistrict.
     if interdistrict:
@@ -56,41 +68,42 @@ def load_and_process_data(state, district_id, interdistrict):
             f"data/solver_files/2122/{state}/between_within_district_allowed_mergers.json"
         )
         # Identify all districts that are involved in the potential mergers.
-        for school in district_schools:
-            all_districts_involved.update(
+        for school in unique_schools:
+            districts_involved.update(
                 [school_2[:7] for school_2 in permissible_matches[school]]
             )
     else:
         permissible_matches = header.read_json(
             f"data/solver_files/2122/{state}/within_district_allowed_mergers.json"
         )
-        all_districts_involved.add(district_id)
+        districts_involved.add(district_id)
 
-    all_districts_involved = list(all_districts_involved)
+    districts_involved: list[str] = list(districts_involved)
 
     # Load school capacity data and filter for the involved districts.
-    df_capacities = pd.read_csv(
-        "data/school_data/21_22_school_capacities.csv", dtype={"NCESSCH": str}
+    df_capacities, _ = _load_and_filter_nces_schools(
+        "data/school_data/21_22_school_capacities.csv", districts_involved
     )
-    df_capacities["leaid"] = df_capacities["NCESSCH"].str[:7]
-    df_capacities = df_capacities[
-        df_capacities["leaid"].isin(all_districts_involved)
-    ].reset_index(drop=True)
+
     school_capacities = {
         df_capacities["NCESSCH"][i]: int(df_capacities["student_capacity"][i])
-        for i in range(0, len(df_capacities))
+        for i in range(len(df_capacities))
     }
+
     # Filter the main schools DataFrame to include all schools "in play".
     df_schools_in_play = df_schools[
-        df_schools["leaid"].isin(all_districts_involved)
+        df_schools["leaid"].isin(districts_involved)
     ].reset_index(drop=True)
+    print(df_schools_in_play)
 
     # Aggregate student counts by grade and race for each school.
-    total_per_grade_per_school = defaultdict(dict)
+    students_per_grade_per_school: dict[dict[list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     total_pop_per_cat_across_schools = Counter()
     for i in range(0, len(df_schools_in_play)):
         for race in constants.RACE_KEYS.values():
-            total_per_grade_per_school[df_schools_in_play["NCESSCH"][i]][race] = [
+            students_per_grade_per_school[df_schools_in_play["NCESSCH"][i]][race] = [
                 int(df_schools_in_play[f"{race}_{grade}"][i])
                 for grade in constants.GRADE_TO_INDEX
             ]
@@ -106,7 +119,7 @@ def load_and_process_data(state, district_id, interdistrict):
     return (
         school_capacities,
         permissible_matches,
-        total_per_grade_per_school,
+        students_per_grade_per_school,
         total_pop_per_cat_across_schools,
         df_schools_in_play,
     )
@@ -342,6 +355,9 @@ def set_constraints(
             ≤ ∑_g∈G(∑_s′′∈S(Ms,s′′))⋅Rs,g⋅Es′′,g ≤
             Capacity(s′)
         ∀ s,s′∈S s≠s′
+
+        Every grade must be served by one school in every merger:
+        ∑s'∈S (Ms,s' * ∑g∈G Rs',g) = |G| ∀ s∈S
 
     Arguments:
         model (cp_model.CpModel): The CP-SAT model instance.
