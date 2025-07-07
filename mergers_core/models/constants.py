@@ -41,3 +41,9 @@ GRADE_TO_INDEX = {
 }
 
 STATUSES = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
+
+BLOCKS_FILE = (
+    "data/attendance_boundaries/2122/{}/estimated_student_counts_per_block.csv"
+)
+
+TRAVEL_TIMES_FILE = "data/travel_times_files/2122/{}/block_to_school_driving_times.json"
