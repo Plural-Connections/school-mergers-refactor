@@ -930,9 +930,6 @@ def solve_and_output_results(
             grades_interval_binary,
         )
 
-    for idx, var in enumerate(model.Proto().variables):
-        print(f"{idx}: {var.name}")
-
     print("Solving ...")
     solver = cp_model.CpSolver()
 
