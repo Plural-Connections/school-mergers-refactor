@@ -592,9 +592,9 @@ def calculate_dissimilarity(
     """
 
     for idx in range(len(groups_a)):
-        groups_a[idx] = groups_a[idx] + "_num"
+        groups_a[idx] = "num_" + groups_a[idx]
     for idx in range(len(groups_b)):
-        groups_b[idx] = groups_b[idx] + "_num"
+        groups_b[idx] = "num_" + groups_b[idx]
 
     dissimilarity_terms = []
     for school in matches:
