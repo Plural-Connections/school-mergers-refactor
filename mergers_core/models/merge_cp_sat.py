@@ -699,8 +699,14 @@ def setup_population_consistency(
         A LinearExpr that represents the population consistency index.
     """
     school_populations = [
-        _get_students_at_school(
-            model, matches, grades_at_school, school, students_per_grade_per_school
+        sum(
+            _get_students_at_school(
+                model,
+                matches,
+                grades_at_school,
+                school,
+                students_per_grade_per_school,
+            )
         )
         for school in matches
     ]
