@@ -100,7 +100,7 @@ def load_and_process_data(state, district_id, interdistrict):
         lambda: defaultdict(list)
     )
     total_pop_per_cat_across_schools = Counter()
-    for i in range(0, len(df_schools_in_play)):
+    for i in range(len(df_schools_in_play)):
         for race in constants.RACE_KEYS.values():
             students_per_grade_per_school[df_schools_in_play["NCESSCH"][i]][race] = [
                 int(df_schools_in_play[f"{race}_{grade}"][i])
