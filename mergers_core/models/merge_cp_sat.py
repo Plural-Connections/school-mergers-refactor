@@ -571,7 +571,7 @@ def set_objective_white_nonwhite_dissimilarity(
         matches (dict): Dictionary of boolean match variables.
         grades_interval_binary (dict): Dictionary of binary grade variables.
     """
-    dissim_objective_terms = []
+    dissimilarity_terms = []
     for school in matches:
         # --- Calculate Student Counts for the New School Configuration ---
         # Sum the number of white students and total students that will be
@@ -685,26 +685,17 @@ def set_objective_white_nonwhite_dissimilarity(
             - total_pop_per_cat_across_schools["num_white"],
         )
 
-        # Absolute difference of the two ratios.
-        diff_val = model.NewIntVar(
-            -(constants.SCALING[0] ** 2), constants.SCALING[0] ** 2, ""
-        )
-        model.Add(diff_val == cat_ratio_at_school - non_cat_ratio_at_school)
-        obj_term_to_add = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        term = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
         model.AddAbsEquality(
-            obj_term_to_add,
-            diff_val,
+            term,
+            cat_ratio_at_school - non_cat_ratio_at_school,
         )
-        dissim_objective_terms.append(obj_term_to_add)
+        dissimilarity_terms.append(term)
 
     # --- Set Final Objective ---
     # The overall objective is to minimize the sum of the absolute differences
     # across all schools, which is equivalent to minimizing the dissimilarity index.
-    dissim_val = model.NewIntVar(
-        0, constants.MAX_TOTAL_STUDENTS * constants.SCALING[0], ""
-    )
-    model.Add(dissim_val == sum(dissim_objective_terms))
-    model.Minimize(dissim_val)
+    model.Minimize(sum(dissimilarity_terms))
 
 
 def set_objective_bh_wa_dissimilarity(
@@ -723,6 +714,11 @@ def set_objective_bh_wa_dissimilarity(
     but it uses different racial groupings (BH vs. WA) to calculate the
     dissimilarity index.
 
+    The dissimilarity index is the sum of this absolute difference for all schools:
+    ┃ group_school   non_group_school ┃
+    ┃ ———————————— - ———————————————— ┃
+    ┃ group_total     non_group_total ┃
+
     Args:
         model (cp_model.CpModel): The CP-SAT model instance.
         dissim_weight (float): Weight for the dissimilarity component of the
@@ -733,39 +729,14 @@ def set_objective_bh_wa_dissimilarity(
         matches (dict): Dictionary of boolean match variables.
         grades_interval_binary (dict): Dictionary of binary grade variables.
     """
-    dissim_objective_terms = []
+    dissimilarity_terms = []
     for school in matches:
         # --- Calculate Student Counts for the New School Configuration ---
         # Sum the number of BH and WA students that will be assigned to the
         # building of 'school'.
-        sum_s_bh = sum(
-            [
-                (
-                    total_per_grade_per_school[school]["num_black"][i]
-                    + total_per_grade_per_school[school]["num_hispanic"][i]
-                )
-                * grades_interval_binary[school][i]
-                for i in constants.GRADE_TO_INDEX.values()
-            ]
-        )
-        sum_s_wa = sum(
-            [
-                (
-                    total_per_grade_per_school[school]["num_white"][i]
-                    + total_per_grade_per_school[school]["num_asian"][i]
-                )
-                * grades_interval_binary[school][i]
-                for i in constants.GRADE_TO_INDEX.values()
-            ]
-        )
-
-        # Add students from any matched schools (school_2).
-        total_bh_students_at_school = [sum_s_bh]
+        total_bh_students_at_school = []
         for school_2 in matches[school]:
-            if school == school_2:
-                continue
-
-            students_at_s2 = sum(
+            students_at_s2_bh = sum(
                 [
                     (
                         total_per_grade_per_school[school_2]["num_black"][i]
@@ -776,20 +747,19 @@ def set_objective_bh_wa_dissimilarity(
                 ]
             )
 
-            sum_s2_bh = model.NewIntVar(
+            sum_school2_bh = model.NewIntVar(
                 0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_bh_{school},{school_2}"
             )
-            model.Add(sum_s2_bh == students_at_s2).OnlyEnforceIf(
+            model.Add(sum_school2_bh == students_at_s2_bh).OnlyEnforceIf(
                 matches[school][school_2]
             )
-            model.Add(sum_s2_bh == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            total_bh_students_at_school.append(sum_s2_bh)
+            model.Add(sum_school2_bh == 0).OnlyEnforceIf(
+                matches[school][school_2].Not()
+            )
+            total_bh_students_at_school.append(sum_school2_bh)
 
-        total_wa_students_at_school = [sum_s_wa]
+        total_wa_students_at_school = []
         for school_2 in matches[school]:
-            if school == school_2:
-                continue
-
             students_at_s2_wa = sum(
                 [
                     (
@@ -801,14 +771,16 @@ def set_objective_bh_wa_dissimilarity(
                 ]
             )
 
-            sum_s2_wa = model.NewIntVar(
+            sum_school2_wa = model.NewIntVar(
                 0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_wa_{school},{school_2}"
             )
-            model.Add(sum_s2_wa == students_at_s2_wa).OnlyEnforceIf(
+            model.Add(sum_school2_wa == students_at_s2_wa).OnlyEnforceIf(
                 matches[school][school_2]
             )
-            model.Add(sum_s2_wa == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            total_wa_students_at_school.append(sum_s2_wa)
+            model.Add(sum_school2_wa == 0).OnlyEnforceIf(
+                matches[school][school_2].Not()
+            )
+            total_wa_students_at_school.append(sum_school2_wa)
 
         # --- Calculate Dissimilarity Index Term for the School ---
         # Scaled total BH students at the school.
@@ -847,21 +819,14 @@ def set_objective_bh_wa_dissimilarity(
             + total_across_schools_by_category["num_asian"],
         )
 
-        # Absolute difference of the two ratios.
-        diff_val = model.NewIntVar(
-            -(constants.SCALING[0] ** 2), constants.SCALING[0] ** 2, ""
-        )
-        model.Add(diff_val == bh_ratio_at_school - wa_ratio_at_school)
-        obj_term_to_add = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        term = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
         model.AddAbsEquality(
-            obj_term_to_add,
-            diff_val,
+            term,
+            bh_ratio_at_school - wa_ratio_at_school,
         )
-        dissim_objective_terms.append(obj_term_to_add)
+        dissimilarity_terms.append(term)
 
-    # --- Set Final Objective ---
-    # Minimize the sum of the absolute differences (the dissimilarity index).
-    model.Minimize(sum(dissim_objective_terms))
+    model.Minimize(sum(dissimilarity_terms))
 
 
 def solve_and_output_results(
