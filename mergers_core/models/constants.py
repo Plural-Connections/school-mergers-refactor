@@ -47,3 +47,6 @@ BLOCKS_FILE = (
 )
 
 TRAVEL_TIMES_FILE = "data/travel_times_files/2122/{}/block_to_school_driving_times.json"
+
+STATE = "CA"
+DISTRICT_ID = "0602160"

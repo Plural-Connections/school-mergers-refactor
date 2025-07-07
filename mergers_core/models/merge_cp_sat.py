@@ -9,22 +9,19 @@ from pathlib import Path
 import os
 
 
-def _load_and_filter_nces_schools(filename: os.PathLike, district_id: str | list[str]):
+def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
     dataframe = pd.read_csv(filename, dtype={"NCESSCH": str})
     # District ID is the first 7 characters of the NCES school ID
     dataframe["leaid"] = dataframe["NCESSCH"].str[:7]
 
-    if isinstance(district_id, str):
-        filtered = dataframe[dataframe["leaid"] == district_id]
-    else:
-        filtered = dataframe[dataframe["leaid"].isin(district_id)]
+    filtered = dataframe[dataframe["leaid"].isin(constants.DISTRICT_ID)]
 
     filtered = filtered.reset_index(drop=True)
 
     return filtered, dataframe
 
 
-def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> tuple[
+def load_and_process_data(interdistrict: bool) -> tuple[
     dict[str, int],
     dict[str, list[str]],
     dict[str, dict[str, list[int]]],
@@ -40,8 +37,6 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
     mergers. It then calculates and aggregates student counts by race and grade.
 
     Args:
-        state: The two-letter state abbreviation.
-        district_id: The unique identifier for the school district.
         interdistrict: Flag indicating whether to consider mergers
             between different districts.
 
@@ -59,7 +54,8 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
               potential mergers.
     """
     df_schools_current_district, df_schools = _load_and_filter_nces_schools(
-        f"data/solver_files/2122/{state}/school_enrollments.csv", district_id
+        f"data/solver_files/2122/{constants.STATE}/school_enrollments.csv",
+        [constants.DISTRICT_ID],
     )
 
     unique_schools: list[str] = list(
@@ -71,7 +67,7 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
     # Load permissible merger data based on whether the scenario is interdistrict.
     if interdistrict:
         permissible_matches = header.read_json(
-            f"data/solver_files/2122/{state}/between_within_district_allowed_mergers.json"
+            f"data/solver_files/2122/{constants.STATE}/between_within_district_allowed_mergers.json"
         )
         # Identify all districts that are involved in the potential mergers.
         for school in unique_schools:
@@ -80,9 +76,9 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
             )
     else:
         permissible_matches = header.read_json(
-            f"data/solver_files/2122/{state}/within_district_allowed_mergers.json"
+            f"data/solver_files/2122/{constants.STATE}/within_district_allowed_mergers.json"
         )
-        districts_involved.add(district_id)
+        districts_involved.add(constants.DISTRICT_ID)
 
     districts_involved: list[str] = list(districts_involved)
 
@@ -687,8 +683,6 @@ def calculate_dissimilarity(
 
 
 def solve_and_output_results(
-    state="CA",
-    district_id="0602160",
     school_decrease_threshold=0.2,
     dissim_weight=1,
     interdistrict=False,
@@ -702,14 +696,16 @@ def solve_and_output_results(
     s3_bucket="s3://school-mergers/",
     write_to_s3=False,
 ):
-    print(f"Loading and processing data for {state} {district_id} ...")
+    print(
+        f"Loading and processing data for {constants.STATE} {constants.DISTRICT_ID} ..."
+    )
     (
         school_capacities,
         permissible_matches,
         total_per_grade_per_school,
         total_pop_per_cat_across_schools,
         df_schools_in_play,
-    ) = load_and_process_data(state, district_id, interdistrict)
+    ) = load_and_process_data(constants.STATE, constants.DISTRICT_ID, interdistrict)
 
     # Create the cp model
     model = cp_model.CpModel()
@@ -783,9 +779,7 @@ def solve_and_output_results(
         f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s"
         f"{solver.NumBranches()}_{solver.NumConflicts()}"
     )
-    curr_output_dir = (
-        f"data/results/{batch}/{state}/{district_id}/{this_result_dirname}"
-    )
+    curr_output_dir = f"data/results/{batch}/{constants.STATE}/{constants.DISTRICT_ID}/{this_result_dirname}"
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Status is {constants.STATUSES[status]}")
         print("Outputting solution ...")
@@ -793,8 +787,8 @@ def solve_and_output_results(
             solver,
             matches,
             grades_interval_binary,
-            state,
-            district_id,
+            constants.STATE,
+            constants.DISTRICT_ID,
             school_decrease_threshold,
             interdistrict,
             df_schools_in_play,
