@@ -24,7 +24,13 @@ def _load_and_filter_nces_schools(filename: os.PathLike, district_id: str | list
     return filtered, dataframe
 
 
-def load_and_process_data(state, district_id, interdistrict):
+def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> tuple[
+    dict[str, int],
+    dict[str, list[str]],
+    dict[str, dict[str, list[int]]],
+    Counter[str],
+    pd.DataFrame,
+]:
     """
     Loads and preprocesses all necessary data for the CP-SAT model.
 
@@ -34,21 +40,21 @@ def load_and_process_data(state, district_id, interdistrict):
     mergers. It then calculates and aggregates student counts by race and grade.
 
     Args:
-        state (str): The two-letter state abbreviation.
-        district_id (str): The unique identifier for the school district.
-        interdistrict (bool): Flag indicating whether to consider mergers
+        state: The two-letter state abbreviation.
+        district_id: The unique identifier for the school district.
+        interdistrict: Flag indicating whether to consider mergers
             between different districts.
 
     Returns:
         tuple: A tuple containing:
-            - school_capacities (dict): Maps school ID to its student capacity.
-            - permissible_matches (dict): Maps each school ID to a list of
+            - school_capacities: Maps school ID to its student capacity.
+            - permissible_matches: Maps each school ID to a list of
               other school IDs it is allowed to merge with.
-            - total_per_grade_per_school (defaultdict): Nested dictionary
+            - total_per_grade_per_school: Nested dictionary
               mapping school ID and race to a list of student counts per grade.
-            - total_pop_per_cat_across_schools (Counter): Counts of total
+            - total_pop_per_cat_across_schools: Counts of total
               students per racial category across all involved schools.
-            - df_schools_in_play (pd.DataFrame): DataFrame containing detailed
+            - df_schools_in_play: DataFrame containing detailed
               enrollment and demographic data for all schools involved in the
               potential mergers.
     """
@@ -96,7 +102,7 @@ def load_and_process_data(state, district_id, interdistrict):
     ].reset_index(drop=True)
 
     # Aggregate student counts by grade and race for each school.
-    students_per_grade_per_school: dict[dict[list[int]]] = defaultdict(
+    students_per_grade_per_school: dict[str, dict[str, list[int]]] = defaultdict(
         lambda: defaultdict(list)
     )
     total_pop_per_cat_across_schools = Counter()
@@ -124,7 +130,9 @@ def load_and_process_data(state, district_id, interdistrict):
     )
 
 
-def initialize_variables(model, df_schools_in_play):
+def initialize_variables(
+    model: cp_model.CpModel, df_schools_in_play: pd.DataFrame
+) -> tuple[dict[str, dict[str, cp_model.IntVar]], dict[str, cp_model.IntVar]]:
     """
     Initializes the core variables for the CP-SAT model.
 
@@ -133,15 +141,15 @@ def initialize_variables(model, df_schools_in_play):
     grade assignments.
 
     Args:
-        model (cp_model.CpModel): The CP-SAT model instance.
-        df_schools_in_play (pd.DataFrame): DataFrame containing data for all
+        model: The CP-SAT model instance.
+        df_schools_in_play: DataFrame containing data for all
             schools to be considered in the model.
 
     Returns:
         tuple: A tuple containing:
-            - matches (dict): A nested dictionary of boolean variables, where
+            - matches: A nested dictionary of boolean variables, where
               matches[s1][s2] is true if school s1 and s2 are merged.
-            - grades_interval_binary (dict): A dictionary mapping each school ID
+            - grades_interval_binary: A dictionary mapping each school ID
               to a list of binary variables, one for each grade level,
               indicating if the school serves that grade.
     """
@@ -229,8 +237,12 @@ def initialize_variables(model, df_schools_in_play):
 
 
 def _get_students_at_school(
-    model, matches, grades_at_school, school, students_per_grade_per_school
-):
+    model: cp_model.CpModel,
+    matches: dict[str, dict[str, cp_model.IntVar]],
+    grades_at_school: dict[str, list[cp_model.IntVar]],
+    school: str,
+    students_per_grade_per_school: dict[str, dict[str, list[int]]],
+) -> list[cp_model.IntVar]:
     """
     Calculates the number of students that will be assigned to a school building.
 
@@ -243,15 +255,15 @@ def _get_students_at_school(
         that 'school' will serve. This is calculated for each potential merger.
 
     Args:
-        model (cp_model.CpModel): The CP-SAT model instance.
-        matches (dict): A nested dictionary of boolean variables, where
+        model: The CP-SAT model instance.
+        matches: A nested dictionary of boolean variables, where
             matches[s1][s2] is true if school s1 and s2 are merged.
-        grades_at_school (dict): A dictionary mapping each school ID to a list
+        grades_at_school: A dictionary mapping each school ID to a list
             of binary variables, one for each grade level, indicating if the
             school serves that grade.
-        school (str): The NCESSCH ID of the school building for which to
+        school: The NCESSCH ID of the school building for which to
             calculate the student population.
-        students_per_grade_per_school (defaultdict): A nested dictionary
+        students_per_grade_per_school: A nested dictionary
             containing the number of students for each grade and racial
             category within each school.
 
@@ -305,14 +317,14 @@ def _get_students_at_school(
 
 
 def set_constraints(
-    model,
-    school_capacities,
-    school_decrease_threshold,
-    students_per_grade_per_school,
-    permissible_matches,
-    matches,
-    grades_at_school,
-):
+    model: cp_model.CpModel,
+    school_capacities: dict[str, int],
+    school_decrease_threshold: float,
+    students_per_grade_per_school: dict[str, dict[str, list[int]]],
+    permissible_matches: dict[str, list[str]],
+    matches: dict[str, dict[str, cp_model.IntVar]],
+    grades_at_school: dict[str, list[cp_model.IntVar]],
+) -> None:
     """
     Defines the set of rules and limitations for the school merger problem.
 
@@ -359,15 +371,15 @@ def set_constraints(
         ∑s'∈S (Ms,s' * ∑g∈G Rs',g) = |G| ∀ s∈S
 
     Arguments:
-        model (cp_model.CpModel): The CP-SAT model instance.
-        school_capacities (dict): Maps school ID to its student capacity.
-        school_decrease_threshold (float): The maximum allowable percentage
+        model: The CP-SAT model instance.
+        school_capacities: Maps school ID to its student capacity.
+        school_decrease_threshold: The maximum allowable percentage
             decrease in a school's enrollment.
-        students_per_grade_per_school (defaultdict): Student counts by grade,
+        students_per_grade_per_school: Student counts by grade,
             school, and race.
-        permissible_matches (dict): Defines which schools are allowed to merge.
-        matches (dict): Dictionary of boolean match variables.
-        grades_at_school (dict): Dictionary of binary grade variables.
+        permissible_matches: Defines which schools are allowed to merge.
+        matches: Dictionary of boolean match variables.
+        grades_at_school: Dictionary of binary grade variables.
     """
 
     # --- Symmetry and transitivity ---
@@ -543,168 +555,15 @@ def set_constraints(
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
 
-def set_objective_white_nonwhite_dissimilarity(
-    model,
-    dissim_weight,
-    students_per_grade_per_school,
-    total_pop_per_cat_across_schools,
-    matches,
-    grades_offered,
-):
-    """
-    Sets the objective function to minimize racial dissimilarity between white
-    and non-white students.
-
-    The function calculates the dissimilarity index, which measures how unevenly
-    student populations are distributed across schools. The goal is to make the
-    racial composition of each school as close as possible to the district-wide
-    composition.
-
-    Args:
-        model (cp_model.CpModel): The CP-SAT model instance.
-        dissim_weight (float): Weight for the dissimilarity component of the
-            objective function (currently not used in favor of a pure
-            dissimilarity objective).
-        total_per_grade_per_school (defaultdict): Student counts by grade,
-            school, and race.
-        total_pop_per_cat_across_schools (Counter): Total student counts by race.
-        matches (dict): Dictionary of boolean match variables.
-        grades_interval_binary (dict): Dictionary of binary grade variables.
-    """
-    dissimilarity_terms = []
-    for school in matches:
-        # --- Calculate Student Counts for the New School Configuration ---
-        # Sum the number of white students and total students that will be
-        # assigned to the building of 'school'.
-        sum_s_white = model.NewIntVar(
-            0, constants.MAX_TOTAL_STUDENTS, f"{school}_white_students"
-        )
-        sum_s_total = model.NewIntVar(
-            0, constants.MAX_TOTAL_STUDENTS, f"{school}_all_students"
-        )
-        model.Add(
-            sum_s_white
-            == sum(
-                [
-                    students_per_grade_per_school[school]["num_white"][i]
-                    * grades_offered[school][i]
-                    for i in constants.GRADE_TO_INDEX.values()
-                ]
-            )
-        )
-        model.Add(
-            sum_s_total
-            == sum(
-                [
-                    students_per_grade_per_school[school]["num_total"][i]
-                    * grades_offered[school][i]
-                    for i in constants.GRADE_TO_INDEX.values()
-                ]
-            )
-        )
-
-        total_cat_students_at_school = [sum_s_white]
-        total_students_at_school = [sum_s_total]
-
-        # Add students from any matched schools (school_2).
-        for school_2 in matches[school]:
-            if school == school_2:
-                continue
-            sum_s2_white = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school_2}_white_students"
-            )
-            sum_s2_total = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school_2}_all_students"
-            )
-
-            # Add white students from school_2 for the grades served by school.
-            model.Add(
-                sum_s2_white
-                == sum(
-                    [
-                        students_per_grade_per_school[school_2]["num_white"][i]
-                        * grades_offered[school][i]
-                        for i in constants.GRADE_TO_INDEX.values()
-                    ]
-                )
-            ).OnlyEnforceIf(matches[school][school_2])
-            model.Add(sum_s2_white == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            total_cat_students_at_school.append(sum_s2_white)
-
-            # Add total students from school_2 for the grades served by school.
-            model.Add(
-                sum_s2_total
-                == sum(
-                    [
-                        students_per_grade_per_school[school_2]["num_total"][i]
-                        * grades_offered[school][i]
-                        for i in constants.GRADE_TO_INDEX.values()
-                    ]
-                )
-            ).OnlyEnforceIf(matches[school][school_2])
-            model.Add(sum_s2_total == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            total_students_at_school.append(sum_s2_total)
-
-        # --- Calculate Dissimilarity Index Term for the School ---
-        # The dissimilarity index is sum(|group_i/group_total - other_i/other_total|).
-        # We need to use integer arithmetic, so we scale values to avoid floats.
-
-        # Scaled total white students at the school.
-        scaled_total_cat_students_at_school = model.NewIntVar(
-            0, constants.SCALING[0] ** 2, ""
-        )
-        model.Add(
-            scaled_total_cat_students_at_school
-            == constants.SCALING[0] * sum(total_cat_students_at_school)
-        )
-
-        # Scaled total non-white students at the school.
-        scaled_total_non_cat_students_at_school = model.NewIntVar(
-            0, constants.SCALING[0] ** 2, ""
-        )
-        model.Add(
-            scaled_total_non_cat_students_at_school
-            == constants.SCALING[0]
-            * (sum(total_students_at_school) - sum(total_cat_students_at_school))
-        )
-
-        # (white students at school / total white students in district)
-        cat_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
-        model.AddDivisionEquality(
-            cat_ratio_at_school,
-            scaled_total_cat_students_at_school,
-            total_pop_per_cat_across_schools["num_white"],
-        )
-
-        # (non-white students at school / total non-white students in district)
-        non_cat_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
-        model.AddDivisionEquality(
-            non_cat_ratio_at_school,
-            scaled_total_non_cat_students_at_school,
-            total_pop_per_cat_across_schools["num_total"]
-            - total_pop_per_cat_across_schools["num_white"],
-        )
-
-        term = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
-        model.AddAbsEquality(
-            term,
-            cat_ratio_at_school - non_cat_ratio_at_school,
-        )
-        dissimilarity_terms.append(term)
-
-    # --- Set Final Objective ---
-    # The overall objective is to minimize the sum of the absolute differences
-    # across all schools, which is equivalent to minimizing the dissimilarity index.
-    model.Minimize(sum(dissimilarity_terms))
-
-
-def set_objective_bh_wa_dissimilarity(
-    model,
-    dissim_weight,
-    total_per_grade_per_school,
-    total_across_schools_by_category,
-    matches,
-    grades_interval_binary,
+def calculate_dissimilarity(
+    model: cp_model.CpModel,
+    dissim_weight: float,
+    total_per_grade_per_school: dict[str, dict[str, list[int]]],
+    total_across_schools_by_category: Counter[str],
+    matches: dict[str, dict[str, cp_model.IntVar]],
+    grades_interval_binary: dict[str, list[cp_model.IntVar]],
+    groups_a: list[str],
+    groups_b: list[str],
 ):
     """
     Sets the objective function to minimize racial dissimilarity between
@@ -720,101 +579,99 @@ def set_objective_bh_wa_dissimilarity(
     ┃ group_total     non_group_total ┃
 
     Args:
-        model (cp_model.CpModel): The CP-SAT model instance.
-        dissim_weight (float): Weight for the dissimilarity component of the
+        model: The CP-SAT model instance.
+        dissim_weight: Weight for the dissimilarity component of the
             objective function.
-        total_per_grade_per_school (defaultdict): Student counts by grade,
+        total_per_grade_per_school: Student counts by grade,
             school, and race.
-        total_pop_per_cat_across_schools (Counter): Total student counts by race.
-        matches (dict): Dictionary of boolean match variables.
-        grades_interval_binary (dict): Dictionary of binary grade variables.
+        total_pop_per_cat_across_schools: Total student counts by race.
+        matches: Dictionary of boolean match variables.
+        grades_interval_binary: Dictionary of binary grade variables.
+        groups_a: Groups of students for the first half of a dissimilarity term.
+        groups_b: Groups of students for the second half of a dissimilarity term.
     """
+
+    for idx in range(len(groups_a)):
+        groups_a[idx] = groups_a[idx] + "_num"
+    for idx in range(len(groups_b)):
+        groups_b[idx] = groups_b[idx] + "_num"
+
     dissimilarity_terms = []
     for school in matches:
         # --- Calculate Student Counts for the New School Configuration ---
-        # Sum the number of BH and WA students that will be assigned to the
+        # Sum the number of A and B students that will be assigned to the
         # building of 'school'.
-        total_bh_students_at_school = []
+        total_a_students_at_school = []
         for school_2 in matches[school]:
-            students_at_s2_bh = sum(
-                [
-                    (
-                        total_per_grade_per_school[school_2]["num_black"][i]
-                        + total_per_grade_per_school[school_2]["num_hispanic"][i]
-                    )
-                    * grades_interval_binary[school][i]
-                    for i in constants.GRADE_TO_INDEX.values()
-                ]
+            students_at_s2_a = sum(
+                sum(
+                    total_per_grade_per_school[school_2][group][i] for group in groups_a
+                )
+                * grades_interval_binary[school][i]
+                for i in constants.GRADE_TO_INDEX.values()
             )
 
-            sum_school2_bh = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_bh_{school},{school_2}"
+            sum_school2_a = model.NewIntVar(
+                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_group_a_{school},{school_2}"
             )
-            model.Add(sum_school2_bh == students_at_s2_bh).OnlyEnforceIf(
+            model.Add(sum_school2_a == students_at_s2_a).OnlyEnforceIf(
                 matches[school][school_2]
             )
-            model.Add(sum_school2_bh == 0).OnlyEnforceIf(
-                matches[school][school_2].Not()
-            )
-            total_bh_students_at_school.append(sum_school2_bh)
+            model.Add(sum_school2_a == 0).OnlyEnforceIf(matches[school][school_2].Not())
+            total_a_students_at_school.append(sum_school2_a)
 
-        total_wa_students_at_school = []
+        total_b_students_at_school = []
         for school_2 in matches[school]:
-            students_at_s2_wa = sum(
-                [
-                    (
-                        total_per_grade_per_school[school_2]["num_white"][i]
-                        + total_per_grade_per_school[school_2]["num_asian"][i]
-                    )
-                    * grades_interval_binary[school][i]
-                    for i in constants.GRADE_TO_INDEX.values()
-                ]
+            students_at_s2_b = sum(
+                sum(
+                    total_per_grade_per_school[school_2][group][i] for group in groups_b
+                )
+                * grades_interval_binary[school][i]
+                for i in constants.GRADE_TO_INDEX.values()
             )
 
-            sum_school2_wa = model.NewIntVar(
+            sum_school2_b = model.NewIntVar(
                 0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_wa_{school},{school_2}"
             )
-            model.Add(sum_school2_wa == students_at_s2_wa).OnlyEnforceIf(
+            model.Add(sum_school2_b == students_at_s2_b).OnlyEnforceIf(
                 matches[school][school_2]
             )
-            model.Add(sum_school2_wa == 0).OnlyEnforceIf(
-                matches[school][school_2].Not()
-            )
-            total_wa_students_at_school.append(sum_school2_wa)
+            model.Add(sum_school2_b == 0).OnlyEnforceIf(matches[school][school_2].Not())
+            total_b_students_at_school.append(sum_school2_b)
 
         # --- Calculate Dissimilarity Index Term for the School ---
-        # Scaled total BH students at the school.
-        scaled_total_bh_students_at_school = model.NewIntVar(
+        # Scaled total A students at the school.
+        scaled_total_a_students_at_school = model.NewIntVar(
             0, constants.SCALING[0] ** 2, ""
         )
         model.Add(
-            scaled_total_bh_students_at_school
-            == constants.SCALING[0] * sum(total_bh_students_at_school)
+            scaled_total_a_students_at_school
+            == constants.SCALING[0] * sum(total_a_students_at_school)
         )
 
-        # Scaled total WA students at the school.
-        scaled_total_wa_students_at_school = model.NewIntVar(
+        # Scaled total B students at the school.
+        scaled_total_b_students_at_school = model.NewIntVar(
             0, constants.SCALING[0] ** 2, ""
         )
         model.Add(
-            scaled_total_wa_students_at_school
-            == constants.SCALING[0] * sum(total_wa_students_at_school)
+            scaled_total_b_students_at_school
+            == constants.SCALING[0] * sum(total_b_students_at_school)
         )
 
-        # (BH students at school / total BH students in district)
-        bh_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        # (A students at school / total A students in district)
+        a_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
         model.AddDivisionEquality(
-            bh_ratio_at_school,
-            scaled_total_bh_students_at_school,
+            a_ratio_at_school,
+            scaled_total_a_students_at_school,
             total_across_schools_by_category["num_black"]
             + total_across_schools_by_category["num_hispanic"],
         )
 
-        # (WA students at school / total WA students in district)
-        wa_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        # (B students at school / total B students in district)
+        b_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
         model.AddDivisionEquality(
-            wa_ratio_at_school,
-            scaled_total_wa_students_at_school,
+            b_ratio_at_school,
+            scaled_total_b_students_at_school,
             total_across_schools_by_category["num_white"]
             + total_across_schools_by_category["num_asian"],
         )
@@ -822,11 +679,11 @@ def set_objective_bh_wa_dissimilarity(
         term = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
         model.AddAbsEquality(
             term,
-            bh_ratio_at_school - wa_ratio_at_school,
+            a_ratio_at_school - b_ratio_at_school,
         )
         dissimilarity_terms.append(term)
 
-    model.Minimize(sum(dissimilarity_terms))
+    print(type(sum(dissimilarity_terms)))
 
 
 def solve_and_output_results(
@@ -876,24 +733,39 @@ def solve_and_output_results(
 
     if objective == "bh_wa":
         print("Setting objective function bh/wa ...")
-        set_objective_bh_wa_dissimilarity(
+        dissimilarity = calculate_dissimilarity(
             model,
             dissim_weight,
             total_per_grade_per_school,
             total_pop_per_cat_across_schools,
             matches,
             grades_interval_binary,
+            ["black", "hispanic"],
+            ["white", "asian"],
         )
     else:
         print("Setting objective function white/non-white...")
-        set_objective_white_nonwhite_dissimilarity(
+        dissimilarity = calculate_dissimilarity(
             model,
             dissim_weight,
             total_per_grade_per_school,
             total_pop_per_cat_across_schools,
             matches,
             grades_interval_binary,
+            [
+                "asian",
+                "black",
+                "hispanic",
+                "native",
+                "not_specified",
+                "pacific_islander",
+                "total",
+                "two_or_more",
+            ],
+            ["white"],
         )
+
+    model.Minimize(dissimilarity)
 
     print("Solving ...")
     solver = cp_model.CpSolver()
