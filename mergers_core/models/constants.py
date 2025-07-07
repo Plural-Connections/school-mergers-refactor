@@ -51,6 +51,5 @@ TRAVEL_TIMES_FILE = "data/travel_times_files/2122/{}/block_to_school_driving_tim
 STATE = "CA"
 DISTRICT_ID = "0602160"
 
-# Must be integers!
 DISSIMILARITY_WEIGHT = 1
 POPULATION_CONSISTENCY_WEIGHT = 1

@@ -7,6 +7,7 @@ import numpy as np
 from collections import Counter, defaultdict
 from pathlib import Path
 import os
+from fractions import Fraction
 
 
 def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
@@ -827,9 +828,18 @@ def solve_and_output_results(
         model, matches, grades_interval_binary, total_per_grade_per_school
     )
 
+    ratio = Fraction(
+        int(constants.DISSIMILARITY_WEIGHT * constants.SCALING[0]),
+        int(constants.POPULATION_CONSISTENCY_WEIGHT * constants.SCALING[0]),
+    )
+
+    print(
+        f"Objective function: minimize {ratio.numerator} * dissimilarity"
+        f" + {ratio.denominator} * population_consistency_metric"
+    )
     model.Minimize(
-        constants.DISSIMILARITY_WEIGHT * dissimilarity
-        + constants.POPULATION_CONSISTENCY_WEIGHT * population_consistency_metric
+        ratio.numerator * dissimilarity
+        + ratio.denominator * population_consistency_metric
     )
 
     print("Solving ...")
