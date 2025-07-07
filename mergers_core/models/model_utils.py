@@ -301,7 +301,6 @@ def check_solution_validity_and_compute_outcomes(
         status_quo_total_driving_times_for_switchers_per_school_per_cat,
         new_total_driving_times_for_switchers_per_school_per_cat,
     ) = estimate_travel_time_impacts(
-        state,
         school_cluster_lists,
         df_grades_curr,
         df_schools_in_play,
@@ -416,7 +415,7 @@ def output_solver_solution(
     except Exception as e:
         print(f"ERROR!!!! {e}")
         errors = {"error_message": str(e)}
-        header.write_dict(os.path.join(output_dir, "errors.json"), errors)
+        header.write_json(os.path.join(output_dir, "errors.json"), errors)
         return
 
     # Output results
@@ -583,7 +582,7 @@ def produce_post_solver_files(
     except Exception as e:
         print(f"ERROR!!!! {e}")
         errors = {"error_message": str(e)}
-        header.write_dict(os.path.join(output_dir, "errors.json"), errors)
+        header.write_json(os.path.join(output_dir, "errors.json"), errors)
         return
 
     # Output results
