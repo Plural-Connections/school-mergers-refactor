@@ -765,9 +765,6 @@ def set_objective_bh_wa_dissimilarity(
             if school == school_2:
                 continue
 
-            sum_s2_bh = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_bh_{school},{school_2}"
-            )
             students_at_s2 = sum(
                 [
                     (
@@ -778,17 +775,21 @@ def set_objective_bh_wa_dissimilarity(
                     for i in constants.GRADE_TO_INDEX.values()
                 ]
             )
-            model.AddMultiplicationEquality(
-                sum_s2_bh,
-                [
-                    students_at_s2,
-                    matches[school][school_2],
-                ],
+
+            sum_s2_bh = model.NewIntVar(
+                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_bh_{school},{school_2}"
             )
+            model.Add(sum_s2_bh == students_at_s2).OnlyEnforceIf(
+                matches[school][school_2]
+            )
+            model.Add(sum_s2_bh == 0).OnlyEnforceIf(matches[school][school_2].Not())
             total_bh_students_at_school.append(sum_s2_bh)
 
         total_wa_students_at_school = [sum_s_wa]
         for school_2 in matches[school]:
+            if school == school_2:
+                continue
+
             students_at_s2_wa = sum(
                 [
                     (
@@ -799,12 +800,14 @@ def set_objective_bh_wa_dissimilarity(
                     for i in constants.GRADE_TO_INDEX.values()
                 ]
             )
+
             sum_s2_wa = model.NewIntVar(
                 0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_wa_{school},{school_2}"
             )
-            model.AddMultiplicationEquality(
-                sum_s2_wa, [students_at_s2_wa, matches[school][school_2]]
+            model.Add(sum_s2_wa == students_at_s2_wa).OnlyEnforceIf(
+                matches[school][school_2]
             )
+            model.Add(sum_s2_wa == 0).OnlyEnforceIf(matches[school][school_2].Not())
             total_wa_students_at_school.append(sum_s2_wa)
 
         # --- Calculate Dissimilarity Index Term for the School ---
