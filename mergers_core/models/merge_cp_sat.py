@@ -14,7 +14,7 @@ def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
     # District ID is the first 7 characters of the NCES school ID
     dataframe["leaid"] = dataframe["NCESSCH"].str[:7]
 
-    filtered = dataframe[dataframe["leaid"].isin(constants.DISTRICT_ID)]
+    filtered = dataframe[dataframe["leaid"].isin(districts)]
 
     filtered = filtered.reset_index(drop=True)
 
