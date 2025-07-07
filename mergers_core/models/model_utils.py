@@ -502,24 +502,24 @@ def output_solver_solution(
 
     else:
 
-        header.write_dict(
+        header.write_json(
             os.path.join(output_dir, students_switching_per_group_per_school_file),
             num_students_switching_per_school,
         )
 
-        header.write_dict(
+        header.write_json(
             os.path.join(output_dir, students_per_group_per_school_post_merger_file),
             num_per_cat_per_school,
         )
 
-        header.write_dict(
+        header.write_json(
             os.path.join(
                 output_dir, students_per_grade_per_group_per_school_post_merger_file
             ),
             num_per_school_per_grade_per_cat,
         )
 
-        header.write_dict(
+        header.write_json(
             os.path.join(
                 output_dir,
                 status_quo_total_driving_times_for_switchers_per_school_per_cat_file,
@@ -527,7 +527,7 @@ def output_solver_solution(
             status_quo_total_driving_times_for_switchers_per_school_per_cat,
         )
 
-        header.write_dict(
+        header.write_json(
             os.path.join(
                 output_dir,
                 new_total_driving_times_for_switchers_per_school_per_cat_file,
