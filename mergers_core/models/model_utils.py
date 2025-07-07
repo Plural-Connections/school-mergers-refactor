@@ -410,7 +410,6 @@ def output_solver_solution(
         ) = check_solution_validity_and_compute_outcomes(
             df_mergers_g, df_grades, df_schools_in_play, state
         )
-        print("after second check")
 
     except Exception as e:
         print(f"ERROR!!!! {e}")
