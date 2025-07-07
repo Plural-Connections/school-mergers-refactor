@@ -140,17 +140,11 @@ def estimate_travel_time_impacts(
 
 
 def check_solution_validity_and_compute_outcomes(
-    df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="post"
+    df_mergers_g, df_grades, df_schools_in_play, state
 ):
     race_keys = list(constants.RACE_KEYS.values())
     df_mergers_curr = df_mergers_g.copy(deep=True)
     df_grades_curr = df_grades.copy(deep=True)
-    if pre_or_post == "pre":
-        df_mergers_curr = pd.DataFrame(
-            {"school_cluster": df_grades["NCESSCH"].tolist()}
-        )
-        for g in constants.GRADE_TO_INDEX:
-            df_grades_curr[g] = [True for i in range(len(df_grades))]
 
     # Make a dataframe based on which grades are offered by which schools
     school_cluster_lists = df_mergers_curr["school_cluster"].tolist()
@@ -389,9 +383,14 @@ def output_solver_solution(
 
     # Compute pre/post dissim and other outcomes of interest
     try:
+        df_mergers_pre = pd.DataFrame({"school_cluster": df_grades["NCESSCH"].tolist()})
+        df_grades_pre = pd.DataFrame(
+            {"NCESSCH": df_grades["NCESSCH"].tolist()}
+            | {id: [True] * df_grades.shape[0] for id in constants.GRADE_TO_INDEX}
+        )
         pre_dissim, pre_dissim_bh_wa, _, _, _, _, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
-                df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="pre"
+                df_mergers_pre, df_grades_pre, df_schools_in_play, state
             )
         )
 
@@ -409,7 +408,7 @@ def output_solver_solution(
             status_quo_total_driving_times_for_switchers_per_school_per_cat,
             new_total_driving_times_for_switchers_per_school_per_cat,
         ) = check_solution_validity_and_compute_outcomes(
-            df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="post"
+            df_mergers_g, df_grades, df_schools_in_play, state
         )
 
     except Exception as e:
