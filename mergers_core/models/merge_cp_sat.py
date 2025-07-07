@@ -564,7 +564,7 @@ def calculate_dissimilarity(
     grades_interval_binary: dict[str, list[cp_model.IntVar]],
     groups_a: list[str],
     groups_b: list[str],
-):
+) -> object:  # SumArray of linear expressions
     """
     Sets the objective function to minimize racial dissimilarity between
     Black/Hispanic (BH) and White/Asian (WA) students.
@@ -683,7 +683,7 @@ def calculate_dissimilarity(
         )
         dissimilarity_terms.append(term)
 
-    print(type(sum(dissimilarity_terms)))
+    return sum(dissimilarity_terms)
 
 
 def solve_and_output_results(
