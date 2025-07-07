@@ -160,11 +160,11 @@ def initialize_variables(model, df_schools_in_play):
 
     # --- Grade Assignment Variables ---
     # These variables determine the grade range (e.g., K-5, 6-8) for each school.
-    grades_start = {}
-    grades_end = {}
-    grades_duration = {}
-    grades_interval = {}
-    grades_interval_binary = {}  # Binary representation of grades served.
+    grades_start = dict()
+    grades_end = dict()
+    grades_duration = dict()
+    grades_interval = dict()
+    grades_interval_binary = dict()  # Binary representation of grades served.
     all_grades = list(constants.GRADE_TO_INDEX.values())
 
     for school in nces_ids:
