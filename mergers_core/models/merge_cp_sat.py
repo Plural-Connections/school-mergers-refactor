@@ -716,22 +716,28 @@ def setup_population_consistency(
         constants.MAX_TOTAL_STUDENTS * constants.SCALING[0],
         "average_school_population",
     )
+    total_population = model.NewIntVar(
+        0,
+        constants.MAX_TOTAL_STUDENTS * len(school_populations) * constants.SCALING[0],
+        "total_population",
+    )
+    model.Add(total_population == sum(school_populations) * constants.SCALING[0])
     model.AddDivisionEquality(
         average_school_population,
-        sum(school_populations) * constants.SCALING[0],
+        total_population,
         len(school_populations),
     )
 
     distances_to_average = []
-    for idx, school in enumerate(matches):
+    for idx, pop in enumerate(school_populations):
         distance_to_average = model.NewIntVar(
             0,
             constants.MAX_TOTAL_STUDENTS * constants.SCALING[0],
-            f"distance_to_average_{school}",
+            f"distance_to_average_{pop}",
         )
         model.AddAbsEquality(
             distance_to_average,
-            school_populations[idx] - average_school_population,
+            pop * constants.SCALING[0] - average_school_population,
         )
         distances_to_average.append(distance_to_average)
 
