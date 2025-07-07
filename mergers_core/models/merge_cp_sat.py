@@ -36,7 +36,7 @@ def load_and_process_data(interdistrict: bool) -> tuple[
     specified district and other districts involved in potential interdistrict
     mergers. It then calculates and aggregates student counts by race and grade.
 
-    Args:
+    Arguments:
         interdistrict: Flag indicating whether to consider mergers
             between different districts.
 
@@ -136,7 +136,7 @@ def initialize_variables(
     to find an optimal solution. These include variables for school matches and
     grade assignments.
 
-    Args:
+    Arguments:
         model: The CP-SAT model instance.
         df_schools_in_play: DataFrame containing data for all
             schools to be considered in the model.
@@ -250,7 +250,7 @@ def _get_students_at_school(
     2.  Students from a merged school ('school2') who are in the grade levels
         that 'school' will serve. This is calculated for each potential merger.
 
-    Args:
+    Arguments:
         model: The CP-SAT model instance.
         matches: A nested dictionary of boolean variables, where
             matches[s1][s2] is true if school s1 and s2 are merged.
@@ -562,19 +562,14 @@ def calculate_dissimilarity(
     groups_b: list[str],
 ) -> object:  # SumArray of linear expressions
     """
-    Sets the objective function to minimize racial dissimilarity between
-    Black/Hispanic (BH) and White/Asian (WA) students.
-
-    This function is analogous to set_objective_white_nonwhite_dissimilarity,
-    but it uses different racial groupings (BH vs. WA) to calculate the
-    dissimilarity index.
+    Returns a LinearExpr that calculates the dissimilarity index between two groups.
 
     The dissimilarity index is the sum of this absolute difference for all schools:
     ┃ group_school   non_group_school ┃
     ┃ ———————————— - ———————————————— ┃
     ┃ group_total     non_group_total ┃
 
-    Args:
+    Arguments:
         model: The CP-SAT model instance.
         dissim_weight: Weight for the dissimilarity component of the
             objective function.
@@ -705,7 +700,7 @@ def solve_and_output_results(
         total_per_grade_per_school,
         total_pop_per_cat_across_schools,
         df_schools_in_play,
-    ) = load_and_process_data(constants.STATE, constants.DISTRICT_ID, interdistrict)
+    ) = load_and_process_data(interdistrict)
 
     # Create the cp model
     model = cp_model.CpModel()
