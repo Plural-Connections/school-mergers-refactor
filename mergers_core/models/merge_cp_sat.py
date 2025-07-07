@@ -941,9 +941,16 @@ def solve_and_output_results(
 
     status = solver.Solve(model)
 
-    curr_output_dir = f"data/results/{batch}/{state}/{district_id}/{interdistrict}_{school_decrease_threshold}_{status}_{solver.WallTime()}_{solver.NumBranches()}_{solver.NumConflicts()}"
+    this_result_dirname = (
+        f"{interdistrict}_{school_decrease_threshold}_"
+        f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s"
+        f"{solver.NumBranches()}_{solver.NumConflicts()}"
+    )
+    curr_output_dir = (
+        f"data/results/{batch}/{state}/{district_id}/{this_result_dirname}"
+    )
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        print("Status is: ", status)
+        print(f"Status is {constants.STATUSES[status]}")
         print("Outputting solution ...")
         output_solver_solution(
             solver,
