@@ -429,7 +429,10 @@ def set_constraints(
             # --- Permissible Match Constraint ---
             # A school can only be matched with schools from its pre-approved list.
             # Primarily used for adjacency checking.
-            model.Add(matches[school1][school2] is False).OnlyEnforceIf(
+
+            # Ignore the linter warning: using `is False` causes shenanigans that break
+            # everything. Oh, python...
+            model.Add(matches[school1][school2] == False).OnlyEnforceIf(
                 school2 not in permissible_matches[school1]
             )
 
