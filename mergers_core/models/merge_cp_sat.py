@@ -677,6 +677,61 @@ def calculate_dissimilarity(
     return sum(dissimilarity_terms)
 
 
+def setup_population_consistency(
+    model: cp_model.CpModel,
+    matches: dict[str, dict[str, cp_model.IntVar]],
+    grades_at_school: dict[str, list[cp_model.IntVar]],
+    students_per_grade_per_school: dict[str, dict[str, list[int]]],
+) -> object:
+    """
+    Returns a LinearExpr that represents the population consistency index. This index is
+    the average distance from the mean population for each school's population.
+
+    Arguments:
+        model: The CP-SAT model instance.
+        matches: A nested dictionary of boolean variables, where
+            matches[s1][s2] is true if school s1 and s2 are merged.
+        grades_at_school: Dictionary of binary grade variables.
+        students_per_grade_per_school: Student counts by grade,
+            school, and race.
+
+    Returns:
+        A LinearExpr that represents the population consistency index.
+    """
+    school_populations = [
+        _get_students_at_school(
+            model, matches, grades_at_school, school, students_per_grade_per_school
+        )
+        for school in matches
+    ]
+
+    average_school_population = model.NewIntVar(
+        0,
+        constants.MAX_TOTAL_STUDENTS * constants.SCALING[0],
+        "average_school_population",
+    )
+    model.AddDivisionEquality(
+        average_school_population,
+        sum(school_populations) * constants.SCALING[0],
+        len(school_populations),
+    )
+
+    distances_to_average = []
+    for idx, school in enumerate(matches):
+        distance_to_average = model.NewIntVar(
+            0,
+            constants.MAX_TOTAL_STUDENTS * constants.SCALING[0],
+            f"distance_to_average_{school}",
+        )
+        model.AddAbsEquality(
+            distance_to_average,
+            school_populations[idx] - average_school_population,
+        )
+        distances_to_average.append(distance_to_average)
+
+    return sum(distances_to_average)
+
+
 def solve_and_output_results(
     school_decrease_threshold=0.2,
     dissim_weight=1,
@@ -756,7 +811,14 @@ def solve_and_output_results(
             ["white"],
         )
 
-    model.Minimize(dissimilarity)
+    population_consistency_metric = setup_population_consistency(
+        model, matches, grades_interval_binary, total_per_grade_per_school
+    )
+
+    model.Minimize(
+        constants.DISSIMILARITY_WEIGHT * dissimilarity
+        + constants.POPULATION_CONSISTENCY_WEIGHT * population_consistency_metric
+    )
 
     print("Solving ...")
     solver = cp_model.CpSolver()
