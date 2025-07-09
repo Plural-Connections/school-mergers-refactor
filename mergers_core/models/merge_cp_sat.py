@@ -745,6 +745,29 @@ def setup_population_consistency(
     return sum(distances_to_average)
 
 
+def set_objective(
+    model: cp_model.CpModel, dissimilarity_index, population_consistency_metric
+) -> None:
+    if constants.POPULATION_CONSISTENCY_WEIGHT == 0:
+        print("Objective function: minimize dissimilarity")
+        model.Maximize(dissimilarity_index)
+        return
+
+    ratio = Fraction(
+        int(constants.DISSIMILARITY_WEIGHT * constants.SCALING[0]),
+        int(constants.POPULATION_CONSISTENCY_WEIGHT * constants.SCALING[0]),
+    )
+
+    print(
+        f"Objective function: minimize {ratio.numerator} * dissimilarity"
+        f" + {ratio.denominator} * population_consistency_metric"
+    )
+    model.Minimize(
+        ratio.numerator * dissimilarity_index
+        + ratio.denominator * population_consistency_metric
+    )
+
+
 def solve_and_output_results(
     school_decrease_threshold=0.2,
     dissim_weight=1,
@@ -828,20 +851,7 @@ def solve_and_output_results(
         model, matches, grades_interval_binary, total_per_grade_per_school
     )
 
-    ratio = Fraction(
-        int(constants.DISSIMILARITY_WEIGHT * constants.SCALING[0]),
-        int(constants.POPULATION_CONSISTENCY_WEIGHT * constants.SCALING[0]),
-    )
-
-    print(
-        f"Objective function: minimize {ratio.numerator} * dissimilarity"
-        f" + {ratio.denominator} * population_consistency_metric"
-    )
-    model.Minimize(
-        ratio.numerator * dissimilarity
-        + ratio.denominator * population_consistency_metric
-    )
-
+    set_objective(model, dissimilarity, population_consistency_metric)
     print("Solving ...")
     solver = cp_model.CpSolver()
 
