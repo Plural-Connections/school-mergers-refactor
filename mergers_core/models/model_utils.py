@@ -9,11 +9,8 @@ from pathlib import Path
 import glob
 import shutil
 
-DF_BLOCKS = pd.read_csv(
-    constants.BLOCKS_FILE.format(constants.STATE),
-    dtype={"ncessch": str, "block_id": str},
-)
-TRAVEL_TIMES = header.read_json(constants.TRAVEL_TIMES_FILE.format(constants.STATE))
+DF_BLOCKS = None
+TRAVEL_TIMES = None
 
 
 def estimate_travel_time_impacts(
@@ -322,6 +319,15 @@ def check_solution_validity_and_compute_outcomes(
     )
 
 
+def maybe_load_large_files():
+    global DF_BLOCKS, TRAVEL_TIMES
+    if not DF_BLOCKS and not TRAVEL_TIMES:
+        DF_BLOCKS = pd.read_csv(
+            constants.BLOCKS_FILE.format(constants.STATE),
+            dtype={"ncessch": str, "block_id": str},
+        )
+
+
 def output_solver_solution(
     solver,
     matches,
@@ -344,6 +350,7 @@ def output_solver_solution(
     status_quo_total_driving_times_for_switchers_per_school_per_cat_file="status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
     new_total_driving_times_for_switchers_per_school_per_cat_file="new_total_driving_times_for_switchers_per_school_per_cat.json",
 ):
+    maybe_load_large_files()
 
     # Extract solver variables
     match_data = {"school_1": [], "school_2": []}
