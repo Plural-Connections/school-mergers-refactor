@@ -344,11 +344,6 @@ def output_solver_solution(
     grades_served_file_name,
     schools_in_play_file_name,
     results_file_name="analytics.csv",
-    students_switching_per_group_per_school_file="students_switching_per_group_per_school.json",
-    students_per_group_per_school_post_merger_file="students_per_group_per_school_post_merger.json",
-    students_per_grade_per_group_per_school_post_merger_file="students_per_grade_per_group_per_school_post_merger.json",
-    status_quo_total_driving_times_for_switchers_per_school_per_cat_file="status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
-    new_total_driving_times_for_switchers_per_school_per_cat_file="new_total_driving_times_for_switchers_per_school_per_cat.json",
 ):
     maybe_load_large_files()
 
@@ -466,21 +461,21 @@ def output_solver_solution(
         from s3fs import S3FileSystem
 
         path_to_s3_obj = os.path.join(
-            output_dir, students_switching_per_group_per_school_file
+            output_dir, "students_switching_per_group_per_school.json"
         )
         s3 = S3FileSystem()
         with s3.open(path_to_s3_obj, "w") as file:
             json.dump(num_students_switching_per_school, file)
 
         path_to_s3_obj = os.path.join(
-            output_dir, students_per_group_per_school_post_merger_file
+            output_dir, "students_per_group_per_school_post_merger.json"
         )
         s3 = S3FileSystem()
         with s3.open(path_to_s3_obj, "w") as file:
             json.dump(num_per_cat_per_school, file)
 
         path_to_s3_obj = os.path.join(
-            output_dir, students_per_grade_per_group_per_school_post_merger_file
+            output_dir, "students_per_grade_per_group_per_school_post_merger.json"
         )
         s3 = S3FileSystem()
         with s3.open(path_to_s3_obj, "w") as file:
@@ -488,7 +483,7 @@ def output_solver_solution(
 
         path_to_s3_obj = os.path.join(
             output_dir,
-            status_quo_total_driving_times_for_switchers_per_school_per_cat_file,
+            "status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
         )
         s3 = S3FileSystem()
         with s3.open(path_to_s3_obj, "w") as file:
@@ -498,7 +493,7 @@ def output_solver_solution(
             )
 
         path_to_s3_obj = os.path.join(
-            output_dir, new_total_driving_times_for_switchers_per_school_per_cat_file
+            output_dir, "new_total_driving_times_for_switchers_per_school_per_cat.json"
         )
         s3 = S3FileSystem()
         with s3.open(path_to_s3_obj, "w") as file:
@@ -506,18 +501,18 @@ def output_solver_solution(
 
     else:
         header.write_json(
-            os.path.join(output_dir, students_switching_per_group_per_school_file),
+            os.path.join(output_dir, "students_switching_per_group_per_school.json"),
             num_students_switching_per_school,
         )
 
         header.write_json(
-            os.path.join(output_dir, students_per_group_per_school_post_merger_file),
+            os.path.join(output_dir, "students_per_group_per_school_post_merger.json"),
             num_per_cat_per_school,
         )
 
         header.write_json(
             os.path.join(
-                output_dir, students_per_grade_per_group_per_school_post_merger_file
+                output_dir, "students_per_grade_per_group_per_school_post_merger.json"
             ),
             num_per_school_per_grade_per_cat,
         )
@@ -525,7 +520,7 @@ def output_solver_solution(
         header.write_json(
             os.path.join(
                 output_dir,
-                status_quo_total_driving_times_for_switchers_per_school_per_cat_file,
+                "status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
             ),
             status_quo_total_driving_times_for_switchers_per_school_per_cat,
         )
@@ -533,7 +528,7 @@ def output_solver_solution(
         header.write_json(
             os.path.join(
                 output_dir,
-                new_total_driving_times_for_switchers_per_school_per_cat_file,
+                "new_total_driving_times_for_switchers_per_school_per_cat.json",
             ),
             new_total_driving_times_for_switchers_per_school_per_cat,
         )
