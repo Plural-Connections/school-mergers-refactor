@@ -323,8 +323,8 @@ def maybe_load_large_files():
             constants.BLOCKS_FILE.format(constants.STATE),
             dtype={"ncessch": str, "block_id": str},
         )
-        TRAVEL_TIMES = json.load(
-            open(constants.TRAVEL_TIMES_FILE.format(constants.STATE))
+        TRAVEL_TIMES = header.read_json(
+            constants.TRAVEL_TIMES_FILE.format(constants.STATE)
         )
 
 
@@ -430,12 +430,8 @@ def output_solver_solution(
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
     data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
-    data_to_output.update(
-        travel_time_impacts["status_quo_total_driving_times_for_switchers_per_cat"]
-    )
-    data_to_output.update(
-        travel_time_impacts["new_total_driving_times_for_switchers_per_cat"]
-    )
+    data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
+    data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
     print(
         f"Pre dissim: {pre_dissim}\n",
@@ -453,13 +449,13 @@ def output_solver_solution(
                 / num_total_students['num_total_all'] / 60
                 }\n",
             f"SQ avg. travel time - switchers: {
-                travel_time_impacts['status_quo_total_driving_times_for_switchers_per_cat']['switcher_status_quo_time_num_total']
+                travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total']
                 / num_students_switching['num_total_switched'] / 60
-            }\n",
+            }",
             f"New avg. travel time - switchers: {
-                travel_time_impacts['new_total_driving_times_for_switchers_per_cat']['switcher_new_time_num_total']
+                travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total']
                 / num_students_switching['num_total_switched'] / 60
-            }\n",
+            }",
         )
     except Exception:
         pass
@@ -472,12 +468,12 @@ def output_solver_solution(
     if write_to_s3:
         from s3fs import S3FileSystem
 
-        for name, impact in travel_time_impacts:
+        for name, impact in travel_time_impacts.items():
             s3 = S3FileSystem()
             with s3.open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(impact, file)
     else:
-        for name, impact in travel_time_impacts:
+        for name, impact in travel_time_impacts.items():
             with open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(impact, file)
 
