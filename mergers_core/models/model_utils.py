@@ -349,9 +349,9 @@ def output_solver_solution(
 
     # Extract solver variables
     match_data = {"school_1": [], "school_2": []}
-    grades_served_data = {"NCESSCH": []}
-    grades_served_data.update({g: [] for g in constants.GRADE_TO_INDEX.keys()})
-    ind_to_grade = [k for k in constants.GRADE_TO_INDEX]
+    grades_served_data = {"NCESSCH": []} | {
+        g: [] for g in constants.GRADE_TO_INDEX.keys()
+    }
     for school in matches:
         for school_2 in matches[school]:
             val = solver.BooleanValue(matches[school][school_2])
@@ -360,9 +360,9 @@ def output_solver_solution(
                 match_data["school_2"].append(school_2)
 
         grades_served_data["NCESSCH"].append(school)
-        for i in range(len(grades_interval_binary[school])):
-            val = solver.BooleanValue(grades_interval_binary[school][i])
-            grades_served_data[ind_to_grade[i]].append(val)
+        for idx, grade in enumerate(constants.GRADE_TO_INDEX.keys()):
+            val = solver.BooleanValue(grades_interval_binary[school][idx])
+            grades_served_data[grade].append(val)
 
     if write_to_s3:
         output_dir = s3_bucket + output_dir
@@ -399,11 +399,11 @@ def output_solver_solution(
         (
             post_dissim,
             post_dissim_bh_wa,
-            num_per_cat_per_school,
-            num_per_school_per_grade_per_cat,
+            students_per_group_per_school_post_merger,
+            students_per_grade_per_group_per_school_post_merger,
             num_total_students,
             num_students_switching,
-            num_students_switching_per_school,
+            students_switching_per_group_per_school,
             status_quo_total_driving_times_per_cat,
             status_quo_total_driving_times_for_switchers_per_cat,
             new_total_driving_times_for_switchers_per_cat,
@@ -445,9 +445,9 @@ def output_solver_solution(
     try:
         print(
             f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all']}\n",
-            f"SQ avg. travel time - all: {status_quo_total_driving_times_per_cat['all_status_quo_time_num_total']/ num_total_students['num_total_all']/ 60}\n",
-            f"SQ avg. travel time - switchers: {status_quo_total_driving_times_for_switchers_per_cat['switcher_status_quo_time_num_total']/ num_students_switching['num_total_switched']/ 60}\n",
-            f"New avg. travel time - switchers: {new_total_driving_times_for_switchers_per_cat['switcher_new_time_num_total']/num_students_switching['num_total_switched']/ 60}\n",
+            f"SQ avg. travel time - all: {status_quo_total_driving_times_per_cat['all_status_quo_time_num_total'] / num_total_students['num_total_all']/ 60}\n",
+            f"SQ avg. travel time - switchers: {status_quo_total_driving_times_for_switchers_per_cat['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60}\n",
+            f"New avg. travel time - switchers: {new_total_driving_times_for_switchers_per_cat['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60}\n",
         )
     except Exception as e:
         pass
@@ -456,82 +456,26 @@ def output_solver_solution(
         os.path.join(output_dir, results_file_name), index=False
     )
 
+    variables_to_dump = [
+        "students_switching_per_group_per_school",
+        "students_per_group_per_school_post_merger",
+        "students_per_grade_per_group_per_school_post_merger",
+        "status_quo_total_driving_times_for_switchers_per_school_per_cat",
+        "new_total_driving_times_for_switchers_per_school_per_cat",
+    ]
+
     # Output number of students per race, per school
     if write_to_s3:
         from s3fs import S3FileSystem
 
-        path_to_s3_obj = os.path.join(
-            output_dir, "students_switching_per_group_per_school.json"
-        )
-        s3 = S3FileSystem()
-        with s3.open(path_to_s3_obj, "w") as file:
-            json.dump(num_students_switching_per_school, file)
-
-        path_to_s3_obj = os.path.join(
-            output_dir, "students_per_group_per_school_post_merger.json"
-        )
-        s3 = S3FileSystem()
-        with s3.open(path_to_s3_obj, "w") as file:
-            json.dump(num_per_cat_per_school, file)
-
-        path_to_s3_obj = os.path.join(
-            output_dir, "students_per_grade_per_group_per_school_post_merger.json"
-        )
-        s3 = S3FileSystem()
-        with s3.open(path_to_s3_obj, "w") as file:
-            json.dump(num_per_school_per_grade_per_cat, file)
-
-        path_to_s3_obj = os.path.join(
-            output_dir,
-            "status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
-        )
-        s3 = S3FileSystem()
-        with s3.open(path_to_s3_obj, "w") as file:
-            json.dump(
-                status_quo_total_driving_times_for_switchers_per_school_per_cat,
-                file,
-            )
-
-        path_to_s3_obj = os.path.join(
-            output_dir, "new_total_driving_times_for_switchers_per_school_per_cat.json"
-        )
-        s3 = S3FileSystem()
-        with s3.open(path_to_s3_obj, "w") as file:
-            json.dump(new_total_driving_times_for_switchers_per_school_per_cat, file)
-
+        for variable in variables_to_dump:
+            s3 = S3FileSystem()
+            with s3.open(os.path.join(output_dir, variable + ".json"), "w") as file:
+                json.dump(locals()[variable], file)
     else:
-        header.write_json(
-            os.path.join(output_dir, "students_switching_per_group_per_school.json"),
-            num_students_switching_per_school,
-        )
-
-        header.write_json(
-            os.path.join(output_dir, "students_per_group_per_school_post_merger.json"),
-            num_per_cat_per_school,
-        )
-
-        header.write_json(
-            os.path.join(
-                output_dir, "students_per_grade_per_group_per_school_post_merger.json"
-            ),
-            num_per_school_per_grade_per_cat,
-        )
-
-        header.write_json(
-            os.path.join(
-                output_dir,
-                "status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
-            ),
-            status_quo_total_driving_times_for_switchers_per_school_per_cat,
-        )
-
-        header.write_json(
-            os.path.join(
-                output_dir,
-                "new_total_driving_times_for_switchers_per_school_per_cat.json",
-            ),
-            new_total_driving_times_for_switchers_per_school_per_cat,
-        )
+        for variable in variables_to_dump:
+            with open(os.path.join(output_dir, variable + ".json"), "w") as file:
+                json.dump(locals()[variable], file)
 
 
 """
