@@ -84,7 +84,6 @@ def determine_school_capacities(
             dtype=str,
         )
         df_curr_elem = df_curr[df_curr["LEVEL"] == "Elementary"][["NCESSCH"]]
-        # df_curr_elem = df_curr
         df_curr_enrollment = pd.read_csv(
             input_dir.format(year, CCD_FILES[year][1]),
             encoding="ISO-8859-1",
@@ -178,7 +177,6 @@ def output_school_enrollments_by_race_grade(
     df_enrollment_g["GRADE"] = df_enrollment_g["GRADE"].replace(
         list(GRADE_KEYS.keys()), list(GRADE_KEYS.values())
     )
-    # df_enrollment_g["GRADE"] = df_enrollment_g["GRADE"].str.split("Grade ").str[1]
     df_enrollment_g_pivot = df_enrollment_g.pivot_table(
         index=["NCESSCH", "GRADE"],
         columns=["RACE_ETHNICITY"],
@@ -229,11 +227,6 @@ def output_neighboring_districts(
 ):
     print("Loading district shapes ...")
     df_shapes = gpd.read_file(district_shapefile)
-    # neighbors_data = {}
-    # for i, d in df_shapes.iterrows():
-    #     print(i)
-    #     neighbors = df_shapes[~df_shapes.geometry.disjoint(d.geometry)]
-    #     neighbors_data[d["GEOID"]] = [n["GEOID"] for _, n in neighbors.iterrows()]
     df_shapes["district_centroid_lat"] = df_shapes.centroid.y
     df_shapes["district_centroid_long"] = df_shapes.centroid.x
     district_centroids = {
@@ -243,7 +236,6 @@ def output_neighboring_districts(
         ]
         for i in range(0, len(df_shapes))
     }
-    # write_dict(output_file, neighbors_data)
     header.write_dict(output_file_district_centroids, district_centroids)
 
 
@@ -313,13 +305,11 @@ def output_allowed_mergers(
         if os.path.exists(os.path.join(output_dir.format(state), output_file_within)):
             states_already_processed.append(state)
     remaining_states = set(all_states) - set(states_already_processed)
-    # remaining_states = all_states
     for state in remaining_states:
         allowable_within_district = defaultdict(set)
         allowable_between_within_district = defaultdict(set)
         state_fips = us.states.lookup(state).fips
-        # if not state == "PA":
-        #     continue
+
         df_blocks = gpd.read_file(
             census_block_shapefiles.format(state_fips, state_fips),
             dtype={"GEOID20": str},
@@ -364,7 +354,6 @@ def output_allowed_mergers(
             os.path.join(curr_path, output_file_between),
             allowable_between_within_district,
         )
-        # exit()
 
 
 def output_districts_all_closed_enrollment_elementary(
@@ -445,7 +434,7 @@ def output_districts_to_process(
         state = us.states.lookup(df_g["district_id"].str[:2][i])
         try:
             all_states.append(state.abbr)
-        except Exception as e:
+        except Exception:
             all_states.append("")
     df_g["state"] = all_states
     df_g.to_csv(output_file_districts, index=False)

@@ -4,10 +4,8 @@
 Generates shape file (geopandas csv dumps) per district for a given state
 """
 
-import mergers_core.utils.header as header
 import pandas as pd
 
-import folium
 import geopandas as gpd
 import os
 import us
@@ -42,7 +40,7 @@ if __name__ == "__main__":
             df_school_state_data = pd.read_csv(
                 filename_school_state_data.format(s), dtype={"NCESSCH": str}
             )
-        except Exception as e:
+        except Exception:
             continue
 
         df_school_state_data["leaid"] = df_school_state_data["NCESSCH"].str[:7]
@@ -80,7 +78,6 @@ if __name__ == "__main__":
                 )
             )
             df_orig.crs = "epsg:4326"
-            # df_orig["geometry"] = df_orig["geometry"].simplify(0.0002)
 
             print(fname)
             df_orig.to_csv(fname)

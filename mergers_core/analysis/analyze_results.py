@@ -45,8 +45,6 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 def viz_assignments(
     results_dir="data/results/min_num_elem_schools_4_constrained/",
-    # state="MS",
-    # district_id="2804470",
     state="PA",
     district_id="4218990",
     district_centroids_file="data/school_district_2021_boundaries/district_centroids.json",

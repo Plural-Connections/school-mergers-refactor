@@ -1,5 +1,3 @@
-import mergers_core.utils.header as header
-from mergers_core.utils.produce_files_for_solver import GRADE_KEYS
 import us
 import pandas as pd
 import numpy as np
@@ -15,13 +13,11 @@ def block_allocation(curr_school, curr_blocks, r, block_students_by_cat, cat_key
     curr_blocks = curr_blocks.sort_values(by=perc_key, ascending=False).reset_index()
     num_students_remaining = total_students_to_allocate
 
-    # If we have a high fraction of the given category of
-    # students at the school, it's possible our
-    # census-based block-level counts are off.  So
-    # instead, simply assume the number of students in that
-    # category hailing from each block to the school
-    # is proportional to the total number of students
-    # we estimate to be living in that block
+    # If we have a high fraction of the given category of students at the school, it's
+    # possible our census-based block-level counts are off.  So instead, simply assume
+    # the number of students in that category hailing from each block to the school is
+    # proportional to the total number of students we estimate to be living in that
+    # block
     perc_total_key = "percent_total_pop_in_block"
     curr_blocks[perc_total_key] = (
         curr_blocks["num_total"] / curr_blocks["num_total"].sum()
@@ -54,7 +50,6 @@ def block_allocation(curr_school, curr_blocks, r, block_students_by_cat, cat_key
         num_allocated += num_to_allocate
         num_students_remaining -= num_to_allocate
 
-    # print(r, total_students_to_allocate, num_allocated)
     return num_allocated
 
 
@@ -86,7 +81,8 @@ def load_and_prep_block_racial_demos(
         .agg({"GEOID10": "first"})
     )
 
-    # Start with block demographics because these don't change regardless of the year of the attendance boundaries we are considering
+    # Start with block demographics because these don't change regardless of the year of
+    # the attendance boundaries we are considering
     print("\tLoading block demos ...")
     df_block_demos_all = pd.read_csv(
         block_demos_all_file, encoding="ISO-8859-1", dtype=str
@@ -206,7 +202,6 @@ def output_block_level_census_data_parallel():
     print("Starting parallel processing ...")
     print(len(state_abbrev))
 
-    # state_abbrev = ["VA"]
     from multiprocessing import Pool
 
     p = Pool(N_THREADS)
@@ -301,7 +296,6 @@ def estimate_students_per_block_parallel():
     print("Starting parallel processing ...")
     print(len(state_abbrev))
 
-    # state_abbrev = ["VA"]
     from multiprocessing import Pool
 
     p = Pool(N_THREADS)
