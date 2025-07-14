@@ -464,16 +464,26 @@ def output_solver_solution(
         os.path.join(output_dir, results_file_name), index=False
     )
 
+    things_to_output = travel_time_impacts | {
+        name: locals()[name]
+        for name in [
+            "num_per_school_per_grade_per_cat",
+            "num_per_cat_per_school",
+            "num_students_switching_per_school",
+        ]
+    }
+
     # Output number of students per race, per school
     if write_to_s3:
         from s3fs import S3FileSystem
 
-        for name, impact in travel_time_impacts.items():
+        for name, impact in things_to_output.items():
             s3 = S3FileSystem()
             with s3.open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(impact, file)
+
     else:
-        for name, impact in travel_time_impacts.items():
+        for name, impact in things_to_output.items():
             with open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(impact, file)
 
@@ -493,15 +503,10 @@ def produce_post_solver_files(
     interdistrict,
     output_dir,
     results_file_name="analytics.csv",
-    students_switching_per_group_per_school_file="students_switching_per_group_per_school.json",
-    students_per_group_per_school_post_merger_file="students_per_group_per_school_post_merger.json",
-    students_per_grade_per_group_per_school_post_merger_file="students_per_grade_per_group_per_school_post_merger.json",
-    status_quo_total_driving_times_for_switchers_per_school_per_cat_file="status_quo_total_driving_times_for_switchers_per_school_per_cat.json",
-    new_total_driving_times_for_switchers_per_school_per_cat_file="new_total_driving_times_for_switchers_per_school_per_cat.json",
 ):
     # Compute pre/post dissim and other outcomes of interest
     try:
-        pre_dissim, pre_dissim_bh_wa, _, _, _, _, _, _, _, _, _, _ = (
+        pre_dissim, pre_dissim_bh_wa, _, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
                 df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="pre"
             )
@@ -515,11 +520,7 @@ def produce_post_solver_files(
             num_total_students,
             num_students_switching,
             num_students_switching_per_school,
-            status_quo_total_driving_times_per_cat,
-            status_quo_total_driving_times_for_switchers_per_cat,
-            new_total_driving_times_for_switchers_per_cat,
-            status_quo_total_driving_times_for_switchers_per_school_per_cat,
-            new_total_driving_times_for_switchers_per_school_per_cat,
+            travel_time_impacts,
         ) = check_solution_validity_and_compute_outcomes(
             df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="post"
         )
@@ -543,9 +544,9 @@ def produce_post_solver_files(
     }
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
-    data_to_output.update(status_quo_total_driving_times_per_cat)
-    data_to_output.update(status_quo_total_driving_times_for_switchers_per_cat)
-    data_to_output.update(new_total_driving_times_for_switchers_per_cat)
+    data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
+    data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
+    data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
     print(
         f"Pre dissim: {pre_dissim}\n",
@@ -555,53 +556,43 @@ def produce_post_solver_files(
     )
     try:
         print(
-            f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all']}\n",
-            f"SQ avg. travel time - all: {status_quo_total_driving_times_per_cat['all_status_quo_time_num_total']/ num_total_students['num_total_all']/ 60}\n",
-            f"SQ avg. travel time - switchers: {status_quo_total_driving_times_for_switchers_per_cat['switcher_status_quo_time_num_total']/ num_students_switching['num_total_switched']/ 60}\n",
-            f"New avg. travel time - switchers: {new_total_driving_times_for_switchers_per_cat['switcher_new_time_num_total']/num_students_switching['num_total_switched']/ 60}\n",
+            f"Percent switchers: {
+                num_students_switching['num_total_switched'] / num_total_students['num_total_all']
+            }\n",
+            f"SQ avg. travel time - all: {
+                travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total']
+                / num_total_students['num_total_all'] / 60
+                }\n",
+            f"SQ avg. travel time - switchers: {
+                travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total']
+                / num_students_switching['num_total_switched'] / 60
+            }",
+            f"New avg. travel time - switchers: {
+                travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total']
+                / num_students_switching['num_total_switched'] / 60
+            }",
         )
-    except Exception as e:
+    except Exception:
         pass
+
+    things_to_output = travel_time_impacts | {
+        name: locals()[name]
+        for name in [
+            "num_per_school_per_grade_per_cat",
+            "num_per_cat_per_school",
+            "num_students_switching_per_school",
+        ]
+    }
 
     try:
         pd.DataFrame(data_to_output, index=[0]).to_csv(
             os.path.join(output_dir, results_file_name), index=False
         )
 
-        header.write_dict(
-            os.path.join(output_dir, students_switching_per_group_per_school_file),
-            num_students_switching_per_school,
-        )
+        for name, value in things_to_output.items():
+            header.write_dict(os.path.join(output_dir, name), value)
 
-        header.write_dict(
-            os.path.join(output_dir, students_per_group_per_school_post_merger_file),
-            num_per_cat_per_school,
-        )
-
-        header.write_dict(
-            os.path.join(
-                output_dir, students_per_grade_per_group_per_school_post_merger_file
-            ),
-            num_per_school_per_grade_per_cat,
-        )
-
-        header.write_dict(
-            os.path.join(
-                output_dir,
-                status_quo_total_driving_times_for_switchers_per_school_per_cat_file,
-            ),
-            status_quo_total_driving_times_for_switchers_per_school_per_cat,
-        )
-
-        header.write_dict(
-            os.path.join(
-                output_dir,
-                new_total_driving_times_for_switchers_per_school_per_cat_file,
-            ),
-            new_total_driving_times_for_switchers_per_school_per_cat,
-        )
-
-    except Exception as e:
+    except Exception:
         pass
 
 
