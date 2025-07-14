@@ -18,23 +18,18 @@ DATA_DIR = ""
 
 if __name__ == "__main__":
     year = "2122"
-    states = [s.split("/")[0] for s in os.listdir("data/attendance_boundaries/2122/")]
+    states = [s.split("/")[0] for s in os.listdir(os.path.join("data", "attendance_boundaries", "2122"))]
     for s in states:
         state_fips = us.states.lookup(s).fips
 
-        output_dir = DATA_DIR + ("data/census_block_shapefiles_2020/%s-%s" % (year, s))
+        output_dir = os.path.join(DATA_DIR, "data", "census_block_shapefiles_2020", f"{year}-{s}")
 
         print("Processing {}...".format(s))
 
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        filename_school_state_data = (
-            DATA_DIR + "data/solver_files/2122/{}/school_enrollments.csv"
-        )
-        filename_blocks_to_schools_file = (
-            DATA_DIR
-            + "data/attendance_boundaries/2122/{}/estimated_student_counts_per_block.csv"
-        )
+        filename_school_state_data = os.path.join(DATA_DIR, "data", "solver_files", "2122", "{}", "school_enrollments.csv")
+        filename_blocks_to_schools_file = os.path.join(DATA_DIR, "data", "attendance_boundaries", "2122", "{}", "estimated_student_counts_per_block.csv")
 
         try:
             df_school_state_data = pd.read_csv(
@@ -46,13 +41,10 @@ if __name__ == "__main__":
         df_school_state_data["leaid"] = df_school_state_data["NCESSCH"].str[:7]
 
         districts = list(df_school_state_data["leaid"].unique())
-        filename_blocks_shape_file = (
-            DATA_DIR
-            + "/Users/ngillani/OneDrive - Northeastern University/neu/rezoning-schools/data/census_block_shapefiles_2020/tl_2021_{}_tabblock20/tl_2021_{}_tabblock20.shp"
-        )
+        filename_blocks_shape_file = os.path.join(DATA_DIR, os.path.expanduser("~"), "OneDrive - Northeastern University", "neu", "rezoning-schools", "data", "census_block_shapefiles_2020", f"tl_2021_{state_fips}_tabblock20", f"tl_2021_{state_fips}_tabblock20.shp")
 
         df_blocks = gpd.read_file(
-            filename_blocks_shape_file.format(state_fips, state_fips), dtype={""}
+            filename_blocks_shape_file.format(state_fips, state_fips), dtype={}
         )
 
         df_asgn_orig = pd.read_csv(
@@ -62,7 +54,7 @@ if __name__ == "__main__":
         df_asgn_orig["leaid"] = df_asgn_orig["ncessch"].str[:7]
 
         for district in districts:
-            fname = output_dir + "/%s-%s-%s.geodata.csv" % (year, s, district)
+            fname = os.path.join(output_dir, f"{year}-{s}-{district}.geodata.csv")
             if os.path.exists(fname):
                 print(fname)
                 continue

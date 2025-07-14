@@ -9,13 +9,13 @@ from mergers_core.models.constants import MAX_SOLVER_TIME
 
 
 def generate_year_state_sweep_configs(
-    districts_to_process_file="data/school_data/all_districts.csv",
+    districts_to_process_file=os.path.join("data", "school_data", "all_districts.csv"),
     max_cluster_node_time=43200,
     total_cluster_tasks_per_group=500,
     min_elem_schools=4,
     batch_root="min_num_elem_{}_constrained_bh_wa",
     dists_to_remove=None,
-    output_dir="data/sweep_configs/{}/",
+    output_dir=os.path.join("data", "sweep_configs", "{}"),
 ):
     interdistrict_options = [False]
     objective_options = ["bh_wa"]
@@ -75,7 +75,7 @@ def run_sweep_for_chunk(
     num_total_chunks,
     group_id,
     solver_function=solve_and_output_results,
-    sweeps_dir="data/sweep_configs/min_num_elem_4_constrained_bh_wa/",
+    sweeps_dir=os.path.join("data", "sweep_configs", "min_num_elem_4_constrained_bh_wa"),
 ):
     df_configs = pd.read_csv(
         os.path.join(sweeps_dir, f"{group_id}.csv"), dtype={"district_id": str}

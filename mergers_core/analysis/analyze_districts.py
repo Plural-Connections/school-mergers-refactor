@@ -9,64 +9,30 @@ from collections import Counter
 
 
 def compute_dissimilarity_index(df_dist):
-    vals = []
-    cat_total = df_dist["num_white"].sum()
-    non_cat_total = df_dist["num_total"].sum() - df_dist["num_white"].sum()
-    for i in range(0, len(df_dist)):
-        vals.append(
-            np.abs(
-                (df_dist["num_white"][i] / cat_total)
-                - ((df_dist["num_total"][i] - df_dist["num_white"][i]) / non_cat_total)
-            )
-        )
-
-    return 0.5 * np.nansum(vals)
+    white_total = df_dist["num_white"].sum()
+    non_white_total = df_dist["num_total"].sum() - white_total
+    if white_total == 0 or non_white_total == 0:
+        return 0
+    df_dist["white_prop"] = df_dist["num_white"] / white_total
+    df_dist["non_white_prop"] = (df_dist["num_total"] - df_dist["num_white"]) / non_white_total
+    return 0.5 * np.nansum(np.abs(df_dist["white_prop"] - df_dist["non_white_prop"]))
 
 
 def get_school_demos(df):
     df["district_id"] = df["NCESSCH"].str[:7]
-    schools_data = {
-        "district_id": [],
-        "NCESSCH": [],
-        "num_total": [],
-        "num_white": [],
-        "num_black": [],
-        "num_asian": [],
-        "num_native": [],
-        "num_hispanic": [],
-        "num_pacific_islander": [],
-    }
-
-    cols_black = ["num_black_{}".format(g) for g in constants.GRADE_TO_INDEX]
-    cols_asian = ["num_asian_{}".format(g) for g in constants.GRADE_TO_INDEX]
-    cols_native = ["num_native_{}".format(g) for g in constants.GRADE_TO_INDEX]
-    cols_hisp = ["num_hispanic_{}".format(g) for g in constants.GRADE_TO_INDEX]
-    cols_pacific_islander = [
-        "num_pacific_islander_{}".format(g) for g in constants.GRADE_TO_INDEX
-    ]
-    cols_white = ["num_white_{}".format(g) for g in constants.GRADE_TO_INDEX]
-    cols_total = ["num_total_{}".format(g) for g in constants.GRADE_TO_INDEX]
-    for i in range(0, len(df)):
-        schools_data["district_id"].append(df["district_id"][i])
-        schools_data["NCESSCH"].append(df["NCESSCH"][i])
-        schools_data["num_total"].append(df.loc[i, cols_total].sum())
-        schools_data["num_white"].append(df.loc[i, cols_white].sum())
-        schools_data["num_black"].append(df.loc[i, cols_black].sum())
-        schools_data["num_asian"].append(df.loc[i, cols_asian].sum())
-        schools_data["num_native"].append(df.loc[i, cols_native].sum())
-        schools_data["num_hispanic"].append(df.loc[i, cols_hisp].sum())
-        schools_data["num_pacific_islander"].append(
-            df.loc[i, cols_pacific_islander].sum()
-        )
-
-    df_schools = pd.DataFrame(schools_data)
-    return df_schools
+    race_cols = ["white", "black", "asian", "native", "hispanic", "pacific_islander"]
+    for race in race_cols:
+        cols = [f"num_{race}_{g}" for g in constants.GRADE_TO_INDEX]
+        df[f"num_{race}"] = df[cols].sum(axis=1)
+    cols_total = [f"num_total_{g}" for g in constants.GRADE_TO_INDEX]
+    df["num_total"] = df[cols_total].sum(axis=1)
+    return df
 
 
 def produce_dists_data_file(
-    input_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
-    closed_enroll_file="data/school_data/entirely_elem_closed_enrollment_districts.csv",
-    output_file="data/school_data/open_v_closed_enrollment_districts.csv",
+    input_file=os.path.join("data", "school_data", "21_22_school_counts_by_grade_and_race.csv"),
+    closed_enroll_file=os.path.join("data", "school_data", "entirely_elem_closed_enrollment_districts.csv"),
+    output_file=os.path.join("data", "school_data", "open_v_closed_enrollment_districts.csv"),
 ):
     df = pd.read_csv(input_file, dtype={"NCESSCH": str})
 
@@ -135,8 +101,8 @@ def produce_dists_data_file(
 
 
 def analyze_districts_in_sample(
-    all_dists_file="data/school_data/open_v_closed_enrollment_districts.csv",
-    results_file="data/school_data/results_top_200_by_population.csv",
+    all_dists_file=os.path.join("data", "school_data", "open_v_closed_enrollment_districts.csv"),
+    results_file=os.path.join("data", "school_data", "results_top_200_by_population.csv"),
 ):
     df_all = pd.read_csv(all_dists_file, dtype={"district_id": str})
     df_all["prop_white"] = df_all["dist_num_white"] / df_all["dist_num_total"]
@@ -188,14 +154,14 @@ def analyze_districts_in_sample(
 
 
 def analyze_choice_options_in_districts(
-    charter_schools_file="data/school_data/21_22_charter_status.csv",
-    magnet_schools_file="data/school_data/21_22_magnet_status.csv",
-    district_boundaries_file="data/school_district_2021_boundaries/shapes/schooldistrict_sy2021_tl21.shp",
-    schools_locations_file="data/school_data/nces_21_22_lat_longs.csv",
-    school_demos_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
-    dist_demographics_file="data/school_data/open_v_closed_enrollment_districts.csv",
-    top_dists_file="data/school_data/results_top_200_by_population.csv",
-    output_file="data/school_data/top_200_school_choice_analysis.csv",
+    charter_schools_file=os.path.join("data", "school_data", "21_22_charter_status.csv"),
+    magnet_schools_file=os.path.join("data", "school_data", "21_22_magnet_status.csv"),
+    district_boundaries_file=os.path.join("data", "school_district_2021_boundaries", "shapes", "schooldistrict_sy2021_tl21.shp"),
+    schools_locations_file=os.path.join("data", "school_data", "nces_21_22_lat_longs.csv"),
+    school_demos_file=os.path.join("data", "school_data", "21_22_school_counts_by_grade_and_race.csv"),
+    dist_demographics_file=os.path.join("data", "school_data", "open_v_closed_enrollment_districts.csv"),
+    top_dists_file=os.path.join("data", "school_data", "results_top_200_by_population.csv"),
+    output_file=os.path.join("data", "school_data", "top_200_school_choice_analysis.csv"),
 ):
     # First, identify lat / long of all charter and magnet elem schools (since we only include non open erollment schools, don't expect magnets?)
     # Next, identify which ones are contained in which of our 98 school districts
@@ -376,12 +342,12 @@ def compute_dissim(schools, school_enrollments):
 
 
 def estimate_dissim_with_optouts(
-    choice_file="data/school_data/top_200_school_choice_analysis.csv",
-    post_merger_enrollments_file="data/results/{}/**/{}/**/students_per_group_per_school_post_merger.json",
-    mergers_file="data/results/{}/**/{}/**/school_mergers.csv",
-    consolidated_results_file="data/results/{}/consolidated_simulation_results_{}_0.2_False.csv",
+    choice_file=os.path.join("data", "school_data", "top_200_school_choice_analysis.csv"),
+    post_merger_enrollments_file=os.path.join("data", "results", "{}", "**", "{}", "**", "students_per_group_per_school_post_merger.json"),
+    mergers_file=os.path.join("data", "results", "{}", "**", "{}", "**", "school_mergers.csv"),
+    consolidated_results_file=os.path.join("data", "results", "{}", "consolidated_simulation_results_{}_0.2_False.csv"),
     batch="min_num_elem_schools_4_constrained",
-    output_file="data/school_data/choice_dissim_results_top_200.csv",
+    output_file=os.path.join("data", "school_data", "choice_dissim_results_top_200.csv"),
 ):
     df_choice = pd.read_csv(choice_file, dtype={"district_id": str})
     df_results = pd.read_csv(

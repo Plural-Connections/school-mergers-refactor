@@ -69,8 +69,8 @@ GRADE_KEYS = {
 
 
 def determine_school_capacities(
-    input_dir="data/school_data/ccd/{}/{}",
-    output_file="~/Downloads/21_22_school_capacities.csv",
+    input_dir=os.path.join("data", "school_data", "ccd", "{}", "{}"),
+    output_file=os.path.join(os.path.expanduser("~"), "Downloads", "21_22_school_capacities.csv"),
 ):
     years = list(CCD_FILES.keys())
     years.reverse()
@@ -134,8 +134,8 @@ def determine_school_capacities(
 
 
 def copy_blocks_to_elementary(
-    input_dir="/Users/ngillani/OneDrive - Northeastern University/neu/rezoning-schools/data/derived_data/2122/",
-    output_dir="data/attendance_boundaries/2122/",
+    input_dir=os.path.join(os.path.expanduser("~"), "OneDrive - Northeastern University", "neu", "rezoning-schools", "data", "derived_data", "2122"),
+    output_dir=os.path.join("data", "attendance_boundaries", "2122"),
 ):
     for state in os.listdir(input_dir):
         print(state)
@@ -147,9 +147,9 @@ def copy_blocks_to_elementary(
 
 
 def output_school_enrollments_by_race_grade(
-    input_dir="data/attendance_boundaries/2122/",
-    capacities_file="data/school_data/21_22_school_capacities.csv",
-    output_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
+    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
+    capacities_file=os.path.join("data", "school_data", "21_22_school_capacities.csv"),
+    output_file=os.path.join("data", "school_data", "21_22_school_counts_by_grade_and_race.csv"),
 ):
     # pd.set_option("display.max_columns", None)
     df_caps = pd.read_csv(capacities_file, dtype={"NCESSCH": str})[
@@ -221,9 +221,9 @@ def output_school_enrollments_by_race_grade(
 
 
 def output_neighboring_districts(
-    district_shapefile="data/school_district_2021_boundaries/shapes/schooldistrict_sy2021_tl21.shp",
-    output_file="data/school_district_2021_boundaries/district_neighbors.json",
-    output_file_district_centroids="data/school_district_2021_boundaries/district_centroids.json",
+    district_shapefile=os.path.join("data", "school_district_2021_boundaries", "shapes", "schooldistrict_sy2021_tl21.shp"),
+    output_file=os.path.join("data", "school_district_2021_boundaries", "district_neighbors.json"),
+    output_file_district_centroids=os.path.join("data", "school_district_2021_boundaries", "district_centroids.json"),
 ):
     print("Loading district shapes ...")
     df_shapes = gpd.read_file(district_shapefile)
@@ -245,9 +245,9 @@ def output_neighboring_districts(
 
 
 def output_updated_district_centroids(
-    input_file="data/school_district_2021_boundaries/EDGE_GEOCODE_PUBLICLEA_2122.csv",
-    curr_centroids_file="data/school_district_2021_boundaries/district_centroids.json",
-    output_file="data/school_district_2021_boundaries/updated_district_centroids.json",
+    input_file=os.path.join("data", "school_district_2021_boundaries", "EDGE_GEOCODE_PUBLICLEA_2122.csv"),
+    curr_centroids_file=os.path.join("data", "school_district_2021_boundaries", "district_centroids.json"),
+    output_file=os.path.join("data", "school_district_2021_boundaries", "updated_district_centroids.json"),
 ):
     df = pd.read_csv(input_file, dtype={"LEAID": str})
     df["LEAID"] = df["LEAID"].str.rjust(7, "0")
@@ -262,11 +262,11 @@ def output_updated_district_centroids(
 
 
 def output_allowed_mergers(
-    input_dir="data/attendance_boundaries/2122/",
-    schools_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
-    census_block_shapefiles="/Users/ngillani/OneDrive - Northeastern University/neu/rezoning-schools/data/census_block_shapefiles_2020/tl_2021_{}_tabblock20/tl_2021_{}_tabblock20.shp",
-    neighboring_districts_file="data/school_district_2021_boundaries/district_neighbors.json",
-    output_dir="data/solver_files/2122/{}/",
+    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
+    schools_file=os.path.join("data", "school_data", "21_22_school_counts_by_grade_and_race.csv"),
+    census_block_shapefiles=os.path.join(os.path.expanduser("~"), "OneDrive - Northeastern University", "neu", "rezoning-schools", "data", "census_block_shapefiles_2020", "tl_2021_{}_tabblock20", "tl_2021_{}_tabblock20.shp"),
+    neighboring_districts_file=os.path.join("data", "school_district_2021_boundaries", "district_neighbors.json"),
+    output_dir=os.path.join("data", "solver_files", "2122", "{}"),
     output_file_within="within_district_allowed_mergers.json",
     output_file_between="between_within_district_allowed_mergers.json",
 ):
@@ -357,8 +357,8 @@ def output_allowed_mergers(
 
 
 def output_districts_all_closed_enrollment_elementary(
-    input_dir="data/attendance_boundaries/2122/",
-    output_file="data/school_data/entirely_elem_closed_enrollment_districts.csv",
+    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
+    output_file=os.path.join("data", "school_data", "entirely_elem_closed_enrollment_districts.csv"),
 ):
 
     all_states = os.listdir(input_dir)
@@ -383,9 +383,9 @@ def output_districts_all_closed_enrollment_elementary(
 
 
 def output_allowed_schools(
-    schools_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
-    input_dir="data/attendance_boundaries/2122/",
-    output_dir="data/solver_files/2122/{}/",
+    schools_file=os.path.join("data", "school_data", "21_22_school_counts_by_grade_and_race.csv"),
+    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
+    output_dir=os.path.join("data", "solver_files", "2122", "{}"),
 ):
     df_schools = pd.read_csv(schools_file, dtype={"NCESSCH": str})
     for state in os.listdir(input_dir):
@@ -408,10 +408,10 @@ def output_allowed_schools(
 
 
 def output_districts_to_process(
-    input_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
-    membership_file="ccd/2021-2022/ccd_sch_029_2122_w_1a_071722.csv",
-    output_file_districts="data/school_data/all_districts.csv",
-    output_file_schools="data/school_data/all_schools_with_names.csv",
+    input_file=os.path.join("data", "school_data", "21_22_school_counts_by_grade_and_race.csv"),
+    membership_file=os.path.join("data", "school_data", "ccd", "2021-2022", "ccd_sch_029_2122_w_1a_071722.csv"),
+    output_file_districts=os.path.join("data", "school_data", "all_districts.csv"),
+    output_file_schools=os.path.join("data", "school_data", "all_schools_with_names.csv"),
 ):
     df = pd.read_csv(input_file, dtype={"NCESSCH": str})
     df["district_id"] = df["NCESSCH"].str[:7]

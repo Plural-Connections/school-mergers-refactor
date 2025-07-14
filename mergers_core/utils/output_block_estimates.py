@@ -70,7 +70,7 @@ def allocate_students_to_blocks(curr_school, curr_blocks, all_cat_keys):
 def load_and_prep_block_racial_demos(
     block_demos_all_file,
     block_demos_over_18_file,
-    census_block_mapping_file="/Users/ngillani/OneDrive - Northeastern University/neu/rezoning-schools/data/census_block_covariates/census_block_mapping_2020_2010.csv",
+    census_block_mapping_file=os.path.join("data", "census_block_covariates", "census_block_mapping_2020_2010.csv"),
 ):
     print("\tLoad mapping file ...")
     # Map a given 2020 block to its highest-weighted block from 2010
@@ -150,10 +150,10 @@ def load_and_prep_block_racial_demos(
 
 def output_block_level_census_data(
     state,
-    input_file="data/attendance_boundaries/2122/{}/blocks_to_elementary.csv",
-    block_demos_all_file_name="/Users/ngillani/OneDrive - Northeastern University/neu/rezoning-schools/data/census_block_covariates/2020_census_race_hisp_all_by_block/by_state/{}/racial_demos_by_block.csv",
-    block_demos_over_18_file_name="/Users/ngillani/OneDrive - Northeastern University/neu/rezoning-schools/data/census_block_covariates/2020_census_race_hisp_over_18_by_block/by_state/{}/racial_demos_by_block.csv",
-    output_file="data/attendance_boundaries/2122/{}/census_data_for_blocks_data.csv",
+    input_file=os.path.join("data", "attendance_boundaries", "2122", "{}", "blocks_to_elementary.csv"),
+    block_demos_all_file_name=os.path.join("data", "census_block_covariates", "2020_census_race_hisp_all_by_block", "by_state", "{}", "racial_demos_by_block.csv"),
+    block_demos_over_18_file_name=os.path.join("data", "census_block_covariates", "2020_census_race_hisp_over_18_by_block", "by_state", "{}", "racial_demos_by_block.csv"),
+    output_file=os.path.join("data", "attendance_boundaries", "2122", "{}", "census_data_for_blocks_data.csv"),
 ):
     print("\tLoading block demos for state {}...".format(state))
     df_block_demos = load_and_prep_block_racial_demos(
@@ -213,9 +213,9 @@ def output_block_level_census_data_parallel():
 
 def estimate_students_per_block(
     state,
-    input_file="data/attendance_boundaries/2122/{}/census_data_for_blocks_data.csv",
-    input_schools_file="data/solver_files/2122/{}/school_enrollments.csv",
-    output_file="data/attendance_boundaries/2122/{}/estimated_student_counts_per_block.csv",
+    input_file=os.path.join("data", "attendance_boundaries", "2122", "{}", "census_data_for_blocks_data.csv"),
+    input_schools_file=os.path.join("data", "solver_files", "2122", "{}", "school_enrollments.csv"),
+    output_file=os.path.join("data", "attendance_boundaries", "2122", "{}", "estimated_student_counts_per_block.csv"),
     all_cat_keys={
         "perwht": "num_white",
         "perblk": "num_black",

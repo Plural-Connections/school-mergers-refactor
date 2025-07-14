@@ -55,7 +55,7 @@ def load_and_process_data(interdistrict: bool) -> tuple[
               potential mergers.
     """
     df_schools_current_district, df_schools = _load_and_filter_nces_schools(
-        f"data/solver_files/2122/{constants.STATE}/school_enrollments.csv",
+        os.path.join("data", "solver_files", "2122", constants.STATE, "school_enrollments.csv"),
         [constants.DISTRICT_ID],
     )
 
@@ -68,7 +68,7 @@ def load_and_process_data(interdistrict: bool) -> tuple[
     # Load permissible merger data based on whether the scenario is interdistrict.
     if interdistrict:
         permissible_matches = header.read_json(
-            f"data/solver_files/2122/{constants.STATE}/between_within_district_allowed_mergers.json"
+            os.path.join("data", "solver_files", "2122", constants.STATE, "between_within_district_allowed_mergers.json")
         )
         # Identify all districts that are involved in the potential mergers.
         for school in unique_schools:
@@ -77,7 +77,7 @@ def load_and_process_data(interdistrict: bool) -> tuple[
             )
     else:
         permissible_matches = header.read_json(
-            f"data/solver_files/2122/{constants.STATE}/within_district_allowed_mergers.json"
+            os.path.join("data", "solver_files", "2122", constants.STATE, "within_district_allowed_mergers.json")
         )
         districts_involved.add(constants.DISTRICT_ID)
 
