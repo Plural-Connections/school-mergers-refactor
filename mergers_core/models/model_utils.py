@@ -66,19 +66,19 @@ def estimate_travel_time_impacts(
                 if school == school_serving_grade:
                     continue
 
+                # Ensure the inner dictionary for school_serving_grade is initialized as a Counter
                 if (
                     school_serving_grade
-                    in num_students_switching_per_school_per_cat[school]
+                    not in num_students_switching_per_school_per_cat[school]
                 ):
-                    continue
+                    num_students_switching_per_school_per_cat[school][
+                        school_serving_grade
+                    ] = Counter()
 
-                num_students_switching_per_school_per_cat[school][
-                    school_serving_grade
-                ] = Counter()
-            for race in race_keys:
-                num_students_switching_per_school_per_cat[school][school_serving_grade][
-                    race
-                ] += school_enrollments[f"{race}_{grade}"]
+                for race in race_keys:
+                    num_students_switching_per_school_per_cat[school][
+                        school_serving_grade
+                    ][race] += school_enrollments[f"{race}_{grade}"]
 
     # Estimate changes in driving times for students switching schools
     current_total_switcher_driving_times = Counter()
