@@ -1,0 +1,12 @@
+geopandas
+pandas
+numpy
+statsmodels
+folium
+us
+ortools
+haversine
+openrouteservice
+scikit-learn
+tldextract
+black
