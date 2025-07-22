@@ -302,9 +302,7 @@ def _compute_population_consistency(df_schools_in_play, num_per_cat_per_school):
     return np.sqrt(np.mean(squared_differences))
 
 
-def _count_switching_students(
-    school_cluster_lists, df_grades, df_schools_in_play
-):
+def _count_switching_students(school_cluster_lists, df_grades, df_schools_in_play):
     race_keys = list(constants.RACE_KEYS.values())
     clusters = [c.split(", ") for c in school_cluster_lists]
     num_students_switching = {f"{r}_switched": 0 for r in race_keys}
@@ -360,9 +358,7 @@ def check_solution_validity_and_compute_outcomes(
     (
         num_per_cat_per_school,
         num_per_school_per_grade_per_cat,
-    ) = _calculate_student_distributions(
-        school_clusters, df_grades, df_schools_in_play
-    )
+    ) = _calculate_student_distributions(school_clusters, df_grades, df_schools_in_play)
 
     _validate_solution(
         grades_served_per_cluster,
@@ -402,7 +398,6 @@ def check_solution_validity_and_compute_outcomes(
         num_students_switching_per_school,
         travel_time_impacts,
     )
-
 
 
 def maybe_load_large_files():
