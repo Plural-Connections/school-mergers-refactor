@@ -14,14 +14,7 @@ DF_BLOCKS = None
 TRAVEL_TIMES = None
 
 
-def estimate_travel_time_impacts(
-    school_cluster_lists,
-    df_current_grades,
-    df_schools_in_play,
-):
-    category_columns = [col for col in DF_BLOCKS.keys() if col.startswith("num_")]
-
-    # Compute status quo total driving times per category
+def _calculate_status_quo_driving_times(df_schools_in_play, category_columns):
     status_quo_total_driving_times_per_cat = Counter()
     for _, school_in_play in df_schools_in_play.iterrows():
         nces_id = school_in_play["NCESSCH"]
@@ -35,19 +28,20 @@ def estimate_travel_time_impacts(
                     status_quo_total_driving_times_per_cat[
                         f"all_status_quo_time_{col}"
                     ] += (driving_time * block[col])
+    return status_quo_total_driving_times_per_cat
 
-    # Compute how many students we expect to switch from a given school A to a given
-    # school B, per category and compute the estimated travel times for those students
+
+def _calculate_student_switching_data(
+    school_cluster_lists, df_current_grades, df_schools_in_play
+):
     num_students_switching_per_school_per_cat = defaultdict(dict)
     clusters = [c.split(", ") for c in school_cluster_lists]
     merged_schools = filter(lambda x: len(x) > 1, clusters)
     schools_serving_each_grade_per_cluster = defaultdict(dict)
-
     race_keys = list(constants.RACE_KEYS.values())
+
     for cluster in merged_schools:
         cluster_key = ", ".join(cluster)
-
-        # Determine which grades are served by which schools in a given cluster
         for school in cluster:
             school_grades = df_current_grades[
                 df_current_grades["NCESSCH"] == school
@@ -55,6 +49,7 @@ def estimate_travel_time_impacts(
             for grade in constants.GRADE_TO_INDEX:
                 if school_grades[grade]:
                     schools_serving_each_grade_per_cluster[cluster_key][grade] = school
+
         for school in cluster:
             school_enrollments = df_schools_in_play[
                 df_schools_in_play["NCESSCH"] == school
@@ -66,7 +61,6 @@ def estimate_travel_time_impacts(
                 if school == school_serving_grade:
                     continue
 
-                # Ensure the inner dictionary for school_serving_grade is initialized as a Counter
                 if (
                     school_serving_grade
                     not in num_students_switching_per_school_per_cat[school]
@@ -79,12 +73,17 @@ def estimate_travel_time_impacts(
                     num_students_switching_per_school_per_cat[school][
                         school_serving_grade
                     ][race] += school_enrollments[f"{race}_{grade}"]
+    return num_students_switching_per_school_per_cat
 
-    # Estimate changes in driving times for students switching schools
+
+def _estimate_switcher_driving_times(
+    num_students_switching_per_school_per_cat, category_columns
+):
     current_total_switcher_driving_times = Counter()
     current_total_switcher_driving_times_per_school = defaultdict(Counter)
     new_total_switcher_driving_times = Counter()
     new_total_switcher_driving_times_per_school = defaultdict(Counter)
+
     for school_1, school_2_data in num_students_switching_per_school_per_cat.items():
         df_blocks_school = DF_BLOCKS[DF_BLOCKS["ncessch"] == school_1].reset_index(
             drop=True
@@ -92,7 +91,6 @@ def estimate_travel_time_impacts(
         for school_2, switcher_data in school_2_data.items():
             switchers_per_block_and_cat = defaultdict(Counter)
             for col in category_columns:
-                # Determine est number of switchers per block (decimal students are fine)
                 df_blocks_school[f"percent_of_total_{col}"] = (
                     df_blocks_school[col] / df_blocks_school[col].sum()
                 )
@@ -101,7 +99,6 @@ def estimate_travel_time_impacts(
                     switchers_per_block_and_cat[block["block_id"]][col] += (
                         block[f"percent_of_total_{col}"] * switcher_data[col]
                     )
-                    # Estimate status quo and new travel times (# per block x travel time per block)
                     if TRAVEL_TIMES[block["block_id"]][school_1] and not np.isnan(
                         TRAVEL_TIMES[block["block_id"]][school_1]
                     ):
@@ -132,16 +129,45 @@ def estimate_travel_time_impacts(
                             switchers_per_block_and_cat[block["block_id"]][col]
                             * TRAVEL_TIMES[block["block_id"]][school_2]
                         )
+    return (
+        current_total_switcher_driving_times,
+        current_total_switcher_driving_times_per_school,
+        new_total_switcher_driving_times,
+        new_total_switcher_driving_times_per_school,
+    )
 
-    names = [
-        "status_quo_total_driving_times_per_cat",
-        "current_total_switcher_driving_times",
-        "new_total_switcher_driving_times",
-        "current_total_switcher_driving_times_per_school",
-        "new_total_switcher_driving_times_per_school",
-    ]
 
-    return {name: locals()[name] for name in names}
+def estimate_travel_time_impacts(
+    school_cluster_lists,
+    df_current_grades,
+    df_schools_in_play,
+):
+    category_columns = [col for col in DF_BLOCKS.keys() if col.startswith("num_")]
+
+    status_quo_total_driving_times_per_cat = _calculate_status_quo_driving_times(
+        df_schools_in_play, category_columns
+    )
+
+    num_students_switching_per_school_per_cat = _calculate_student_switching_data(
+        school_cluster_lists, df_current_grades, df_schools_in_play
+    )
+
+    (
+        current_total_switcher_driving_times,
+        current_total_switcher_driving_times_per_school,
+        new_total_switcher_driving_times,
+        new_total_switcher_driving_times_per_school,
+    ) = _estimate_switcher_driving_times(
+        num_students_switching_per_school_per_cat, category_columns
+    )
+
+    return {
+        "status_quo_total_driving_times_per_cat": status_quo_total_driving_times_per_cat,
+        "current_total_switcher_driving_times": current_total_switcher_driving_times,
+        "new_total_switcher_driving_times": new_total_switcher_driving_times,
+        "current_total_switcher_driving_times_per_school": current_total_switcher_driving_times_per_school,
+        "new_total_switcher_driving_times_per_school": new_total_switcher_driving_times_per_school,
+    }
 
 
 def _calculate_student_distributions(school_clusters, df_grades, df_schools_in_play):
