@@ -144,29 +144,11 @@ def estimate_travel_time_impacts(
     return {name: locals()[name] for name in names}
 
 
-def check_solution_validity_and_compute_outcomes(
-    df_mergers_, df_grades_, df_schools_in_play, state
-):
+def _calculate_student_distributions(school_clusters, df_grades, df_schools_in_play):
     race_keys = list(constants.RACE_KEYS.values())
-    df_mergers = df_mergers_.copy(deep=True)
-    df_grades = df_grades_.copy(deep=True)
-
-    # Make a dataframe based on which grades are offered by which schools
-    school_cluster_lists = df_mergers["school_cluster"].tolist()
-
-    grades_served_per_cluster = defaultdict(set)
-    school_clusters = defaultdict(list)
-    for cluster in school_cluster_lists:
-        schools = cluster.split(", ")
-        for school in schools:
-            school_clusters[school] = schools
-            school_grades = df_grades[df_grades["NCESSCH"] == school].iloc[0]
-            for grade in constants.GRADE_TO_INDEX:
-                if school_grades[grade]:
-                    grades_served_per_cluster[cluster].add(grade)
-
     num_per_cat_per_school = defaultdict(Counter)
     num_per_school_per_grade_per_cat = {}
+
     for school in school_clusters:
         school_grades = df_grades[df_grades["NCESSCH"] == school].iloc[0]
         num_per_school_per_grade_per_cat[school] = {r: Counter() for r in race_keys}
@@ -183,8 +165,12 @@ def check_solution_validity_and_compute_outcomes(
                         num_per_school_per_grade_per_cat[school][race][
                             grade
                         ] += school_2_enrollments[f"{race}_{grade}"]
+    return num_per_cat_per_school, num_per_school_per_grade_per_cat
 
-    # Solution validity checking
+
+def _validate_solution(
+    grades_served_per_cluster, num_per_cat_per_school, df_schools_in_play, df_grades
+):
     total_cols = [f"num_total_{g}" for g in constants.GRADE_TO_INDEX]
     total_students_dict = sum(num_per_cat_per_school["num_total"].values())
     total_students_df = df_schools_in_play[total_cols].sum(axis=1).sum()
@@ -214,7 +200,8 @@ def check_solution_validity_and_compute_outcomes(
                     f"Grade levels schools are serving are not contiguous: {row['NCESSCH']}, {', '.join(curr_grade_seq)}"
                 )
 
-    # Compute dissimilarity values for white/non-white
+
+def _compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
     dissim_vals = []
     for school in school_clusters:
         dissim_vals.append(
@@ -235,10 +222,8 @@ def check_solution_validity_and_compute_outcomes(
                 )
             )
         )
-
     dissim_val = 0.5 * np.sum(dissim_vals)
 
-    # Compute dissimilarity values for black-hispanic and white-asian
     bh_wa_dissim_vals = []
     for school in school_clusters:
         bh_wa_dissim_vals.append(
@@ -265,10 +250,12 @@ def check_solution_validity_and_compute_outcomes(
                 )
             )
         )
-
     bh_wa_dissim_val = 0.5 * np.sum(bh_wa_dissim_vals)
 
-    # Compute population consistency
+    return dissim_val, bh_wa_dissim_val
+
+
+def _compute_population_consistency(df_schools_in_play, num_per_cat_per_school):
     school_capacities = df_schools_in_play.set_index("NCESSCH")[
         "student_capacity"
     ].to_dict()
@@ -280,23 +267,26 @@ def check_solution_validity_and_compute_outcomes(
             school_percentages[school] = population / capacity
 
     if not school_percentages:
-        population_consistency = 0
-    else:
-        mean_percentage = np.mean(list(school_percentages.values()))
-        squared_differences = [
-            (p - mean_percentage) ** 2 for p in school_percentages.values()
-        ]
-        population_consistency = np.sqrt(np.mean(squared_differences))
+        return 0
 
-    # Compute the number of students per group who will switch schools
+    mean_percentage = np.mean(list(school_percentages.values()))
+    squared_differences = [
+        (p - mean_percentage) ** 2 for p in school_percentages.values()
+    ]
+    return np.sqrt(np.mean(squared_differences))
+
+
+def _count_switching_students(
+    school_cluster_lists, df_grades, df_schools_in_play
+):
+    race_keys = list(constants.RACE_KEYS.values())
     clusters = [c.split(", ") for c in school_cluster_lists]
     num_students_switching = {f"{r}_switched": 0 for r in race_keys}
     num_students_switching_per_school = {}
     num_total_students = {f"{r}_all": 0 for r in race_keys}
-    schools = []
+
     for cluster in clusters:
         for school in cluster:
-            schools.append(school)
             school_grades = df_grades[df_grades["NCESSCH"] == school].iloc[0]
             school_enrollments = df_schools_in_play[
                 df_schools_in_play["NCESSCH"] == school
@@ -316,8 +306,59 @@ def check_solution_validity_and_compute_outcomes(
                         num_students_switching_per_school[school][
                             f"{race}_switched"
                         ] += school_enrollments[f"{race}_{grade}"]
+    return (
+        num_total_students,
+        num_students_switching,
+        num_students_switching_per_school,
+    )
 
-    # Estimate impacts on travel times
+
+def check_solution_validity_and_compute_outcomes(
+    df_mergers_, df_grades_, df_schools_in_play, state
+):
+    df_mergers = df_mergers_.copy(deep=True)
+    df_grades = df_grades_.copy(deep=True)
+
+    school_cluster_lists = df_mergers["school_cluster"].tolist()
+    grades_served_per_cluster = defaultdict(set)
+    school_clusters = defaultdict(list)
+    for cluster in school_cluster_lists:
+        schools = cluster.split(", ")
+        for school in schools:
+            school_clusters[school] = schools
+            school_grades = df_grades[df_grades["NCESSCH"] == school].iloc[0]
+            for grade in constants.GRADE_TO_INDEX:
+                if school_grades[grade]:
+                    grades_served_per_cluster[cluster].add(grade)
+
+    (
+        num_per_cat_per_school,
+        num_per_school_per_grade_per_cat,
+    ) = _calculate_student_distributions(
+        school_clusters, df_grades, df_schools_in_play
+    )
+
+    _validate_solution(
+        grades_served_per_cluster,
+        num_per_cat_per_school,
+        df_schools_in_play,
+        df_grades,
+    )
+
+    dissim_val, bh_wa_dissim_val = _compute_dissimilarity_metrics(
+        school_clusters, num_per_cat_per_school
+    )
+
+    population_consistency = _compute_population_consistency(
+        df_schools_in_play, num_per_cat_per_school
+    )
+
+    (
+        num_total_students,
+        num_students_switching,
+        num_students_switching_per_school,
+    ) = _count_switching_students(school_cluster_lists, df_grades, df_schools_in_play)
+
     travel_time_impacts = estimate_travel_time_impacts(
         school_cluster_lists,
         df_grades,
@@ -335,6 +376,7 @@ def check_solution_validity_and_compute_outcomes(
         num_students_switching_per_school,
         travel_time_impacts,
     )
+
 
 
 def maybe_load_large_files():
