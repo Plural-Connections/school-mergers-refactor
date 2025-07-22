@@ -52,4 +52,11 @@ STATE = "CA"
 DISTRICT_ID = "0602160"
 
 DISSIMILARITY_WEIGHT = 1
-POPULATION_CONSISTENCY_WEIGHT = 1
+POPULATION_CONSISTENCY_WEIGHT = 0
+
+# One of:
+# "total_percentages"
+# "average_percentage"
+# "total_difference"
+# "average_difference"
+POPULATION_CONSISTENCY_METRIC = "average_difference"

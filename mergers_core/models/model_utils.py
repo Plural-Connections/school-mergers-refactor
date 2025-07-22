@@ -281,25 +281,30 @@ def _compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
     return dissim_val, bh_wa_dissim_val
 
 
-def _compute_population_consistency(df_schools_in_play, num_per_cat_per_school):
+def _compute_population_consistencies(df_schools_in_play, num_per_cat_per_school):
     school_capacities = df_schools_in_play.set_index("NCESSCH")[
         "student_capacity"
     ].to_dict()
     school_populations = num_per_cat_per_school["num_total"]
-    school_percentages = {}
+    percentages = {}
     for school, population in school_populations.items():
         capacity = school_capacities.get(school)
         if capacity and capacity > 0:
-            school_percentages[school] = population / capacity
+            percentages[school] = population / capacity
 
-    if not school_percentages:
+    if not percentages:
         return 0
 
-    mean_percentage = np.mean(list(school_percentages.values()))
-    squared_differences = [
-        (p - mean_percentage) ** 2 for p in school_percentages.values()
-    ]
-    return np.sqrt(np.mean(squared_differences))
+    average_percentage = np.mean(list(percentages.values()))
+    differences = [np.abs(p - average_percentage) for p in percentages.values()]
+    average_difference = np.mean(differences)
+
+    return {
+        "total_percentages": sum(percentages.values()),
+        "average_percentage": average_percentage,
+        "total_difference": sum(differences),
+        "average_difference": average_difference,
+    }
 
 
 def _count_switching_students(school_cluster_lists, df_grades, df_schools_in_play):
@@ -371,7 +376,7 @@ def check_solution_validity_and_compute_outcomes(
         school_clusters, num_per_cat_per_school
     )
 
-    population_consistency = _compute_population_consistency(
+    population_consistencies = _compute_population_consistencies(
         df_schools_in_play, num_per_cat_per_school
     )
 
@@ -390,7 +395,7 @@ def check_solution_validity_and_compute_outcomes(
     return (
         dissim_val,
         bh_wa_dissim_val,
-        population_consistency,
+        population_consistencies,
         num_per_cat_per_school,
         num_per_school_per_grade_per_cat,
         num_total_students,
@@ -476,7 +481,7 @@ def output_solver_solution(
             {"NCESSCH": df_grades["NCESSCH"].tolist()}
             | {id: [True] * df_grades.shape[0] for id in constants.GRADE_TO_INDEX}
         )
-        pre_dissim, pre_dissim_bh_wa, pre_population_consistency, _, _, _, _, _, _ = (
+        pre_dissim, pre_dissim_bh_wa, pre_population_consistencies, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
                 df_mergers_pre, df_grades_pre, df_schools_in_play, state
             )
@@ -485,7 +490,7 @@ def output_solver_solution(
         (
             post_dissim,
             post_dissim_bh_wa,
-            post_population_consistency,
+            post_population_consistencies,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -505,15 +510,19 @@ def output_solver_solution(
 
     # Output results
     data_to_output = {
-        "state": state,
-        "district_id": district_id,
-        "school_decrease_threshold": school_decrease_threshold,
-        "interdistrict": bool(interdistrict),
-        "pre_dissim": pre_dissim,
-        "post_dissim": post_dissim,
-        "pre_dissim_bh_wa": pre_dissim_bh_wa,
-        "post_dissim_bh_wa": post_dissim_bh_wa,
-        "population_consistency": post_population_consistency,
+        name: locals()[name]
+        for name in [
+            "state",
+            "district_id",
+            "school_decrease_threshold",
+            "interdistrict",
+            "pre_dissim",
+            "post_dissim",
+            "pre_dissim_bh_wa",
+            "post_dissim_bh_wa",
+            "pre_population_consistencies",
+            "post_population_consistencies",
+        ]
     }
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
@@ -521,14 +530,23 @@ def output_solver_solution(
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
-    print(
-        f"Pre dissim: {pre_dissim}\n",
-        f"Post dissim: {post_dissim}\n",
-        f"Pre bh-wa dissim: {pre_dissim_bh_wa}\n",
-        f"Post bh-wa dissim: {post_dissim_bh_wa}\n",
-        f"Pre population consistency: {pre_population_consistency}\n",
-        f"Post population consistency: {post_population_consistency}\n",
-    )
+    print(f"Pre dissim: {pre_dissim}")
+    print(f"Post dissim: {post_dissim}")
+    print(f"Pre bh-wa dissim: {pre_dissim_bh_wa}")
+    print(f"Post bh-wa dissim: {post_dissim_bh_wa}")
+
+    print()
+
+    print(f"Used metric {constants.POPULATION_CONSISTENCY_METRIC}")
+    print("Pre population consistencies:")
+    for metric in pre_population_consistencies:
+        print(f"\t{metric}: {pre_population_consistencies[metric]}")
+    print("Post population consistencies:")
+    for metric in post_population_consistencies:
+        print(f"\t{metric}: {post_population_consistencies[metric]}")
+
+    print()
+
     try:
         print(
             f"Percent switchers: {
@@ -596,7 +614,7 @@ def produce_post_solver_files(
 ):
     # Compute pre/post dissim and other outcomes of interest
     try:
-        pre_dissim, pre_dissim_bh_wa, pre_population_consistency, _, _, _, _, _, _ = (
+        pre_dissim, pre_dissim_bh_wa, pre_population_consistencies, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
                 df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="pre"
             )
@@ -605,7 +623,7 @@ def produce_post_solver_files(
         (
             post_dissim,
             post_dissim_bh_wa,
-            post_population_consistency,
+            post_population_consistencies,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -624,15 +642,19 @@ def produce_post_solver_files(
 
     # Output results
     data_to_output = {
-        "state": state,
-        "district_id": district_id,
-        "school_decrease_threshold": school_decrease_threshold,
-        "interdistrict": bool(interdistrict),
-        "pre_dissim": pre_dissim,
-        "post_dissim": post_dissim,
-        "pre_dissim_bh_wa": pre_dissim_bh_wa,
-        "post_dissim_bh_wa": post_dissim_bh_wa,
-        "population_consistency": post_population_consistency,
+        name: locals()[name]
+        for name in [
+            "state",
+            "district_id",
+            "school_decrease_threshold",
+            "interdistrict",
+            "pre_dissim",
+            "post_dissim",
+            "pre_dissim_bh_wa",
+            "post_dissim_bh_wa",
+            "pre_population_consistencies",
+            "post_population_consistencies",
+        ]
     }
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
@@ -640,14 +662,23 @@ def produce_post_solver_files(
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
-    print(
-        f"Pre dissim: {pre_dissim}\n",
-        f"Post dissim: {post_dissim}\n",
-        f"Pre bh-wa dissim: {pre_dissim_bh_wa}\n",
-        f"Post bh-wa dissim: {post_dissim_bh_wa}\n",
-        f"Pre population consistency: {pre_population_consistency}\n",
-        f"Post population consistency: {post_population_consistency}\n",
-    )
+    print(f"Pre dissim: {pre_dissim}")
+    print(f"Post dissim: {post_dissim}")
+    print(f"Pre bh-wa dissim: {pre_dissim_bh_wa}")
+    print(f"Post bh-wa dissim: {post_dissim_bh_wa}")
+
+    print()
+
+    print(f"Used metric {constants.POPULATION_CONSISTENCY_METRIC}")
+    print("Pre population consistencies:")
+    for metric in pre_population_consistencies:
+        print(f"\t{metric}: {pre_population_consistencies[metric]}")
+    print("Post population consistencies:")
+    for metric in post_population_consistencies:
+        print(f"\t{metric}: {post_population_consistencies[metric]}")
+
+    print()
+
     try:
         print(
             f"Percent switchers: {

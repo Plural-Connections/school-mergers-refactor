@@ -776,7 +776,26 @@ def setup_population_capacity(
         model.AddAbsEquality(difference, percentages[school] - average_percentage)
         differences.append(difference)
 
-    return sum(percentages.values())
+    average_difference = model.NewIntVar(0, constants.SCALING[0], "average_difference")
+    sum_differences_expr = sum(differences)
+    sum_differences_var = model.NewIntVar(
+        0,
+        len(differences) * constants.SCALING[0],
+        "sum_differences_var",
+    )
+    model.Add(sum_differences_var == sum_differences_expr)
+    model.AddDivisionEquality(
+        average_difference,
+        sum_differences_var,
+        len(differences),
+    )
+
+    return {
+        "total_percentages": sum(percentages.values()),
+        "average_percentage": average_percentage,
+        "total_difference": sum(differences),
+        "average_difference": average_difference,
+    }[constants.POPULATION_CONSISTENCY_METRIC]
 
 
 def set_objective(
