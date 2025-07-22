@@ -348,6 +348,8 @@ def maybe_load_large_files():
             constants.TRAVEL_TIMES_FILE.format(constants.STATE)
         )
 
+        print("Loaded large files.")
+
 
 def output_solver_solution(
     solver,
@@ -531,7 +533,7 @@ def produce_post_solver_files(
 ):
     # Compute pre/post dissim and other outcomes of interest
     try:
-        pre_dissim, pre_dissim_bh_wa, _, _, _, _, _, _, _ = (
+        pre_dissim, pre_dissim_bh_wa, pre_population_consistency, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
                 df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="pre"
             )
@@ -540,7 +542,7 @@ def produce_post_solver_files(
         (
             post_dissim,
             post_dissim_bh_wa,
-            population_consistency,
+            post_population_consistency,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -567,7 +569,7 @@ def produce_post_solver_files(
         "post_dissim": post_dissim,
         "pre_dissim_bh_wa": pre_dissim_bh_wa,
         "post_dissim_bh_wa": post_dissim_bh_wa,
-        "population_consistency": population_consistency,
+        "population_consistency": post_population_consistency,
     }
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
