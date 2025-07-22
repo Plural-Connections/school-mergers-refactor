@@ -399,11 +399,11 @@ def output_solver_solution(
         (
             post_dissim,
             post_dissim_bh_wa,
-            students_per_group_per_school_post_merger,
-            students_per_grade_per_group_per_school_post_merger,
+            num_per_cat_per_school,
+            num_per_school_per_grade_per_cat,
             num_total_students,
             num_students_switching,
-            students_switching_per_group_per_school,
+            num_students_switching_per_school,
             travel_time_impacts,
         ) = check_solution_validity_and_compute_outcomes(
             df_mergers_g, df_grades, df_schools_in_play, state

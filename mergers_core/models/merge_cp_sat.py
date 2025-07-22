@@ -397,7 +397,6 @@ def set_constraints(
     # Ensures that if A is matched with B, B is matched with A.
     # Also enforces transitivity for 3-way mergers: if A-B and B-C, then A-C.
     # This creates cohesive merged groups.
-    # NOTE: This is hardcoded for a maximum of 3 schools per merger.
     for school1 in matches:
         for school2 in matches:
             # Symmetry: If s1 is matched with s2, s2 must be matched with s1.
@@ -692,11 +691,12 @@ def calculate_dissimilarity(
     return sum(dissimilarity_terms)
 
 
-def setup_population_consistency(
+def setup_population_capacity(
     model: cp_model.CpModel,
     matches: dict[str, dict[str, cp_model.IntVar]],
     grades_at_school: dict[str, list[cp_model.IntVar]],
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
+    school_capacities: dict[str, int],
 ) -> object:
     """
     Returns a LinearExpr that represents the population consistency index. This index is
@@ -709,12 +709,13 @@ def setup_population_consistency(
         grades_at_school: Dictionary of binary grade variables.
         students_per_grade_per_school: Student counts by grade,
             school, and race.
+        school_capacities: Dictionary of school capacities.
 
     Returns:
         A LinearExpr that represents the population consistency index.
     """
-    school_populations = [
-        sum(
+    school_population_variables = {
+        school: sum(
             _get_students_at_school(
                 model,
                 matches,
@@ -724,39 +725,51 @@ def setup_population_consistency(
             )
         )
         for school in matches
-    ]
+    }
 
-    average_school_population = model.NewIntVar(
-        0,
-        constants.MAX_TOTAL_STUDENTS * constants.SCALING[0],
-        "average_school_population",
-    )
-    total_population = model.NewIntVar(
-        0,
-        constants.MAX_TOTAL_STUDENTS * len(school_populations) * constants.SCALING[0],
-        "total_population",
-    )
-    model.Add(total_population == sum(school_populations) * constants.SCALING[0])
-    model.AddDivisionEquality(
-        average_school_population,
-        total_population,
-        len(school_populations),
-    )
-
-    distances_to_average = []
-    for idx, pop in enumerate(school_populations):
-        distance_to_average = model.NewIntVar(
+    percentages: dict[str, cp_model.IntVar] = dict()
+    for school in matches:
+        percentage = model.NewIntVar(
             0,
-            constants.MAX_TOTAL_STUDENTS * constants.SCALING[0],
-            f"distance_to_average_{pop}",
+            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+            f"{school}_capacity_percentage",
         )
-        model.AddAbsEquality(
-            distance_to_average,
-            pop * constants.SCALING[0] - average_school_population,
-        )
-        distances_to_average.append(distance_to_average)
 
-    return sum(distances_to_average)
+        numerator_expr = constants.SCALING[0] * school_population_variables[school]
+        numerator_var = model.NewIntVar(
+            0,
+            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+            f"{school}_numerator_var",
+        )
+        model.Add(numerator_var == numerator_expr)
+        model.AddDivisionEquality(
+            percentage,
+            numerator_var,
+            school_capacities[school],
+        )
+        percentages.update({school: percentage})
+
+    average_percentage = model.NewIntVar(0, constants.SCALING[0], "average_percentage")
+    sum_percentages_expr = sum(percentages.values())
+    sum_percentages_var = model.NewIntVar(
+        0,
+        len(percentages) * constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+        "sum_percentages_var",
+    )
+    model.Add(sum_percentages_var == sum_percentages_expr)
+    model.AddDivisionEquality(
+        average_percentage,
+        sum_percentages_var,
+        len(percentages),
+    )
+
+    differences = []
+    for school in matches:
+        difference = model.NewIntVar(0, constants.SCALING[0], f"{school}_difference")
+        model.AddAbsEquality(difference, percentages[school] - average_percentage)
+        differences.append(difference)
+
+    return sum(percentages.values())
 
 
 def set_objective(
@@ -764,7 +777,7 @@ def set_objective(
 ) -> None:
     if constants.POPULATION_CONSISTENCY_WEIGHT == 0:
         print("Objective function: minimize dissimilarity")
-        model.Maximize(dissimilarity_index)
+        model.Minimize(dissimilarity_index)
         return
 
     ratio = Fraction(
@@ -861,8 +874,12 @@ def solve_and_output_results(
             ["white"],
         )
 
-    population_consistency_metric = setup_population_consistency(
-        model, matches, grades_interval_binary, total_per_grade_per_school
+    population_consistency_metric = setup_population_capacity(
+        model,
+        matches,
+        grades_interval_binary,
+        total_per_grade_per_school,
+        school_capacities,
     )
 
     set_objective(model, dissimilarity, population_consistency_metric)
