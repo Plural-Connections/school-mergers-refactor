@@ -112,6 +112,13 @@ def load_and_process_data(interdistrict: bool) -> tuple[
         df_schools["leaid"].isin(districts_involved)
     ].reset_index(drop=True)
 
+    df_schools_in_play = pd.merge(
+        df_schools_in_play,
+        df_capacities[["NCESSCH", "student_capacity"]],
+        on="NCESSCH",
+        how="left",
+    )
+
     # Aggregate student counts by grade and race for each school.
     students_per_grade_per_school: dict[str, dict[str, list[int]]] = defaultdict(
         lambda: defaultdict(list)

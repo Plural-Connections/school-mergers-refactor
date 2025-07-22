@@ -268,6 +268,26 @@ def check_solution_validity_and_compute_outcomes(
 
     bh_wa_dissim_val = 0.5 * np.sum(bh_wa_dissim_vals)
 
+    # Compute population consistency
+    school_capacities = df_schools_in_play.set_index("NCESSCH")[
+        "student_capacity"
+    ].to_dict()
+    school_populations = num_per_cat_per_school["num_total"]
+    school_percentages = {}
+    for school, population in school_populations.items():
+        capacity = school_capacities.get(school)
+        if capacity and capacity > 0:
+            school_percentages[school] = population / capacity
+
+    if not school_percentages:
+        population_consistency = 0
+    else:
+        mean_percentage = np.mean(list(school_percentages.values()))
+        squared_differences = [
+            (p - mean_percentage) ** 2 for p in school_percentages.values()
+        ]
+        population_consistency = np.sqrt(np.mean(squared_differences))
+
     # Compute the number of students per group who will switch schools
     clusters = [c.split(", ") for c in school_cluster_lists]
     num_students_switching = {f"{r}_switched": 0 for r in race_keys}
@@ -307,6 +327,7 @@ def check_solution_validity_and_compute_outcomes(
     return (
         dissim_val,
         bh_wa_dissim_val,
+        population_consistency,
         num_per_cat_per_school,
         num_per_school_per_grade_per_cat,
         num_total_students,
@@ -390,7 +411,7 @@ def output_solver_solution(
             {"NCESSCH": df_grades["NCESSCH"].tolist()}
             | {id: [True] * df_grades.shape[0] for id in constants.GRADE_TO_INDEX}
         )
-        pre_dissim, pre_dissim_bh_wa, _, _, _, _, _, _ = (
+        pre_dissim, pre_dissim_bh_wa, pre_population_consistency, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
                 df_mergers_pre, df_grades_pre, df_schools_in_play, state
             )
@@ -399,6 +420,7 @@ def output_solver_solution(
         (
             post_dissim,
             post_dissim_bh_wa,
+            post_population_consistency,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -426,6 +448,7 @@ def output_solver_solution(
         "post_dissim": post_dissim,
         "pre_dissim_bh_wa": pre_dissim_bh_wa,
         "post_dissim_bh_wa": post_dissim_bh_wa,
+        "population_consistency": post_population_consistency,
     }
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
@@ -438,6 +461,8 @@ def output_solver_solution(
         f"Post dissim: {post_dissim}\n",
         f"Pre bh-wa dissim: {pre_dissim_bh_wa}\n",
         f"Post bh-wa dissim: {post_dissim_bh_wa}\n",
+        f"Pre population consistency: {pre_population_consistency}\n",
+        f"Post population consistency: {post_population_consistency}\n",
     )
     try:
         print(
@@ -515,6 +540,7 @@ def produce_post_solver_files(
         (
             post_dissim,
             post_dissim_bh_wa,
+            population_consistency,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -541,6 +567,7 @@ def produce_post_solver_files(
         "post_dissim": post_dissim,
         "pre_dissim_bh_wa": pre_dissim_bh_wa,
         "post_dissim_bh_wa": post_dissim_bh_wa,
+        "population_consistency": population_consistency,
     }
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
@@ -553,6 +580,8 @@ def produce_post_solver_files(
         f"Post dissim: {post_dissim}\n",
         f"Pre bh-wa dissim: {pre_dissim_bh_wa}\n",
         f"Post bh-wa dissim: {post_dissim_bh_wa}\n",
+        f"Pre population consistency: {pre_population_consistency}\n",
+        f"Post population consistency: {post_population_consistency}\n",
     )
     try:
         print(
