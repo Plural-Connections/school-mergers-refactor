@@ -12,9 +12,17 @@ import os
 
 def compute_travel_time_matrices(
     state,
-    input_file=os.path.join("data", "solver_files", "2122", "{}", "between_within_district_allowed_mergers.json"),
+    input_file=os.path.join(
+        "data",
+        "solver_files",
+        "2122",
+        "{}",
+        "between_within_district_allowed_mergers.json",
+    ),
     lat_longs_file=os.path.join("data", "school_data", "nces_21_22_lat_longs.csv"),
-    blocks_file=os.path.join("data", "attendance_boundaries", "2122", "{}", "blocks_to_elementary.csv"),
+    blocks_file=os.path.join(
+        "data", "attendance_boundaries", "2122", "{}", "blocks_to_elementary.csv"
+    ),
     output_dir=os.path.join("data", "travel_times_files", "2122", "{}"),
 ):
     school_ids = header.read_json(input_file.format(state))

@@ -75,7 +75,9 @@ def run_sweep_for_chunk(
     num_total_chunks,
     group_id,
     solver_function=solve_and_output_results,
-    sweeps_dir=os.path.join("data", "sweep_configs", "min_num_elem_4_constrained_bh_wa"),
+    sweeps_dir=os.path.join(
+        "data", "sweep_configs", "min_num_elem_4_constrained_bh_wa"
+    ),
 ):
     df_configs = pd.read_csv(
         os.path.join(sweeps_dir, f"{group_id}.csv"), dtype={"district_id": str}
