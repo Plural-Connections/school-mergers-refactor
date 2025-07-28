@@ -1083,6 +1083,9 @@ def solve_and_output_results(
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
 
+    for idx, var in enumerate(model.Proto().variables):
+        print(f"{idx:4}: {var.name}")
+
     status = solver.Solve(model)
 
     this_result_dirname = (
