@@ -223,60 +223,65 @@ def _validate_solution(
                 continue
             if start_grade and end_grade and g:
                 raise Exception(
-                    f"Grade levels schools are serving are not contiguous: {row['NCESSCH']}, {', '.join(curr_grade_seq)}"
+                    f"Grade levels schools are serving are not contiguous: {row['NCESSCH']}, {', '.join(map(str, curr_grade_seq))}"
                 )
 
 
 def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
     dissim_vals = []
-    for school in school_clusters:
-        dissim_vals.append(
-            np.abs(
-                (
-                    num_per_cat_per_school["num_white"][school]
-                    / sum(num_per_cat_per_school["num_white"].values())
-                )
-                - (
-                    (
-                        num_per_cat_per_school["num_total"][school]
-                        - num_per_cat_per_school["num_white"][school]
-                    )
-                    / (
-                        sum(num_per_cat_per_school["num_total"].values())
-                        - sum(num_per_cat_per_school["num_white"].values())
+    total_white = sum(num_per_cat_per_school["num_white"].values())
+    total_students = sum(num_per_cat_per_school["num_total"].values())
+    total_non_white = total_students - total_white
+
+    if total_white == 0 or total_non_white == 0:
+        dissim_val = 0
+    else:
+        for school in school_clusters:
+            dissim_vals.append(
+                np.abs(
+                    (num_per_cat_per_school["num_white"][school] / total_white)
+                    - (
+                        (
+                            num_per_cat_per_school["num_total"][school]
+                            - num_per_cat_per_school["num_white"][school]
+                        )
+                        / total_non_white
                     )
                 )
             )
-        )
-    dissim_val = 0.5 * np.sum(dissim_vals)
+        dissim_val = 0.5 * np.sum(dissim_vals)
 
     bh_wa_dissim_vals = []
-    for school in school_clusters:
-        bh_wa_dissim_vals.append(
-            np.abs(
-                (
+    total_black_hispanic = sum(num_per_cat_per_school["num_black"].values()) + sum(
+        num_per_cat_per_school["num_hispanic"].values()
+    )
+    total_white_asian = sum(num_per_cat_per_school["num_white"].values()) + sum(
+        num_per_cat_per_school["num_asian"].values()
+    )
+
+    if total_black_hispanic == 0 or total_white_asian == 0:
+        bh_wa_dissim_val = 0
+    else:
+        for school in school_clusters:
+            bh_wa_dissim_vals.append(
+                np.abs(
                     (
-                        num_per_cat_per_school["num_black"][school]
-                        + num_per_cat_per_school["num_hispanic"][school]
+                        (
+                            num_per_cat_per_school["num_black"][school]
+                            + num_per_cat_per_school["num_hispanic"][school]
+                        )
+                        / total_black_hispanic
                     )
-                    / (
-                        sum(num_per_cat_per_school["num_black"].values())
-                        + sum(num_per_cat_per_school["num_hispanic"].values())
-                    )
-                )
-                - (
-                    (
-                        num_per_cat_per_school["num_white"][school]
-                        + num_per_cat_per_school["num_asian"][school]
-                    )
-                    / (
-                        sum(num_per_cat_per_school["num_white"].values())
-                        + sum(num_per_cat_per_school["num_asian"].values())
+                    - (
+                        (
+                            num_per_cat_per_school["num_white"][school]
+                            + num_per_cat_per_school["num_asian"][school]
+                        )
+                        / total_white_asian
                     )
                 )
             )
-        )
-    bh_wa_dissim_val = 0.5 * np.sum(bh_wa_dissim_vals)
+        bh_wa_dissim_val = 0.5 * np.sum(bh_wa_dissim_vals)
 
     return dissim_val, bh_wa_dissim_val
 
@@ -293,14 +298,15 @@ def compute_population_consistencies(df_schools_in_play, num_per_cat_per_school)
             percentages[school] = population / capacity
 
     if not percentages:
-        return 0
+        return {"median": 0, "average_difference": 0, "median_difference": 0}
 
-    average_percentage = np.mean(list(percentages.values()))
-    differences = [np.abs(p - average_percentage) for p in percentages.values()]
+    list_percentages = list(percentages.values())
+    average_percentage = np.mean(list_percentages)
+    differences = [np.abs(p - average_percentage) for p in list_percentages]
     average_difference = np.mean(differences)
 
     return {
-        "median": np.median(percentages.values()),
+        "median": np.median(list_percentages),
         "average_difference": average_difference,
         "median_difference": np.median(differences),
     }
@@ -404,16 +410,14 @@ def check_solution_validity_and_compute_outcomes(
     )
 
 
-def maybe_load_large_files():
+def maybe_load_large_files(state):
     global DF_BLOCKS, TRAVEL_TIMES
-    if not DF_BLOCKS and not TRAVEL_TIMES:
+    if DF_BLOCKS is None and TRAVEL_TIMES is None:
         DF_BLOCKS = pd.read_csv(
-            constants.BLOCKS_FILE.format(constants.STATE),
+            constants.BLOCKS_FILE.format(state),
             dtype={"ncessch": str, "block_id": str},
         )
-        TRAVEL_TIMES = header.read_json(
-            constants.TRAVEL_TIMES_FILE.format(constants.STATE)
-        )
+        TRAVEL_TIMES = header.read_json(constants.TRAVEL_TIMES_FILE.format(state))
 
         print("Loaded large files.")
 
@@ -433,9 +437,12 @@ def output_solver_solution(
     mergers_file_name,
     grades_served_file_name,
     schools_in_play_file_name,
+    pre_dissim_wnw,
+    pre_dissim_bh_wa,
+    pre_population_consistencies,
     results_file_name="analytics.csv",
 ):
-    maybe_load_large_files()
+    maybe_load_large_files(state)
 
     # Extract solver variables
     match_data = {"school_1": [], "school_2": []}
@@ -473,21 +480,10 @@ def output_solver_solution(
         os.path.join(output_dir, schools_in_play_file_name), index=False
     )
 
-    # Compute pre/post dissim and other outcomes of interest
+    # Compute post-solver outcomes of interest
     try:
-        df_mergers_pre = pd.DataFrame({"school_cluster": df_grades["NCESSCH"].tolist()})
-        df_grades_pre = pd.DataFrame(
-            {"NCESSCH": df_grades["NCESSCH"].tolist()}
-            | {id: [True] * df_grades.shape[0] for id in constants.GRADE_TO_INDEX}
-        )
-        pre_dissim, pre_dissim_bh_wa, pre_population_consistencies, _, _, _, _, _, _ = (
-            check_solution_validity_and_compute_outcomes(
-                df_mergers_pre, df_grades_pre, df_schools_in_play, state
-            )
-        )
-
         (
-            post_dissim,
+            post_dissim_wnw,
             post_dissim_bh_wa,
             post_population_consistencies,
             num_per_cat_per_school,
@@ -515,8 +511,8 @@ def output_solver_solution(
             "district_id",
             "school_decrease_threshold",
             "interdistrict",
-            "pre_dissim",
-            "post_dissim",
+            "pre_dissim_wnw",
+            "post_dissim_wnw",
             "pre_dissim_bh_wa",
             "post_dissim_bh_wa",
             "pre_population_consistencies",
@@ -529,42 +525,32 @@ def output_solver_solution(
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
-    print(f"Pre dissim: {pre_dissim}")
-    print(f"Post dissim: {post_dissim}")
-    print(f"Pre bh-wa dissim: {pre_dissim_bh_wa}")
-    print(f"Post bh-wa dissim: {post_dissim_bh_wa}")
+    print(f"Pre dissim (wnw): {pre_dissim_wnw}")
+    print(f"Post dissim (wnw): {post_dissim_wnw}")
+    print(f"Pre dissim (bh-wa): {pre_dissim_bh_wa}")
+    print(f"Post dissim (bh-wa): {post_dissim_bh_wa}")
 
     print()
 
     print(f"Used metric {constants.POPULATION_CONSISTENCY_METRIC}")
     print("Pre population consistencies:")
-    for metric in pre_population_consistencies:
-        print(f"\t{metric}: {pre_population_consistencies[metric]}")
+    for metric, value in pre_population_consistencies.items():
+        print(f"\t{metric}: {value}")
     print("Post population consistencies:")
-    for metric in post_population_consistencies:
-        print(f"\t{metric}: {post_population_consistencies[metric]}")
+    for metric, value in post_population_consistencies.items():
+        print(f"\t{metric}: {value}")
 
     print()
 
     try:
         print(
-            f"Percent switchers: {
-                num_students_switching['num_total_switched'] / num_total_students['num_total_all']
-            }\n",
-            f"SQ avg. travel time - all: {
-                travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total']
-                / num_total_students['num_total_all'] / 60
-                }\n",
-            f"SQ avg. travel time - switchers: {
-                travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total']
-                / num_students_switching['num_total_switched'] / 60
-            }",
-            f"New avg. travel time - switchers: {
-                travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total']
-                / num_students_switching['num_total_switched'] / 60
-            }",
+            f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all']}\n",
+            f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60}\n",
+            f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
+            f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
         )
-    except Exception:
+    except (KeyError, ZeroDivisionError) as e:
+        print(f"Could not print travel time stats: {e}")
         pass
 
     pd.DataFrame(data_to_output, index=[0]).to_csv(
@@ -680,21 +666,10 @@ def produce_post_solver_files(
 
     try:
         print(
-            f"Percent switchers: {
-                num_students_switching['num_total_switched'] / num_total_students['num_total_all']
-            }\n",
-            f"SQ avg. travel time - all: {
-                travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total']
-                / num_total_students['num_total_all'] / 60
-                }\n",
-            f"SQ avg. travel time - switchers: {
-                travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total']
-                / num_students_switching['num_total_switched'] / 60
-            }",
-            f"New avg. travel time - switchers: {
-                travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total']
-                / num_students_switching['num_total_switched'] / 60
-            }",
+            f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all']}\n",
+            f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60}\n",
+            f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
+            f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
         )
     except Exception:
         pass
@@ -729,7 +704,7 @@ def produce_post_solver_files_parallel(
     for state in os.listdir(solutions_dir.format(batch)):
         if "consolidated" in state:
             continue
-        for district_id in os.listdir(os.path.join(solutions_dir.format(batch), state)):
+        for district_id in os.path.join(solutions_dir.format(batch), state):
             try:
                 curr_dir = os.path.join(
                     solutions_dir.format(batch),
@@ -745,7 +720,7 @@ def produce_post_solver_files_parallel(
                         glob.glob(
                             os.path.join(
                                 this_dir,
-                                "**/" + "school_mergers.csv",
+                                "**/**" + "school_mergers.csv",
                             ),
                             recursive=True,
                         )[0],
@@ -755,7 +730,7 @@ def produce_post_solver_files_parallel(
                         glob.glob(
                             os.path.join(
                                 this_dir,
-                                "**/" + "grades_served.csv",
+                                "**/**" + "grades_served.csv",
                             ),
                             recursive=True,
                         )[0],
@@ -765,7 +740,7 @@ def produce_post_solver_files_parallel(
                         glob.glob(
                             os.path.join(
                                 this_dir,
-                                "**/" + "schools_in_play.csv",
+                                "**/**" + "schools_in_play.csv",
                             ),
                             recursive=True,
                         )[0],
@@ -810,7 +785,7 @@ def consolidate_results_files(
 ):
 
     analytics_files = glob.glob(
-        os.path.join(batch_dir.format(batch), "**/" + "analytics.csv"), recursive=True
+        os.path.join(batch_dir.format(batch), "**/**" + "analytics.csv"), recursive=True
     )
     all_dfs = []
     results_folder = []

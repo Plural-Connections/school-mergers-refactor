@@ -705,7 +705,7 @@ def calculate_dissimilarity(
 def _sort_sequence(
     model: cp_model.CpModel,
     sequence: list[cp_model.IntVar],
-    max: int,
+    max_val: int,
 ) -> list[cp_model.IntVar]:
     """
     Given a list of IntVars, returs a new list of IntVars with the same values, but in
@@ -715,13 +715,13 @@ def _sort_sequence(
     Arguments:
         model: The CP-SAT model instance.
         sequence: A list of IntVars.
-        max: The maximum value of the input IntVars.
+        max_val: The maximum value of the input IntVars.
 
     Returns:
         A sorted list of IntVars.
     """
     sorted_variables = [
-        model.NewIntVar(0, max, f"sorted_{i}") for i in range(len(sequence))
+        model.NewIntVar(0, max_val, f"sorted_{i}") for i in range(len(sequence))
     ]
 
     # Enforce sorted order
@@ -752,7 +752,7 @@ def _sort_sequence(
 
 
 def _median(
-    model: cp_model.CpModel, sequence: list[cp_model.IntVar], max: int
+    model: cp_model.CpModel, sequence: list[cp_model.IntVar], max_val: int
 ) -> cp_model.IntVar:
     """
     Returns the median of the input sequence.
@@ -760,7 +760,7 @@ def _median(
     Arguments:
         model: The CP-SAT model instance.
         sequence: A list of IntVars.
-        max: The maximum value of the input IntVars.
+        max_val: The maximum value of the input IntVars.
 
     Returns:
         The median of the input sequence.
@@ -768,14 +768,14 @@ def _median(
     sorted_sequence = _sort_sequence(
         model,
         sequence,
-        max,
+        max_val,
     )
 
     if len(sequence) % 2 == 1:
         index = len(sequence) // 2
         return sorted_sequence[index]
 
-    median_var = model.NewIntVar(0, max, "median")
+    median_var = model.NewIntVar(0, max_val, "median")
     model.AddDivisionEquality(
         median_var,
         sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2],
@@ -893,12 +893,15 @@ def set_objective(
     model: cp_model.CpModel,
     dissimilarity_index: cp_model.IntVar,
     population_consistency_metric: cp_model.IntVar,
+    pre_dissimilarity: float,
+    pre_population_consistency: float,
     minimize: bool = True,
 ) -> None:
+    """Sets the multi-objective function for the solver."""
     if minimize:
-        optimize_function = lambda x: cp_model.Minimize(x)
+        optimize_function = model.Minimize
     else:
-        optimize_function = lambda x: cp_model.Maximize(x)
+        optimize_function = model.Maximize
 
     if constants.POPULATION_CONSISTENCY_WEIGHT == 0:
         print("Objective function: minimize dissimilarity")
@@ -910,22 +913,25 @@ def set_objective(
         optimize_function(population_consistency_metric)
         return
 
-    pre_dissimilarity = compute_dissimilarity_metrics()
-    pre_population_consistency = compute_population_consistencies()[
-        constants.POPULATION_CONSISTENCY_METRIC
-    ]
+    # Handle case where a pre-computation is zero to avoid division errors
+    if pre_population_consistency == 0 or pre_dissimilarity == 0:
+        starting_ratio = Fraction(1, 1)
+    else:
+        starting_ratio = Fraction(pre_dissimilarity, pre_population_consistency)
+        starting_ratio.limit_denominator(1000)
 
-    starting_ratio = Fraction(pre_dissimilarity, pre_population_consistency)
-    starting_ratio.limit_denominator(1000)
+    # This ratio balances the weights provided by the user with the initial
+    # values of the metrics themselves, preventing one metric from dominating
+    # the objective function simply due to its scale.
     ratio = Fraction(
         int(constants.DISSIMILARITY_WEIGHT * constants.SCALING[0]),
         int(constants.POPULATION_CONSISTENCY_WEIGHT * constants.SCALING[0]),
     )
-
     ratio = ratio * starting_ratio
 
     print(
-        f"Objective function: minimize {ratio.numerator} * dissimilarity"
+        f"Objective function: {'minimize' if minimize else 'maximize'}"
+        f" {ratio.numerator} * dissimilarity"
         f" + {ratio.denominator} * population_consistency_metric"
     )
     optimize_function(
@@ -959,6 +965,42 @@ def solve_and_output_results(
         df_schools_in_play,
     ) = load_and_process_data(interdistrict)
 
+    # --- Calculate Initial Metrics ---
+    initial_school_clusters = list(df_schools_in_play["NCESSCH"])
+    initial_num_per_cat_per_school = defaultdict(Counter)
+    for school_id, school_data in total_per_grade_per_school.items():
+        for race, grade_counts in school_data.items():
+            initial_num_per_cat_per_school[race][school_id] = sum(grade_counts)
+
+    pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
+        initial_school_clusters, initial_num_per_cat_per_school
+    )
+    pre_population_consistencies = compute_population_consistencies(
+        df_schools_in_play, initial_num_per_cat_per_school
+    )
+
+    if objective == "bh_wa":
+        pre_dissimilarity = pre_dissim_bh_wa
+        groups_a = ["black", "hispanic"]
+        groups_b = ["white", "asian"]
+    else:
+        pre_dissimilarity = pre_dissim_wnw
+        groups_a = [
+            "asian",
+            "black",
+            "hispanic",
+            "native",
+            "not_specified",
+            "pacific_islander",
+            "total",
+            "two_or_more",
+        ]
+        groups_b = ["white"]
+
+    pre_population_consistency = pre_population_consistencies[
+        constants.POPULATION_CONSISTENCY_METRIC
+    ]
+
     # Create the cp model
     model = cp_model.CpModel()
 
@@ -979,39 +1021,17 @@ def solve_and_output_results(
         grades_interval_binary,
     )
 
-    if objective == "bh_wa":
-        print("Setting objective function bh/wa ...")
-        dissimilarity = calculate_dissimilarity(
-            model,
-            dissim_weight,
-            total_per_grade_per_school,
-            total_pop_per_cat_across_schools,
-            matches,
-            grades_interval_binary,
-            ["black", "hispanic"],
-            ["white", "asian"],
-        )
-    else:
-        print("Setting objective function white/non-white...")
-        dissimilarity = calculate_dissimilarity(
-            model,
-            dissim_weight,
-            total_per_grade_per_school,
-            total_pop_per_cat_across_schools,
-            matches,
-            grades_interval_binary,
-            [
-                "asian",
-                "black",
-                "hispanic",
-                "native",
-                "not_specified",
-                "pacific_islander",
-                "total",
-                "two_or_more",
-            ],
-            ["white"],
-        )
+    print(f"Setting objective function {objective} ...")
+    dissimilarity = calculate_dissimilarity(
+        model,
+        dissim_weight,
+        total_per_grade_per_school,
+        total_pop_per_cat_across_schools,
+        matches,
+        grades_interval_binary,
+        groups_a,
+        groups_b,
+    )
 
     population_consistency_metric = setup_population_capacity(
         model,
@@ -1021,7 +1041,13 @@ def solve_and_output_results(
         school_capacities,
     )
 
-    set_objective(model, dissimilarity, population_consistency_metric)
+    set_objective(
+        model,
+        dissimilarity,
+        population_consistency_metric,
+        pre_dissimilarity,
+        pre_population_consistency,
+    )
     print("Solving ...")
     solver = cp_model.CpSolver()
 
@@ -1057,6 +1083,9 @@ def solve_and_output_results(
             mergers_file_name,
             grades_served_file_name,
             schools_in_play_file_name,
+            pre_dissim_wnw,
+            pre_dissim_bh_wa,
+            pre_population_consistencies,
         )
 
     else:
