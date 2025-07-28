@@ -8,19 +8,26 @@ from mergers_core.models.merge_cp_sat import solve_and_output_results
 from mergers_core.models.constants import MAX_SOLVER_TIME
 
 
+# Produces the configurations to run.
 def generate_year_state_sweep_configs(
     districts_to_process_file=os.path.join("data", "school_data", "all_districts.csv"),
     max_cluster_node_time=43200,
     total_cluster_tasks_per_group=500,
     min_elem_schools=4,
-    batch_root="min_num_elem_{}_constrained_bh_wa",
+    batch_root="min_num_elem_{}_constrained_bh_wa_{}",
     dists_to_remove=None,
     output_dir=os.path.join("data", "sweep_configs", "{}"),
 ):
     interdistrict_options = [False]
     objective_options = ["bh_wa"]
     school_decrease_threshold_options = [0.2]
-    batch_name = batch_root.format(min_elem_schools)
+    population_consistency_metric_options = [
+        "median",
+        "average_difference",
+        "median_difference",
+    ]
+    dissimilarity_weight = 1
+    population_consistency_weight = 1
     write_to_s3 = True
 
     df_districts = pd.read_csv(districts_to_process_file, dtype={"district_id": str})
@@ -42,22 +49,34 @@ def generate_year_state_sweep_configs(
         "objective": [],
         "batch": [],
         "write_to_s3": [],
+        "dissimilarity_weight": [],
+        "population_consistency_weight": [],
+        "population_consistency_metric": [],
     }
 
-    output_path = Path(output_dir.format(batch_name))
-    output_path.mkdir(parents=True, exist_ok=True)
+    for metric in population_consistency_metric_options:
+        batch_name = batch_root.format(min_elem_schools, metric)
+        output_path = Path(output_dir.format(batch_name))
+        output_path.mkdir(parents=True, exist_ok=True)
 
-    for _, district in df_districts.iterrows():
-        for interdistrict in interdistrict_options:
-            for threshold in school_decrease_threshold_options:
-                for objective in objective_options:
-                    sweep_configs["state"].append(district["state"])
-                    sweep_configs["district_id"].append(district["district_id"])
-                    sweep_configs["school_decrease_threshold"].append(threshold)
-                    sweep_configs["interdistrict"].append(interdistrict)
-                    sweep_configs["objective"].append(objective)
-                    sweep_configs["batch"].append(batch_name)
-                    sweep_configs["write_to_s3"].append(write_to_s3)
+        for _, district in df_districts.iterrows():
+            for interdistrict in interdistrict_options:
+                for threshold in school_decrease_threshold_options:
+                    for objective in objective_options:
+                        sweep_configs["state"].append(district["state"])
+                        sweep_configs["district_id"].append(district["district_id"])
+                        sweep_configs["school_decrease_threshold"].append(threshold)
+                        sweep_configs["interdistrict"].append(interdistrict)
+                        sweep_configs["objective"].append(objective)
+                        sweep_configs["batch"].append(batch_name)
+                        sweep_configs["write_to_s3"].append(write_to_s3)
+                        sweep_configs["dissimilarity_weight"].append(
+                            dissimilarity_weight
+                        )
+                        sweep_configs["population_consistency_weight"].append(
+                            population_consistency_weight
+                        )
+                        sweep_configs["population_consistency_metric"].append(metric)
 
     df_out = pd.DataFrame(data=sweep_configs).sample(frac=1)
     num_jobs_per_group = int(

@@ -26,7 +26,9 @@ def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
     return filtered, dataframe
 
 
-def load_and_process_data(interdistrict: bool) -> tuple[
+def load_and_process_data(
+    state: str, district_id: str, interdistrict: bool
+) -> tuple[
     dict[str, int],
     dict[str, list[str]],
     dict[str, dict[str, list[int]]],
@@ -42,6 +44,8 @@ def load_and_process_data(interdistrict: bool) -> tuple[
     mergers. It then calculates and aggregates student counts by race and grade.
 
     Arguments:
+        state: The state to process.
+        district_id: The district to process.
         interdistrict: Flag indicating whether to consider mergers
             between different districts.
 
@@ -59,10 +63,8 @@ def load_and_process_data(interdistrict: bool) -> tuple[
               potential mergers.
     """
     df_schools_current_district, df_schools = _load_and_filter_nces_schools(
-        os.path.join(
-            "data", "solver_files", "2122", constants.STATE, "school_enrollments.csv"
-        ),
-        [constants.DISTRICT_ID],
+        os.path.join("data", "solver_files", "2122", state, "school_enrollments.csv"),
+        [district_id],
     )
 
     unique_schools: list[str] = list(
@@ -78,7 +80,7 @@ def load_and_process_data(interdistrict: bool) -> tuple[
                 "data",
                 "solver_files",
                 "2122",
-                constants.STATE,
+                state,
                 "between_within_district_allowed_mergers.json",
             )
         )
@@ -93,11 +95,11 @@ def load_and_process_data(interdistrict: bool) -> tuple[
                 "data",
                 "solver_files",
                 "2122",
-                constants.STATE,
+                state,
                 "within_district_allowed_mergers.json",
             )
         )
-        districts_involved.add(constants.DISTRICT_ID)
+        districts_involved.add(district_id)
 
     districts_involved: list[str] = list(districts_involved)
 
@@ -578,7 +580,6 @@ def set_constraints(
 
 def calculate_dissimilarity(
     model: cp_model.CpModel,
-    dissim_weight: float,
     total_per_grade_per_school: dict[str, dict[str, list[int]]],
     total_across_schools_by_category: Counter[str],
     matches: dict[str, dict[str, cp_model.IntVar]],
@@ -596,8 +597,6 @@ def calculate_dissimilarity(
 
     Arguments:
         model: The CP-SAT model instance.
-        dissim_weight: Weight for the dissimilarity component of the
-            objective function.
         total_per_grade_per_school: Student counts by grade,
             school, and race.
         total_pop_per_cat_across_schools: Total student counts by race.
@@ -804,6 +803,7 @@ def setup_population_capacity(
     grades_at_school: dict[str, list[cp_model.IntVar]],
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
     school_capacities: dict[str, int],
+    population_consistency_metric: str,
 ) -> object:
     """
     Returns a LinearExpr that represents the population consistency index. This index is
@@ -817,6 +817,7 @@ def setup_population_capacity(
         students_per_grade_per_school: Student counts by grade,
             school, and race.
         school_capacities: Dictionary of school capacities.
+        population_consistency_metric: The metric to use for population consistency.
 
     Returns:
         A LinearExpr that represents the population consistency index.
@@ -903,7 +904,7 @@ def setup_population_capacity(
         "median": median,
         "average_difference": average_difference,
         "median_difference": median_difference,
-    }[constants.POPULATION_CONSISTENCY_METRIC]
+    }[population_consistency_metric]
 
 
 def set_objective(
@@ -912,6 +913,8 @@ def set_objective(
     population_consistency_metric: cp_model.IntVar,
     pre_dissimilarity: float,
     pre_population_consistency: float,
+    dissimilarity_weight: float,
+    population_consistency_weight: float,
     minimize: bool = True,
 ) -> None:
     """Sets the multi-objective function for the solver."""
@@ -920,12 +923,12 @@ def set_objective(
     else:
         optimize_function = model.Maximize
 
-    if constants.POPULATION_CONSISTENCY_WEIGHT == 0:
+    if population_consistency_weight == 0:
         print("Objective function: minimize dissimilarity")
         optimize_function(dissimilarity_index)
         return
 
-    if constants.DISSIMILARITY_WEIGHT == 0:
+    if dissimilarity_weight == 0:
         print("Objective function: minimize population_consistency_metric")
         optimize_function(population_consistency_metric)
         return
@@ -941,8 +944,8 @@ def set_objective(
     # values of the metrics themselves, preventing one metric from dominating
     # the objective function simply due to its scale.
     ratio = Fraction(
-        int(constants.DISSIMILARITY_WEIGHT * constants.SCALING[0]),
-        int(constants.POPULATION_CONSISTENCY_WEIGHT * constants.SCALING[0]),
+        int(dissimilarity_weight * constants.SCALING[0]),
+        int(population_consistency_weight * constants.SCALING[0]),
     )
     ratio = ratio * starting_ratio
 
@@ -958,29 +961,29 @@ def set_objective(
 
 
 def solve_and_output_results(
-    school_decrease_threshold=0.2,
-    dissim_weight=1,
-    interdistrict=False,
-    objective="bh_wa",
-    # objective="white_nonwhite",
-    batch="testing",
-    output_dir="data/results/{}/{}/{}/{}_{}_{}_{}_{}_{}/",
-    mergers_file_name="school_mergers.csv",
-    grades_served_file_name="grades_served.csv",
-    schools_in_play_file_name="schools_in_play.csv",
-    s3_bucket="s3://school-mergers/",
-    write_to_s3=False,
+    state: str,
+    district_id: str,
+    school_decrease_threshold: float,
+    dissimilarity_weight: float,
+    population_consistency_weight: float,
+    population_consistency_metric: str,
+    interdistrict: bool,
+    objective: str,
+    batch: str,
+    write_to_s3: bool,
+    mergers_file_name: str = "school_mergers.csv",
+    grades_served_file_name: str = "grades_served.csv",
+    schools_in_play_file_name: str = "schools_in_play.csv",
+    s3_bucket: str = "s3://school-mergers/",
 ):
-    print(
-        f"Loading and processing data for {constants.STATE} {constants.DISTRICT_ID} ..."
-    )
+    print(f"Loading and processing data for {state} {district_id} ...")
     (
         school_capacities,
         permissible_matches,
         total_per_grade_per_school,
         total_pop_per_cat_across_schools,
         df_schools_in_play,
-    ) = load_and_process_data(interdistrict)
+    ) = load_and_process_data(state, district_id, interdistrict)
 
     # --- Calculate Initial Metrics ---
     initial_school_clusters = list(df_schools_in_play["NCESSCH"])
@@ -1015,7 +1018,7 @@ def solve_and_output_results(
         groups_b = ["white"]
 
     pre_population_consistency = pre_population_consistencies[
-        constants.POPULATION_CONSISTENCY_METRIC
+        population_consistency_metric
     ]
 
     # Create the cp model
@@ -1041,7 +1044,6 @@ def solve_and_output_results(
     print(f"Setting objective function {objective} ...")
     dissimilarity = calculate_dissimilarity(
         model,
-        dissim_weight,
         total_per_grade_per_school,
         total_pop_per_cat_across_schools,
         matches,
@@ -1050,20 +1052,23 @@ def solve_and_output_results(
         groups_b,
     )
 
-    population_consistency_metric = setup_population_capacity(
+    population_consistency = setup_population_capacity(
         model,
         matches,
         grades_interval_binary,
         total_per_grade_per_school,
         school_capacities,
+        population_consistency_metric,
     )
 
     set_objective(
         model,
         dissimilarity,
-        population_consistency_metric,
+        population_consistency,
         pre_dissimilarity,
         pre_population_consistency,
+        dissimilarity_weight,
+        population_consistency_weight,
     )
     print("Solving ...")
     solver = cp_model.CpSolver()
@@ -1074,9 +1079,6 @@ def solve_and_output_results(
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
 
-    for idx, var in enumerate(model.Proto().variables):
-        print(f"{idx:4}: {var.name}")
-
     status = solver.Solve(model)
 
     this_result_dirname = (
@@ -1084,7 +1086,9 @@ def solve_and_output_results(
         f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s"
         f"{solver.NumBranches()}_{solver.NumConflicts()}"
     )
-    curr_output_dir = f"data/results/{batch}/{constants.STATE}/{constants.DISTRICT_ID}/{this_result_dirname}"
+    curr_output_dir = (
+        f"data/results/{batch}/{state}/{district_id}/{this_result_dirname}"
+    )
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Status is {constants.STATUSES[status]}")
         print("Outputting solution ...")
@@ -1092,8 +1096,8 @@ def solve_and_output_results(
             solver,
             matches,
             grades_interval_binary,
-            constants.STATE,
-            constants.DISTRICT_ID,
+            state,
+            district_id,
             school_decrease_threshold,
             interdistrict,
             df_schools_in_play,
@@ -1106,6 +1110,9 @@ def solve_and_output_results(
             pre_dissim_wnw,
             pre_dissim_bh_wa,
             pre_population_consistencies,
+            population_consistency_metric,
+            dissimilarity_weight,
+            population_consistency_weight,
         )
 
     else:

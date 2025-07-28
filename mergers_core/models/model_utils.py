@@ -241,10 +241,7 @@ def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
                 np.abs(
                     (num_per_cat_per_school["num_white"][school] / total_white)
                     - (
-                        (
-                            num_per_cat_per_school["num_total"][school]
-                            - num_per_cat_per_school["num_white"][school]
-                        )
+                        (num_per_cat_per_school["num_total"][school] - num_per_cat_per_school["num_white"][school])
                         / total_non_white
                     )
                 )
@@ -266,17 +263,11 @@ def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
             bh_wa_dissim_vals.append(
                 np.abs(
                     (
-                        (
-                            num_per_cat_per_school["num_black"][school]
-                            + num_per_cat_per_school["num_hispanic"][school]
-                        )
+                        (num_per_cat_per_school["num_black"][school] + num_per_cat_per_school["num_hispanic"][school])
                         / total_black_hispanic
                     )
                     - (
-                        (
-                            num_per_cat_per_school["num_white"][school]
-                            + num_per_cat_per_school["num_asian"][school]
-                        )
+                        (num_per_cat_per_school["num_white"][school] + num_per_cat_per_school["num_asian"][school])
                         / total_white_asian
                     )
                 )
@@ -440,6 +431,9 @@ def output_solver_solution(
     pre_dissim_wnw,
     pre_dissim_bh_wa,
     pre_population_consistencies,
+    population_consistency_metric,
+    dissimilarity_weight,
+    population_consistency_weight,
     results_file_name="analytics.csv",
 ):
     maybe_load_large_files(state)
@@ -517,6 +511,9 @@ def output_solver_solution(
             "post_dissim_bh_wa",
             "pre_population_consistencies",
             "post_population_consistencies",
+            "population_consistency_metric",
+            "dissimilarity_weight",
+            "population_consistency_weight",
         ]
     }
     data_to_output.update(num_total_students)
@@ -532,7 +529,7 @@ def output_solver_solution(
 
     print()
 
-    print(f"Used metric {constants.POPULATION_CONSISTENCY_METRIC}")
+    print(f"Used metric {population_consistency_metric}")
     print("Pre population consistencies:")
     for metric, value in pre_population_consistencies.items():
         print(f"\t{metric}: {value}")
@@ -601,7 +598,7 @@ def produce_post_solver_files(
     try:
         pre_dissim, pre_dissim_bh_wa, pre_population_consistencies, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
-                df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="pre"
+                df_mergers_g, df_grades, df_schools_in_play, state
             )
         )
 
@@ -616,7 +613,7 @@ def produce_post_solver_files(
             num_students_switching_per_school,
             travel_time_impacts,
         ) = check_solution_validity_and_compute_outcomes(
-            df_mergers_g, df_grades, df_schools_in_play, state, pre_or_post="post"
+            df_mergers_g, df_grades, df_schools_in_play, state
         )
 
     except Exception as e:
@@ -833,8 +830,8 @@ def consolidate_results_files(
 
 
 def compare_batch_totals(
-    batch_1="min_num_elem_schools_4_constrained",
-    batch_2="min_num_elem_schools_4_bottomless",
+    batch_1="min_elem_4_interdistrict_bottom_sensitivity",
+    batch_2="min_elem_4_bottomless",
     file_root="data/results/{}/consolidated_simulation_results_{}.csv",
 ):
     df_1 = pd.read_csv(file_root.format(batch_1, batch_1), dtype={"district_id": str})[
