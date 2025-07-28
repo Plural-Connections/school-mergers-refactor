@@ -719,45 +719,26 @@ def _sort_sequence(
     Returns:
         A sorted list of IntVars.
     """
-    sorted_variables = [
+    sorted = [
         model.NewIntVar(0, max_val, f"{name_prefix}_sorted_{i}")
         for i in range(len(sequence))
     ]
 
     # Enforce sorted order
     for i in range(len(sequence) - 1):
-        model.Add(sorted_variables[i] <= sorted_variables[i + 1])
+        model.Add(sorted[i] <= sorted[i + 1])
 
-    # Enforce that sorted_variables is a permutation of sequence
-    # This is done by creating a boolean matrix where is_in_sorted_position[i][j] is true
-    # if sequence[i] is the j-th element in sorted_variables.
-    is_in_sorted_position = {}
+    permutation_indices = [
+        model.NewIntVar(0, len(sequence) - 1, f"{name_prefix}_perm_{i}")
+        for i in range(len(sequence))
+    ]
+    model.AddAllDifferent(permutation_indices)
+
     for i in range(len(sequence)):
-        for j in range(len(sequence)):
-            is_in_sorted_position[(i, j)] = model.NewBoolVar(
-                f"{name_prefix}_is_in_sorted_position_{i}_{j}"
-            )
+        # sorted[i] == sequence[permutation_indices[i]]
+        model.AddElement(permutation_indices[i], sequence, sorted[i])
 
-    # Each value in the original sequence must appear exactly once in the sorted sequence.
-    for i in range(len(sequence)):
-        model.Add(sum(is_in_sorted_position[(i, j)] for j in range(len(sequence))) == 1)
-
-    # Each position in the sorted sequence must be filled by exactly one value
-    # from the original sequence.
-    for j in range(len(sequence)):
-        model.Add(sum(is_in_sorted_position[(i, j)] for i in range(len(sequence))) == 1)
-
-    # Link the original sequence values to the sorted sequence values using the boolean matrix.
-    for i in range(len(sequence)):
-        for j in range(len(sequence)):
-            model.Add(sequence[i] == sorted_variables[j]).OnlyEnforceIf(
-                is_in_sorted_position[(i, j)]
-            )
-            model.Add(sequence[i] != sorted_variables[j]).OnlyEnforceIf(
-                is_in_sorted_position[(i, j)].Not()
-            )
-
-    return sorted_variables
+    return sorted
 
 
 def _median(
@@ -789,10 +770,15 @@ def _median(
         index = len(sequence) // 2
         return sorted_sequence[index]
 
+    sum = model.NewIntVar(0, max_val * 2, f"{name_prefix}_sum")
+    model.Add(
+        sum
+        == sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2]
+    )
     median_var = model.NewIntVar(0, max_val, f"{name_prefix}_median")
     model.AddDivisionEquality(
         median_var,
-        sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2],
+        sum,
         2,
     )
     return median_var
@@ -1065,8 +1051,8 @@ def solve_and_output_results(
 
     set_objective(
         model,
-        dissimilarity,
         dissimilarity_flavor,
+        dissimilarity,
         population_consistency,
         pre_dissimilarity,
         pre_population_consistency,
@@ -1082,9 +1068,6 @@ def solve_and_output_results(
 
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
-
-    for idx, var in enumerate(model.Proto().variables):
-        print(f"{idx:4}: {var.name}")
 
     status = solver.Solve(model)
 
@@ -1120,6 +1103,8 @@ def solve_and_output_results(
             population_consistency_metric,
             dissimilarity_weight,
             population_consistency_weight,
+            dissimilarity_flavor,
+            minimize,
         )
 
     else:
@@ -1135,16 +1120,101 @@ def solve_and_output_results(
 
 
 if __name__ == "__main__":
-    solve_and_output_results(
-        state="TX",
-        district_id="4822470",
-        school_decrease_threshold=0.2,
-        dissimilarity_weight=0,
-        population_consistency_weight=1,
-        population_consistency_metric="median",
-        interdistrict=False,
-        dissimilarity_flavor="maximize",
-        minimize=False,
-        batch="test_single_batch",
-        write_to_s3=False,
-    )
+    districts = {
+        "0100007": "AL",
+        "0101380": "AL",
+        "0404630": "AZ",
+        "0600016": "CA",
+        "0604800": "CA",
+        "0611850": "CA",
+        "0626670": "CA",
+        "0627180": "CA",
+        "0628140": "CA",
+        "0629610": "CA",
+        "0637380": "CA",
+        "0638670": "CA",
+        "0643080": "CA",
+        "0804530": "CO",
+        "0807230": "CO",
+        "0902670": "CT",
+        "1200930": "FL",
+        # "1301380": "GA",
+        # "1302400": "GA",
+        # "1305370": "GA",
+        # "1704710": "IL",
+        # "1710200": "IL",
+        # "1714460": "IL",
+        # "1726400": "IL",
+        # "1737170": "IL",
+        # "1801200": "TX",
+        # "1805670": "IN",
+        # "1926400": "IA",
+        # "2103090": "KY",
+        # "2201620": "LA",
+        # "2400690": "MD",
+        # "2600015": "MI",
+        # "2621840": "MI",
+        # "2803480": "MS",
+        # "2918540": "MO",
+        # "2920670": "MO",
+        # "2923550": "MO",
+        # "2926070": "MO",
+        # "2928950": "MO",
+        # "3172390": "NE",
+        # "3178660": "NE",
+        # "3200360": "NV",
+        # "3404500": "NJ",
+        # "3412480": "NJ",
+        # "3500010": "NM",
+        # "3500900": "NM",
+        # "3500990": "NM",
+        # "3501680": "NM",
+        # "3600094": "NY",
+        # "3625350": "NY",
+        # "3629370": "NY",
+        # "3700420": "NC",
+        # "3700750": "NC",
+        # "3704080": "NC",
+        # "3704320": "NC",
+        # "3704650": "NC",
+        # "3904426": "OH",
+        # "3904481": "OH",
+        # "4112240": "OR",
+        # "4207710": "PA",
+        # "4209300": "PA",
+        # "4221090": "PA",
+        # "4224320": "PA",
+        # "4225290": "PA",
+        # "4500900": "SC",
+        # "4503060": "SC",
+        # "4700147": "FL",
+        # "4702580": "TN",
+        # "4703480": "TN",
+        # "4703990": "TN",
+        # "4815910": "TX",
+        # "4820600": "TX",
+        # "4844960": "TX",
+        # "4846530": "TX",
+        # "5102520": "VA",
+        # "5102940": "VA",
+        # "5104150": "VA",
+        # "5304860": "WA",
+        # "5305220": "WA",
+        # "5308160": "WA",
+        # "5400930": "WV",
+    }
+
+    for district_id, state in districts.items():
+        solve_and_output_results(
+            state=state,
+            district_id=district_id,
+            school_decrease_threshold=0.2,
+            dissimilarity_weight=1,
+            population_consistency_weight=1,
+            population_consistency_metric="median",
+            interdistrict=False,
+            dissimilarity_flavor="bh_wa",
+            minimize=True,
+            batch="test_single_batch",
+            write_to_s3=False,
+        )
