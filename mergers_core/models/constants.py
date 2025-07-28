@@ -47,15 +47,3 @@ BLOCKS_FILE = (
 )
 
 TRAVEL_TIMES_FILE = "data/travel_times_files/2122/{}/block_to_school_driving_times.json"
-
-STATE = "CA"
-DISTRICT_ID = "0602160"
-
-DISSIMILARITY_WEIGHT = 1
-POPULATION_CONSISTENCY_WEIGHT = 0
-
-# One of:
-# "median"
-# "average_difference"
-# "median_difference"
-POPULATION_CONSISTENCY_METRIC = "average_difference"
