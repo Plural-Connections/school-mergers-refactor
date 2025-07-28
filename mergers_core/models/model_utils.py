@@ -227,7 +227,7 @@ def _validate_solution(
                 )
 
 
-def _compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
+def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
     dissim_vals = []
     for school in school_clusters:
         dissim_vals.append(
@@ -281,7 +281,7 @@ def _compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
     return dissim_val, bh_wa_dissim_val
 
 
-def _compute_population_consistencies(df_schools_in_play, num_per_cat_per_school):
+def compute_population_consistencies(df_schools_in_play, num_per_cat_per_school):
     school_capacities = df_schools_in_play.set_index("NCESSCH")[
         "student_capacity"
     ].to_dict()
@@ -300,10 +300,9 @@ def _compute_population_consistencies(df_schools_in_play, num_per_cat_per_school
     average_difference = np.mean(differences)
 
     return {
-        "total_percentages": sum(percentages.values()),
-        "average_percentage": average_percentage,
-        "total_difference": sum(differences),
+        "median": np.median(percentages.values()),
         "average_difference": average_difference,
+        "median_difference": np.median(differences),
     }
 
 
@@ -372,11 +371,11 @@ def check_solution_validity_and_compute_outcomes(
         df_grades,
     )
 
-    dissim_val, bh_wa_dissim_val = _compute_dissimilarity_metrics(
+    dissim_val, bh_wa_dissim_val = compute_dissimilarity_metrics(
         school_clusters, num_per_cat_per_school
     )
 
-    population_consistencies = _compute_population_consistencies(
+    population_consistencies = compute_population_consistencies(
         df_schools_in_play, num_per_cat_per_school
     )
 

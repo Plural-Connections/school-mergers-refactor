@@ -1,7 +1,11 @@
 from ortools.sat.python import cp_model
 import mergers_core.utils.header as header
 import mergers_core.models.constants as constants
-from mergers_core.models.model_utils import output_solver_solution
+from mergers_core.models.model_utils import (
+    output_solver_solution,
+    compute_dissimilarity_metrics,
+    compute_population_consistencies,
+)
 import pandas as pd
 import numpy as np
 from collections import Counter, defaultdict
@@ -698,6 +702,88 @@ def calculate_dissimilarity(
     return sum(dissimilarity_terms)
 
 
+def _sort_sequence(
+    model: cp_model.CpModel,
+    sequence: list[cp_model.IntVar],
+    max: int,
+) -> list[cp_model.IntVar]:
+    """
+    Given a list of IntVars, returs a new list of IntVars with the same values, but in
+    sorted order.
+    This creates roughly 2n² + 3n constraints.
+
+    Arguments:
+        model: The CP-SAT model instance.
+        sequence: A list of IntVars.
+        max: The maximum value of the input IntVars.
+
+    Returns:
+        A sorted list of IntVars.
+    """
+    sorted_variables = [
+        model.NewIntVar(0, max, f"sorted_{i}") for i in range(len(sequence))
+    ]
+
+    # Enforce sorted order
+    for i in range(len(sequence) - 1):
+        model.Add(sorted_variables[i] <= sorted_variables[i + 1])
+
+    # Enforce that sorted_variables is a permutation of sequence
+    is_x_at_sorted_pos = {}
+    for i in range(len(sequence)):
+        for j in range(len(sequence)):
+            is_x_at_sorted_pos[(i, j)] = model.NewBoolVar(f"is_x_{i}_at_sorted_pos_{j}")
+            model.Add(sequence[i] == sorted_variables[j]).OnlyEnforceIf(
+                is_x_at_sorted_pos[(i, j)]
+            )
+            model.Add(sequence[i] != sorted_variables[j]).OnlyEnforceIf(
+                is_x_at_sorted_pos[(i, j)].Not()
+            )
+
+    # Each sequence[i] must appear exactly once in sorted_variables
+    for i in range(len(sequence)):
+        model.Add(sum(is_x_at_sorted_pos[(i, j)] for j in range(len(sequence))) == 1)
+
+    # Each sorted_variables[j] must be filled by exactly one sequence[i]
+    for j in range(len(sequence)):
+        model.Add(sum(is_x_at_sorted_pos[(i, j)] for i in range(len(sequence))) == 1)
+
+    return sorted_variables
+
+
+def _median(
+    model: cp_model.CpModel, sequence: list[cp_model.IntVar], max: int
+) -> cp_model.IntVar:
+    """
+    Returns the median of the input sequence.
+
+    Arguments:
+        model: The CP-SAT model instance.
+        sequence: A list of IntVars.
+        max: The maximum value of the input IntVars.
+
+    Returns:
+        The median of the input sequence.
+    """
+    sorted_sequence = _sort_sequence(
+        model,
+        sequence,
+        max,
+    )
+
+    if len(sequence) % 2 == 1:
+        index = len(sequence) // 2
+        return sorted_sequence[index]
+
+    median_var = model.NewIntVar(0, max, "median")
+    model.AddDivisionEquality(
+        median_var,
+        sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2],
+        2,
+    )
+    return median_var
+
+
 def setup_population_capacity(
     model: cp_model.CpModel,
     matches: dict[str, dict[str, cp_model.IntVar]],
@@ -757,17 +843,22 @@ def setup_population_capacity(
         percentages.update({school: percentage})
 
     average_percentage = model.NewIntVar(0, constants.SCALING[0], "average_percentage")
-    sum_percentages_expr = sum(percentages.values())
     sum_percentages_var = model.NewIntVar(
         0,
         len(percentages) * constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
         "sum_percentages_var",
     )
-    model.Add(sum_percentages_var == sum_percentages_expr)
+    model.Add(sum_percentages_var == sum(percentages.values()))
     model.AddDivisionEquality(
         average_percentage,
         sum_percentages_var,
         len(percentages),
+    )
+
+    median = _median(
+        model,
+        list(percentages.values()),
+        constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
     )
 
     differences = []
@@ -777,45 +868,67 @@ def setup_population_capacity(
         differences.append(difference)
 
     average_difference = model.NewIntVar(0, constants.SCALING[0], "average_difference")
-    sum_differences_expr = sum(differences)
     sum_differences_var = model.NewIntVar(
         0,
         len(differences) * constants.SCALING[0],
         "sum_differences_var",
     )
-    model.Add(sum_differences_var == sum_differences_expr)
+    model.Add(sum_differences_var == sum(differences))
     model.AddDivisionEquality(
         average_difference,
         sum_differences_var,
         len(differences),
     )
 
+    median_difference = _median(model, differences, constants.SCALING[0])
+
     return {
-        "total_percentages": sum(percentages.values()),
-        "average_percentage": average_percentage,
-        "total_difference": sum(differences),
+        "median": median,
         "average_difference": average_difference,
+        "median_difference": median_difference,
     }[constants.POPULATION_CONSISTENCY_METRIC]
 
 
 def set_objective(
-    model: cp_model.CpModel, dissimilarity_index, population_consistency_metric
+    model: cp_model.CpModel,
+    dissimilarity_index: cp_model.IntVar,
+    population_consistency_metric: cp_model.IntVar,
+    minimize: bool = True,
 ) -> None:
+    if minimize:
+        optimize_function = lambda x: cp_model.Minimize(x)
+    else:
+        optimize_function = lambda x: cp_model.Maximize(x)
+
     if constants.POPULATION_CONSISTENCY_WEIGHT == 0:
         print("Objective function: minimize dissimilarity")
-        model.Minimize(dissimilarity_index)
+        optimize_function(dissimilarity_index)
         return
 
+    if constants.DISSIMILARITY_WEIGHT == 0:
+        print("Objective function: minimize population_consistency_metric")
+        optimize_function(population_consistency_metric)
+        return
+
+    pre_dissimilarity = compute_dissimilarity_metrics()
+    pre_population_consistency = compute_population_consistencies()[
+        constants.POPULATION_CONSISTENCY_METRIC
+    ]
+
+    starting_ratio = Fraction(pre_dissimilarity, pre_population_consistency)
+    starting_ratio.limit_denominator(1000)
     ratio = Fraction(
         int(constants.DISSIMILARITY_WEIGHT * constants.SCALING[0]),
         int(constants.POPULATION_CONSISTENCY_WEIGHT * constants.SCALING[0]),
     )
 
+    ratio = ratio * starting_ratio
+
     print(
         f"Objective function: minimize {ratio.numerator} * dissimilarity"
         f" + {ratio.denominator} * population_consistency_metric"
     )
-    model.Minimize(
+    optimize_function(
         ratio.numerator * dissimilarity_index
         + ratio.denominator * population_consistency_metric
     )
