@@ -706,6 +706,7 @@ def _sort_sequence(
     model: cp_model.CpModel,
     sequence: list[cp_model.IntVar],
     max_val: int,
+    name_prefix: str,
 ) -> list[cp_model.IntVar]:
     """
     Given a list of IntVars, returs a new list of IntVars with the same values, but in
@@ -716,12 +717,14 @@ def _sort_sequence(
         model: The CP-SAT model instance.
         sequence: A list of IntVars.
         max_val: The maximum value of the input IntVars.
+        name_prefix: A prefix for the variable names.
 
     Returns:
         A sorted list of IntVars.
     """
     sorted_variables = [
-        model.NewIntVar(0, max_val, f"sorted_{i}") for i in range(len(sequence))
+        model.NewIntVar(0, max_val, f"{name_prefix}_sorted_{i}")
+        for i in range(len(sequence))
     ]
 
     # Enforce sorted order
@@ -752,7 +755,10 @@ def _sort_sequence(
 
 
 def _median(
-    model: cp_model.CpModel, sequence: list[cp_model.IntVar], max_val: int
+    model: cp_model.CpModel,
+    sequence: list[cp_model.IntVar],
+    max_val: int,
+    name_prefix: str,
 ) -> cp_model.IntVar:
     """
     Returns the median of the input sequence.
@@ -761,6 +767,7 @@ def _median(
         model: The CP-SAT model instance.
         sequence: A list of IntVars.
         max_val: The maximum value of the input IntVars.
+        name_prefix: A prefix for the variable names.
 
     Returns:
         The median of the input sequence.
@@ -769,13 +776,14 @@ def _median(
         model,
         sequence,
         max_val,
+        name_prefix,
     )
 
     if len(sequence) % 2 == 1:
         index = len(sequence) // 2
         return sorted_sequence[index]
 
-    median_var = model.NewIntVar(0, max_val, "median")
+    median_var = model.NewIntVar(0, max_val, f"{name_prefix}_median")
     model.AddDivisionEquality(
         median_var,
         sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2],
@@ -859,6 +867,7 @@ def setup_population_capacity(
         model,
         list(percentages.values()),
         constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+        "pop_capacity",
     )
 
     differences = []
@@ -880,7 +889,9 @@ def setup_population_capacity(
         len(differences),
     )
 
-    median_difference = _median(model, differences, constants.SCALING[0])
+    median_difference = _median(
+        model, differences, constants.SCALING[0], "median_diff"
+    )
 
     return {
         "median": median,
