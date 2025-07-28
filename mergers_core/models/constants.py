@@ -55,8 +55,7 @@ DISSIMILARITY_WEIGHT = 1
 POPULATION_CONSISTENCY_WEIGHT = 0
 
 # One of:
-# "total_percentages"
-# "average_percentage"
-# "total_difference"
+# "median"
 # "average_difference"
+# "median_difference"
 POPULATION_CONSISTENCY_METRIC = "average_difference"
