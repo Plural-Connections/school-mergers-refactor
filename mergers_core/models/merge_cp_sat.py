@@ -26,9 +26,7 @@ def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
     return filtered, dataframe
 
 
-def load_and_process_data(
-    state: str, district_id: str, interdistrict: bool
-) -> tuple[
+def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> tuple[
     dict[str, int],
     dict[str, list[str]],
     dict[str, dict[str, list[int]]],
@@ -731,30 +729,33 @@ def _sort_sequence(
         model.Add(sorted_variables[i] <= sorted_variables[i + 1])
 
     # Enforce that sorted_variables is a permutation of sequence
-    is_sequencei_at_sortedj = {}
+    # This is done by creating a boolean matrix where is_in_sorted_position[i][j] is true
+    # if sequence[i] is the j-th element in sorted_variables.
+    is_in_sorted_position = {}
     for i in range(len(sequence)):
         for j in range(len(sequence)):
-            is_sequencei_at_sortedj[(i, j)] = model.NewBoolVar(
-                f"{name_prefix}_is_sequence{i}_at_sorted{j}"
+            is_in_sorted_position[(i, j)] = model.NewBoolVar(
+                f"{name_prefix}_is_in_sorted_position_{i}_{j}"
             )
+
+    # Each value in the original sequence must appear exactly once in the sorted sequence.
+    for i in range(len(sequence)):
+        model.Add(sum(is_in_sorted_position[(i, j)] for j in range(len(sequence))) == 1)
+
+    # Each position in the sorted sequence must be filled by exactly one value
+    # from the original sequence.
+    for j in range(len(sequence)):
+        model.Add(sum(is_in_sorted_position[(i, j)] for i in range(len(sequence))) == 1)
+
+    # Link the original sequence values to the sorted sequence values using the boolean matrix.
+    for i in range(len(sequence)):
+        for j in range(len(sequence)):
             model.Add(sequence[i] == sorted_variables[j]).OnlyEnforceIf(
-                is_sequencei_at_sortedj[(i, j)]
+                is_in_sorted_position[(i, j)]
             )
             model.Add(sequence[i] != sorted_variables[j]).OnlyEnforceIf(
-                is_sequencei_at_sortedj[(i, j)].Not()
+                is_in_sorted_position[(i, j)].Not()
             )
-
-    # Each sequence[i] must appear exactly once in sorted_variables
-    for i in range(len(sequence)):
-        model.Add(
-            sum(is_sequencei_at_sortedj[(i, j)] for j in range(len(sequence))) == 1
-        )
-
-    # Each sorted_variables[j] must be filled by exactly one sequence[i]
-    for j in range(len(sequence)):
-        model.Add(
-            sum(is_sequencei_at_sortedj[(i, j)] for i in range(len(sequence))) == 1
-        )
 
     return sorted_variables
 
@@ -896,9 +897,7 @@ def setup_population_capacity(
         len(differences),
     )
 
-    median_difference = _median(
-        model, differences, constants.SCALING[0], "median_diff"
-    )
+    median_difference = _median(model, differences, constants.SCALING[0], "median_diff")
 
     return {
         "median": median,
@@ -909,13 +908,14 @@ def setup_population_capacity(
 
 def set_objective(
     model: cp_model.CpModel,
+    dissimilarity_flavor: str,
     dissimilarity_index: cp_model.IntVar,
     population_consistency_metric: cp_model.IntVar,
     pre_dissimilarity: float,
     pre_population_consistency: float,
     dissimilarity_weight: float,
     population_consistency_weight: float,
-    minimize: bool = True,
+    minimize: bool,
 ) -> None:
     """Sets the multi-objective function for the solver."""
     if minimize:
@@ -937,8 +937,7 @@ def set_objective(
     if pre_population_consistency == 0 or pre_dissimilarity == 0:
         starting_ratio = Fraction(1, 1)
     else:
-        starting_ratio = Fraction(pre_dissimilarity, pre_population_consistency)
-        starting_ratio.limit_denominator(1000)
+        starting_ratio = Fraction(pre_dissimilarity / pre_population_consistency)
 
     # This ratio balances the weights provided by the user with the initial
     # values of the metrics themselves, preventing one metric from dominating
@@ -948,10 +947,11 @@ def set_objective(
         int(population_consistency_weight * constants.SCALING[0]),
     )
     ratio = ratio * starting_ratio
+    ratio = ratio.limit_denominator(1000)
 
     print(
         f"Objective function: {'minimize' if minimize else 'maximize'}"
-        f" {ratio.numerator} * dissimilarity"
+        f" {ratio.numerator} * dissimilarity ({dissimilarity_flavor})"
         f" + {ratio.denominator} * population_consistency_metric"
     )
     optimize_function(
@@ -961,6 +961,7 @@ def set_objective(
 
 
 def solve_and_output_results(
+    *,  # enforce good practice
     state: str,
     district_id: str,
     school_decrease_threshold: float,
@@ -968,7 +969,8 @@ def solve_and_output_results(
     population_consistency_weight: float,
     population_consistency_metric: str,
     interdistrict: bool,
-    objective: str,
+    dissimilarity_flavor: str,
+    minimize: bool,
     batch: str,
     write_to_s3: bool,
     mergers_file_name: str = "school_mergers.csv",
@@ -999,7 +1001,7 @@ def solve_and_output_results(
         df_schools_in_play, initial_num_per_cat_per_school
     )
 
-    if objective == "bh_wa":
+    if dissimilarity_flavor == "bh_wa":
         pre_dissimilarity = pre_dissim_bh_wa
         groups_a = ["black", "hispanic"]
         groups_b = ["white", "asian"]
@@ -1041,7 +1043,7 @@ def solve_and_output_results(
         grades_interval_binary,
     )
 
-    print(f"Setting objective function {objective} ...")
+    print("Setting objective function ...")
     dissimilarity = calculate_dissimilarity(
         model,
         total_per_grade_per_school,
@@ -1064,11 +1066,13 @@ def solve_and_output_results(
     set_objective(
         model,
         dissimilarity,
+        dissimilarity_flavor,
         population_consistency,
         pre_dissimilarity,
         pre_population_consistency,
         dissimilarity_weight,
         population_consistency_weight,
+        minimize,
     )
     print("Solving ...")
     solver = cp_model.CpSolver()
@@ -1128,4 +1132,16 @@ def solve_and_output_results(
 
 
 if __name__ == "__main__":
-    solve_and_output_results()
+    solve_and_output_results(
+        state="TX",
+        district_id="4822470",
+        school_decrease_threshold=0.2,
+        dissimilarity_weight=0,
+        population_consistency_weight=1,
+        population_consistency_metric="median",
+        interdistrict=False,
+        dissimilarity_flavor="maximize",
+        minimize=False,
+        batch="test_single_batch",
+        write_to_s3=False,
+    )
