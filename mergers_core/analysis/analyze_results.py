@@ -8,6 +8,8 @@ import glob
 import os
 import random
 from collections import Counter, defaultdict
+import matplotlib.pyplot as plt
+import sys
 
 
 def quick_analysis(
@@ -323,8 +325,55 @@ def compare_to_redistricting(
     df.to_csv(output_file)
 
 
+def plot_dissimilarity_vs_population_consistency(run_paths):
+    all_data = []
+    for run_path in run_paths:
+        analytics_file = os.path.join(run_path, "analytics.csv")
+        if os.path.exists(analytics_file):
+            df = pd.read_csv(analytics_file)
+            all_data.append(df)
+        else:
+            print(f"Warning: {analytics_file} not found. Skipping.")
+
+    if not all_data:
+        print("No data found to plot.")
+        return
+
+    combined_df = pd.concat(all_data, ignore_index=True)
+
+    combined_df["pre_dissim_col"] = combined_df.apply(
+        lambda row: row[f"pre_dissim_{row['dissimilarity_flavor']}"], axis=1
+    )
+    combined_df["post_dissim_col"] = combined_df.apply(
+        lambda row: row[f"post_dissim_{row['dissimilarity_flavor']}"], axis=1
+    )
+
+    plt.figure(figsize=(10, 6))
+    plt.draw(
+        combined_df["pre_population_consistency"],
+        combined_df["pre_dissim_col"],
+        combined_df["post_population_consistency"],
+        combined_df["post_dissim_col"],
+        color="black",
+        label="Trend",
+        marker="o",
+    )
+
+    plt.xlabel("Population Consistency")
+    plt.ylabel("Dissimilarity")
+    plt.title("Dissimilarity vs. Population Consistency")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
 if __name__ == "__main__":
-    # quick_analysis()
-    # identify_moderate_district_large_decrease_in_dissim()
-    viz_assignments()
-    # compare_to_redistricting()
+    if len(sys.argv) < 2:
+        print(
+            "Usage: python analyze_results.py <dissimilarity_flavor> <run_path_1> [run_path_2 ...]"
+        )
+        print("Example: python analyze_results.py /path/to/run1 /path/to/run2")
+        sys.exit(1)
+
+    run_paths = sys.argv[1:]
+    plot_dissimilarity_vs_population_consistency(run_paths)
