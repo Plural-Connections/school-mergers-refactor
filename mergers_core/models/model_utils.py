@@ -241,7 +241,10 @@ def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
                 np.abs(
                     (num_per_cat_per_school["num_white"][school] / total_white)
                     - (
-                        (num_per_cat_per_school["num_total"][school] - num_per_cat_per_school["num_white"][school])
+                        (
+                            num_per_cat_per_school["num_total"][school]
+                            - num_per_cat_per_school["num_white"][school]
+                        )
                         / total_non_white
                     )
                 )
@@ -263,11 +266,17 @@ def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
             bh_wa_dissim_vals.append(
                 np.abs(
                     (
-                        (num_per_cat_per_school["num_black"][school] + num_per_cat_per_school["num_hispanic"][school])
+                        (
+                            num_per_cat_per_school["num_black"][school]
+                            + num_per_cat_per_school["num_hispanic"][school]
+                        )
                         / total_black_hispanic
                     )
                     - (
-                        (num_per_cat_per_school["num_white"][school] + num_per_cat_per_school["num_asian"][school])
+                        (
+                            num_per_cat_per_school["num_white"][school]
+                            + num_per_cat_per_school["num_asian"][school]
+                        )
                         / total_white_asian
                     )
                 )
