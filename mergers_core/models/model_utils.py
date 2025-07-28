@@ -506,6 +506,13 @@ def output_solver_solution(
         header.write_json(os.path.join(output_dir, "errors.json"), errors)
         return
 
+    pre_population_consistency = pre_population_consistencies[
+        population_consistency_metric
+    ]
+    post_population_consistency = post_population_consistencies[
+        population_consistency_metric
+    ]
+
     # Output results
     data_to_output = {
         name: locals()[name]
@@ -518,8 +525,8 @@ def output_solver_solution(
             "post_dissim_wnw",
             "pre_dissim_bh_wa",
             "post_dissim_bh_wa",
-            "pre_population_consistencies",
-            "post_population_consistencies",
+            "pre_population_consistency",
+            "post_population_consistency",
             "population_consistency_metric",
             "dissimilarity_weight",
             "population_consistency_weight",
@@ -557,7 +564,6 @@ def output_solver_solution(
         )
     except (KeyError, ZeroDivisionError) as e:
         print(f"Could not print travel time stats: {e}")
-        pass
 
     pd.DataFrame(data_to_output, index=[0]).to_csv(
         os.path.join(output_dir, results_file_name), index=False
@@ -576,15 +582,15 @@ def output_solver_solution(
     if write_to_s3:
         from s3fs import S3FileSystem
 
-        for name, impact in things_to_output.items():
+        for name, thing in things_to_output.items():
             s3 = S3FileSystem()
             with s3.open(os.path.join(output_dir, name + ".json"), "w") as file:
-                json.dump(impact, file)
+                json.dump(thing, file)
 
     else:
-        for name, impact in things_to_output.items():
+        for name, thing in things_to_output.items():
             with open(os.path.join(output_dir, name + ".json"), "w") as file:
-                json.dump(impact, file)
+                json.dump(thing, file)
 
 
 """
