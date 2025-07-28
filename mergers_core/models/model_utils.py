@@ -443,6 +443,8 @@ def output_solver_solution(
     population_consistency_metric,
     dissimilarity_weight,
     population_consistency_weight,
+    dissimilarity_flavor,
+    minimize,
     results_file_name="analytics.csv",
 ):
     maybe_load_large_files(state)
@@ -530,6 +532,8 @@ def output_solver_solution(
             "population_consistency_metric",
             "dissimilarity_weight",
             "population_consistency_weight",
+            "dissimilarity_flavor",
+            "minimize",
         ]
     }
     data_to_output.update(num_total_students)
