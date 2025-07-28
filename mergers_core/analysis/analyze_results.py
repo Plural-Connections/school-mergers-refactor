@@ -348,15 +348,29 @@ def plot_dissimilarity_vs_population_consistency(run_paths):
         lambda row: row[f"post_dissim_{row['dissimilarity_flavor']}"], axis=1
     )
 
-    plt.figure(figsize=(10, 6))
-    plt.draw(
-        combined_df["pre_population_consistency"],
-        combined_df["pre_dissim_col"],
+    for i in range(len(combined_df)):
+        print(
+            f"{combined_df['pre_population_consistency'][i]}, {combined_df['pre_dissim_col'][i]} -> {combined_df['post_population_consistency'][i]}, {combined_df['post_dissim_col'][i]}"
+        )
+        plt.plot(
+            [
+                combined_df["pre_population_consistency"][i],
+                combined_df["pre_dissim_col"][i],
+            ],
+            [
+                combined_df["post_population_consistency"][i],
+                combined_df["post_dissim_col"][i],
+            ],
+            color="black",
+            label="Trend",
+            marker="o",
+        )
+
+    plt.scatter(
         combined_df["post_population_consistency"],
         combined_df["post_dissim_col"],
-        color="black",
-        label="Trend",
-        marker="o",
+        color="red",
+        label="a",
     )
 
     plt.xlabel("Population Consistency")
