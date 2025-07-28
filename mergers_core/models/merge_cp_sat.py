@@ -732,24 +732,30 @@ def _sort_sequence(
         model.Add(sorted_variables[i] <= sorted_variables[i + 1])
 
     # Enforce that sorted_variables is a permutation of sequence
-    is_x_at_sorted_pos = {}
+    is_sequencei_at_sortedj = {}
     for i in range(len(sequence)):
         for j in range(len(sequence)):
-            is_x_at_sorted_pos[(i, j)] = model.NewBoolVar(f"is_x_{i}_at_sorted_pos_{j}")
+            is_sequencei_at_sortedj[(i, j)] = model.NewBoolVar(
+                f"{name_prefix}_is_sequence{i}_at_sorted{j}"
+            )
             model.Add(sequence[i] == sorted_variables[j]).OnlyEnforceIf(
-                is_x_at_sorted_pos[(i, j)]
+                is_sequencei_at_sortedj[(i, j)]
             )
             model.Add(sequence[i] != sorted_variables[j]).OnlyEnforceIf(
-                is_x_at_sorted_pos[(i, j)].Not()
+                is_sequencei_at_sortedj[(i, j)].Not()
             )
 
     # Each sequence[i] must appear exactly once in sorted_variables
     for i in range(len(sequence)):
-        model.Add(sum(is_x_at_sorted_pos[(i, j)] for j in range(len(sequence))) == 1)
+        model.Add(
+            sum(is_sequencei_at_sortedj[(i, j)] for j in range(len(sequence))) == 1
+        )
 
     # Each sorted_variables[j] must be filled by exactly one sequence[i]
     for j in range(len(sequence)):
-        model.Add(sum(is_x_at_sorted_pos[(i, j)] for i in range(len(sequence))) == 1)
+        model.Add(
+            sum(is_sequencei_at_sortedj[(i, j)] for i in range(len(sequence))) == 1
+        )
 
     return sorted_variables
 
