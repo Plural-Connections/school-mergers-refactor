@@ -19,7 +19,7 @@ def generate_year_state_sweep_configs(
     output_dir=os.path.join("data", "sweep_configs", "{}"),
 ):
     interdistrict_options = [False]
-    objective_options = ["bh_wa"]
+    dissimilarity_flavor_options = ["bh_wa"]
     school_decrease_threshold_options = [0.2]
     population_consistency_metric_options = [
         "median",
@@ -45,13 +45,14 @@ def generate_year_state_sweep_configs(
         "state": [],
         "district_id": [],
         "school_decrease_threshold": [],
-        "interdistrict": [],
-        "objective": [],
-        "batch": [],
-        "write_to_s3": [],
         "dissimilarity_weight": [],
         "population_consistency_weight": [],
         "population_consistency_metric": [],
+        "interdistrict": [],
+        "dissimilarity_flavor": [],
+        "minimize": [],
+        "batch": [],
+        "write_to_s3": [],
     }
 
     for metric in population_consistency_metric_options:
@@ -62,21 +63,27 @@ def generate_year_state_sweep_configs(
         for _, district in df_districts.iterrows():
             for interdistrict in interdistrict_options:
                 for threshold in school_decrease_threshold_options:
-                    for objective in objective_options:
-                        sweep_configs["state"].append(district["state"])
-                        sweep_configs["district_id"].append(district["district_id"])
-                        sweep_configs["school_decrease_threshold"].append(threshold)
-                        sweep_configs["interdistrict"].append(interdistrict)
-                        sweep_configs["objective"].append(objective)
-                        sweep_configs["batch"].append(batch_name)
-                        sweep_configs["write_to_s3"].append(write_to_s3)
-                        sweep_configs["dissimilarity_weight"].append(
-                            dissimilarity_weight
-                        )
-                        sweep_configs["population_consistency_weight"].append(
-                            population_consistency_weight
-                        )
-                        sweep_configs["population_consistency_metric"].append(metric)
+                    for dissimilarity_flavor in dissimilarity_flavor_options:
+                        for minimize in [True, False]:
+                            sweep_configs["state"].append(district["state"])
+                            sweep_configs["district_id"].append(district["district_id"])
+                            sweep_configs["school_decrease_threshold"].append(threshold)
+                            sweep_configs["dissimilarity_weight"].append(
+                                dissimilarity_weight
+                            )
+                            sweep_configs["population_consistency_weight"].append(
+                                population_consistency_weight
+                            )
+                            sweep_configs["population_consistency_metric"].append(
+                                metric
+                            )
+                            sweep_configs["interdistrict"].append(interdistrict)
+                            sweep_configs["dissimilarity_flavor"].append(
+                                dissimilarity_flavor
+                            )
+                            sweep_configs["minimize"].append(minimize)
+                            sweep_configs["batch"].append(batch_name)
+                            sweep_configs["write_to_s3"].append(write_to_s3)
 
     df_out = pd.DataFrame(data=sweep_configs).sample(frac=1)
     num_jobs_per_group = int(
@@ -124,9 +131,4 @@ def run_sweep_for_chunk(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print(
-            "Error: need to specify <chunk_ID>, <num_chunks>, and <group_id> for cluster run"
-        )
-        sys.exit(1)
-    run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
+    generate_year_state_sweep_configs()
