@@ -1,35 +1,16 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import sys
+import itertools
 import os
 
 from mergers_core.models.merge_cp_sat import solve_and_output_results
 from mergers_core.models.constants import MAX_SOLVER_TIME
 
 
-# Produces the configurations to run.
-def generate_year_state_sweep_configs(
-    districts_to_process_file=os.path.join("data", "school_data", "all_districts.csv"),
-    max_cluster_node_time=43200,
-    total_cluster_tasks_per_group=500,
-    min_elem_schools=4,
-    batch_root="min_num_elem_{}_constrained_bh_wa_{}",
-    dists_to_remove=None,
-    output_dir=os.path.join("data", "sweep_configs", "{}"),
+def _get_district_and_state_ids(
+    districts_to_process_file, min_elem_schools, dists_to_remove
 ):
-    interdistrict_options = [False]
-    dissimilarity_flavor_options = ["bh_wa"]
-    school_decrease_threshold_options = [0.2]
-    population_consistency_metric_options = [
-        "median",
-        "average_difference",
-        "median_difference",
-    ]
-    dissimilarity_weight = 1
-    population_consistency_weight = 1
-    write_to_s3 = True
-
     df_districts = pd.read_csv(districts_to_process_file, dtype={"district_id": str})
     df_districts = df_districts[
         df_districts["num_schools"] >= min_elem_schools
@@ -41,58 +22,65 @@ def generate_year_state_sweep_configs(
             ~df_districts["district_id"].isin(df_removed["district_id"])
         ].reset_index(drop=True)
 
-    sweep_configs = {
-        "state": [],
-        "district_id": [],
-        "school_decrease_threshold": [],
-        "dissimilarity_weight": [],
-        "population_consistency_weight": [],
-        "population_consistency_metric": [],
-        "interdistrict": [],
-        "dissimilarity_flavor": [],
-        "minimize": [],
-        "batch": [],
-        "write_to_s3": [],
-    }
+    return df_districts["district_id"].tolist(), df_districts["state"].tolist()
 
-    for metric in population_consistency_metric_options:
-        batch_name = batch_root.format(min_elem_schools, metric)
+
+def generate_year_state_sweep_configs(
+    districts_to_process_file=os.path.join("data", "school_data", "all_districts.csv"),
+    max_cluster_node_time=43200,
+    total_cluster_tasks_per_group=500,
+    min_elem_schools=4,
+    batch_root="min_num_elem_{}_constrained_{}_{}",
+    dists_to_remove=None,
+    output_dir=os.path.join("data", "sweep_configs", "{}"),
+):
+    # exclude parameters from the itertools.product shenanigans
+    exclude = list(locals().keys())
+
+    state, district_id = _get_district_and_state_ids(
+        districts_to_process_file, min_elem_schools, dists_to_remove
+    )
+    school_decrease_threshold = [0.2]
+    dissimilarity_weight = [0, 1]
+    population_consistency_weight = [0, 1]
+    population_consistency_metric = [
+        "median",
+        "average_difference",
+        "median_difference",
+    ]
+
+    dissimilarity_flavor = ["bh_wa", "wnw"]
+    interdistrict = [False]
+    write_to_s3 = [False]
+
+    to_product = {key: value for key, value in locals().items() if key not in exclude}
+    configurations_df = pd.DataFrame(
+        itertools.product(to_product.values()),
+        columns=to_product.keys(),
+    )
+
+    configurations_df["batch"] = [
+        batch_root.format(
+            min_elem_schools,
+            row.dissimilarity_flavor,
+            row.population_consistency_metric,
+        )
+        for row in configurations_df.itertuples()
+    ]
+
+    for batch_name in configurations_df["batch"].unique():
         output_path = Path(output_dir.format(batch_name))
         output_path.mkdir(parents=True, exist_ok=True)
 
-        for _, district in df_districts.iterrows():
-            for interdistrict in interdistrict_options:
-                for threshold in school_decrease_threshold_options:
-                    for dissimilarity_flavor in dissimilarity_flavor_options:
-                        for minimize in [True, False]:
-                            sweep_configs["state"].append(district["state"])
-                            sweep_configs["district_id"].append(district["district_id"])
-                            sweep_configs["school_decrease_threshold"].append(threshold)
-                            sweep_configs["dissimilarity_weight"].append(
-                                dissimilarity_weight
-                            )
-                            sweep_configs["population_consistency_weight"].append(
-                                population_consistency_weight
-                            )
-                            sweep_configs["population_consistency_metric"].append(
-                                metric
-                            )
-                            sweep_configs["interdistrict"].append(interdistrict)
-                            sweep_configs["dissimilarity_flavor"].append(
-                                dissimilarity_flavor
-                            )
-                            sweep_configs["minimize"].append(minimize)
-                            sweep_configs["batch"].append(batch_name)
-                            sweep_configs["write_to_s3"].append(write_to_s3)
-
-    df_out = pd.DataFrame(data=sweep_configs).sample(frac=1)
     num_jobs_per_group = int(
         np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
         * total_cluster_tasks_per_group
     )
-    num_cluster_groups = int(np.ceil(len(df_out) / num_jobs_per_group))
+    num_cluster_groups = int(np.ceil(len(configurations_df) / num_jobs_per_group))
     for i in range(num_cluster_groups):
-        df_chunk = df_out.iloc[i * num_jobs_per_group : (i + 1) * num_jobs_per_group]
+        df_chunk = configurations_df.iloc[
+            i * num_jobs_per_group : (i + 1) * num_jobs_per_group
+        ]
         df_chunk.to_csv(output_path / f"{i}.csv", index=False)
 
 
@@ -106,7 +94,18 @@ def run_sweep_for_chunk(
     ),
 ):
     df_configs = pd.read_csv(
-        os.path.join(sweeps_dir, f"{group_id}.csv"), dtype={"district_id": str}
+        os.path.join(sweeps_dir, f"{group_id}.csv"),
+        dtype={
+            "district_id": str,
+            "state": str,
+            "school_decrease_threshold": float,
+            "dissimilarity_weight": int,
+            "population_consistency_weight": int,
+            "population_consistency_metric": str,
+            "dissimilarity_flavor": str,
+            "interdistrict": bool,
+            "write_to_s3": bool,
+        },
     )
 
     configs = []
@@ -127,7 +126,6 @@ def run_sweep_for_chunk(
             solver_function(**config)
         except Exception as e:
             print(e)
-            pass
 
 
 if __name__ == "__main__":
