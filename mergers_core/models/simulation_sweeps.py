@@ -1,4 +1,5 @@
 import pandas as pd
+import sys
 import numpy as np
 from pathlib import Path
 import itertools
@@ -22,7 +23,7 @@ def _get_district_and_state_ids(
             ~df_districts["district_id"].isin(df_removed["district_id"])
         ].reset_index(drop=True)
 
-    return df_districts["district_id"].tolist(), df_districts["state"].tolist()
+    return df_districts[["district_id", "state"]]
 
 
 def generate_year_state_sweep_configs(
@@ -36,17 +37,18 @@ def generate_year_state_sweep_configs(
 ):
     # exclude parameters from the itertools.product shenanigans
     exclude = list(locals().keys())
+    exclude.append("exclude")
 
-    state, district_id = _get_district_and_state_ids(
+    district_id_and_state = _get_district_and_state_ids(
         districts_to_process_file, min_elem_schools, dists_to_remove
-    )
+    ).itertuples()
     school_decrease_threshold = [0.2]
     dissimilarity_weight = [0, 1]
     population_consistency_weight = [0, 1]
     population_consistency_metric = [
-        "median",
+        # "median",
         "average_difference",
-        "median_difference",
+        # "median_difference",
     ]
 
     dissimilarity_flavor = ["bh_wa", "wnw"]
@@ -54,34 +56,39 @@ def generate_year_state_sweep_configs(
     write_to_s3 = [False]
 
     to_product = {key: value for key, value in locals().items() if key not in exclude}
-    configurations_df = pd.DataFrame(
-        itertools.product(to_product.values()),
+    configurations = pd.DataFrame(
+        itertools.product(*to_product.values()),
         columns=to_product.keys(),
     )
 
-    configurations_df["batch"] = [
+    configurations["district_id"] = [
+        t.district_id for t in configurations["district_id_and_state"]
+    ]
+    configurations["state"] = [t.state for t in configurations["district_id_and_state"]]
+
+    configurations["batch"] = [
         batch_root.format(
             min_elem_schools,
             row.dissimilarity_flavor,
             row.population_consistency_metric,
         )
-        for row in configurations_df.itertuples()
+        for row in configurations.itertuples()
     ]
 
-    for batch_name in configurations_df["batch"].unique():
+    for batch_name in configurations["batch"].unique():
         output_path = Path(output_dir.format(batch_name))
         output_path.mkdir(parents=True, exist_ok=True)
 
-    num_jobs_per_group = int(
-        np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
-        * total_cluster_tasks_per_group
-    )
-    num_cluster_groups = int(np.ceil(len(configurations_df) / num_jobs_per_group))
-    for i in range(num_cluster_groups):
-        df_chunk = configurations_df.iloc[
-            i * num_jobs_per_group : (i + 1) * num_jobs_per_group
-        ]
-        df_chunk.to_csv(output_path / f"{i}.csv", index=False)
+        num_jobs_per_group = int(
+            np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
+            * total_cluster_tasks_per_group
+        )
+        num_cluster_groups = int(np.ceil(len(configurations) / num_jobs_per_group))
+        for i in range(num_cluster_groups):
+            df_chunk = configurations.iloc[
+                i * num_jobs_per_group : (i + 1) * num_jobs_per_group
+            ]
+            df_chunk.to_csv(output_path / f"{i}.csv", index=False)
 
 
 def run_sweep_for_chunk(
@@ -129,4 +136,10 @@ def run_sweep_for_chunk(
 
 
 if __name__ == "__main__":
-    generate_year_state_sweep_configs()
+    # generate_year_state_sweep_configs()
+    if len(sys.argv) < 4:
+        print(
+            "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <group_id>"
+        )
+        sys.exit(1)
+    run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
