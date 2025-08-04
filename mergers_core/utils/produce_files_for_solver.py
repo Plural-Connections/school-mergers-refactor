@@ -257,7 +257,7 @@ def output_neighboring_districts(
         ]
         for i in range(0, len(df_shapes))
     }
-    header.write_dict(output_file_district_centroids, district_centroids)
+    header.write_json(output_file_district_centroids, district_centroids)
 
 
 """
@@ -285,7 +285,7 @@ def output_updated_district_centroids(
             district_centroids[df["LEAID"][i]] = [df["LAT"][i], df["LON"][i]]
         else:
             district_centroids[df["LEAID"][i]] = curr_centroids[df["LEAID"][i]]
-    header.write_dict(output_file, district_centroids)
+    header.write_json(output_file, district_centroids)
 
 
 def output_allowed_mergers(
@@ -387,10 +387,10 @@ def output_allowed_mergers(
             )
         curr_path = os.path.join(output_dir.format(state))
         Path(curr_path).mkdir(parents=True, exist_ok=True)
-        header.write_dict(
+        header.write_json(
             os.path.join(curr_path, output_file_within), allowable_within_district
         )
-        header.write_dict(
+        header.write_json(
             os.path.join(curr_path, output_file_between),
             allowable_between_within_district,
         )
