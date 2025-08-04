@@ -7,6 +7,21 @@ import os
 from mergers_core.models.merge_cp_sat import solve_and_output_results
 
 
+CONFIG_ENTRY_TYPES = {
+    "district_id": str,
+    "state": str,
+    "school_decrease_threshold": float,
+    "school_increase_threshold": float,
+    "dissimilarity_weight": int,
+    "population_consistency_weight": int,
+    "population_consistency_metric": str,
+    "minimize": bool,
+    "dissimilarity_flavor": str,
+    "interdistrict": bool,
+    "write_to_s3": bool,
+}
+
+
 def _get_district_and_state_ids(
     districts_to_process_file, min_elem_schools, dists_to_remove, n_schools
 ):
@@ -36,7 +51,7 @@ def generate_year_state_sweep_configs(
     # One of these options is respected. If they're both None, a different file is used.
     min_schools=None,  # Districts with strictly fewer schools are not processed
     n_districts=None,  # The n districts with the most schools are chosen
-    batch_root="min_elem_{}_constrained_{}_{}",
+    batch_root="min_elem_{}_{}_{}",
     dists_to_remove=None,
     output_dir=os.path.join("data", "sweep_configs", "{}"),
 ):
@@ -105,60 +120,37 @@ def generate_year_state_sweep_configs(
             configurations["batch"] == batch_name
         ].drop("batch", axis=1)
 
-        batch_configurations.to_csv(output_path / "configs.csv", index=False)
+        batch_configurations[list(CONFIG_ENTRY_TYPES.keys())].to_csv(
+            output_path / "configs.csv", index=False, header=False
+        )
 
 
-def run_sweep_for_chunk(
-    chunk_id,
-    num_total_chunks,
+def run_entry(
+    entry_index,
+    configs_file,
     batch_name,
     solver_function=solve_and_output_results,
 ):
-    sweeps_dir = os.path.join("data", "sweep_configs", batch_name)
 
-    df_configs = pd.read_csv(
-        os.path.join(sweeps_dir, "configs.csv"),
-        dtype={
-            "district_id": str,
-            "state": str,
-            "school_decrease_threshold": float,
-            "school_increase_threshold": float,
-            "dissimilarity_weight": int,
-            "population_consistency_weight": int,
-            "population_consistency_metric": str,
-            "minimize": bool,
-            "dissimilarity_flavor": str,
-            "interdistrict": bool,
-            "write_to_s3": bool,
-        },
-    )
+    config = pd.read_csv(
+        configs_file,
+        header=None,
+        names=CONFIG_ENTRY_TYPES.keys(),
+        dtype=CONFIG_ENTRY_TYPES,
+    )[entry_index].to_dict()
 
-    configs = []
-    for _, row in df_configs.iterrows():
-        config_dict = row.to_dict()
-        configs.append(config_dict)
+    config["batch"] = batch_name
 
-    chunk_size = len(df_configs) // num_total_chunks
-    remainder = len(df_configs) % num_total_chunks
-
-    start_index = chunk_id * chunk_size + min(chunk_id, remainder)
-    end_index = start_index + chunk_size + (1 if chunk_id < remainder else 0)
-
-    configs_to_compute = configs[start_index:end_index]
-
-    for config in configs_to_compute:
-        config["batch"] = batch_name
-
-        try:
-            solver_function(**config)
-        except Exception as e:
-            print(e)
+    try:
+        solver_function(**config)
+    except Exception as e:
+        print(e)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 3:
         print(
-            "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <batch_name>"
+            "Usage: python simulation_sweeps.py <entry_index> <configs_file> <batch_name>"
         )
         sys.exit(1)
-    run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), sys.argv[3])
+    run_entry(int(sys.argv[1]), sys.argv[2], sys.argv[3])

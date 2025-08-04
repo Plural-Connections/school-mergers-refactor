@@ -7,11 +7,15 @@
 #SBATCH --error logs/error_%j.txt #redirect errors to error_JOBID.txt
 #SBATCH --mem=16gb # Memory per processor
 #SBATCH --partition=short #Use the short partition
-#SBATCH --mail-type=BEGIN,END #Mail when job starts and ends
+#SBATCH --mail-type=END #Mail when job starts and ends
 #SBATCH --mail-user=se.gracia@northeastern.edu #email recipient
-#SBATCH --array=0-499 #Run all jobs in parallel
 
-# Make sure you pass the batch name to run.
+if [[ ( ! -v SLURM_ARRAY_TASK_ID ) -o ( ! -z $2 ) ]]; then
+    echo "Usage: sbatch --array=0-<N> run_batch.sh <configs file> <batch name>"
+    echo "(running of this script is typically handled by dispatch.sh)"
+    exit 1
+fi
+
 module load python
 source venv313/bin/activate
-python -m mergers_core.models.simulation_sweeps $SLURM_ARRAY_TASK_ID 500 $1
+python -m mergers_core.models.simulation_sweeps $SLURM_ARRAY_TASK_ID $1 $2
