@@ -35,7 +35,7 @@ def generate_year_state_sweep_configs(
     max_cluster_node_time=43200,
     total_cluster_tasks_per_group=500,
     min_schools=6,  # Districts with fewer schools are not processed
-    n_schools=40,
+    n_schools=120,
     batch_root="min_elem_{}_constrained_{}_{}",
     dists_to_remove=None,
     output_dir=os.path.join("data", "sweep_configs", "{}"),
@@ -91,6 +91,21 @@ def generate_year_state_sweep_configs(
 
     print(f"Generated {len(configurations)} configurations.")
 
+    num_jobs_per_group = int(
+        np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
+        * total_cluster_tasks_per_group
+    )
+    num_cluster_groups_per_batch = int(
+        np.ceil(
+            len(configurations)
+            / len(configurations["batch"].unique())
+            / num_jobs_per_group
+        )
+    )
+    print(
+        f"{num_jobs_per_group} jobs per group, making {num_cluster_groups_per_batch} groups per batch."
+    )
+
     for batch_name in configurations["batch"].unique():
         output_path = Path(output_dir.format(batch_name))
         output_path.mkdir(parents=True, exist_ok=True)
@@ -99,14 +114,7 @@ def generate_year_state_sweep_configs(
             configurations["batch"] == batch_name
         ].drop("batch", axis=1)
 
-        num_jobs_per_group = int(
-            np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
-            * total_cluster_tasks_per_group
-        )
-        num_cluster_groups = int(
-            np.ceil(len(batch_configurations) / num_jobs_per_group)
-        )
-        for i in range(num_cluster_groups):
+        for i in range(num_cluster_groups_per_batch):
             df_chunk = batch_configurations.iloc[
                 i * num_jobs_per_group : (i + 1) * num_jobs_per_group
             ]
