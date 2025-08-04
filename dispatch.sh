@@ -8,13 +8,10 @@ fi
 batchname=$1
 shift
 
-if [[ -z $2 ]]; then
-    batch_dirs=(data/sweep_configs/*)
+if [[ -z $1 ]]; then
+    batch_dirs=(data/sweep_configs/*/configs.csv)
 else
-    batch_dirs=()
-    for i in "$@"; do
-        batch_dirs+=("data/sweep_configs/$i")
-    done
+    batch_dirs=$@
 fi
 
 full_file=$(mktemp)
@@ -24,13 +21,13 @@ cat "${batch_dirs[@]}" > $full_file
 lines_left=$(wc -l < $full_file)
 jobs_run=0
 while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
-    echo sbatch --array=${jobs_run}-$(( $jobs_run + $SLURM_MAX_TASKS )) run_batch.sh $full_file $batchname
+    echo sbatch --job-name=$batchname --dependency=singleton --array=${jobs_run}-$(( $jobs_run + $SLURM_MAX_TASKS )) run_batch.sh $full_file $batchname
     jobs_run=$(( $jobs_run + $SLURM_MAX_TASKS ))
     lines_left=$(( $lines_left - $SLURM_MAX_TASKS ))
 done
 
 if [[ $lines_left -gt 0 ]]; then
-    echo sbatch --array=${jobs_run}-$(( $jobs_run + $lines_left )) run_batch.sh $full_file $batchname
+    echo sbatch --job-name=$batchname --dependency=singleton --array=${jobs_run}-$(( $jobs_run + $lines_left )) run_batch.sh $full_file $batchname
 fi
 
 echo Done!
