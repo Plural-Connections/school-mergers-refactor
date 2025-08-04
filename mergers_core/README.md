@@ -7,6 +7,14 @@ Contact Nabeel Gillani (`n.gillani` at northeastern dot edu) or Madison Landry
 
 ## Code
 
+When running this code, it's a good idea to have a venv active:
+```sh
+$ python -m venv .venv  # (in the project's root directory) only run this once
+$ source .venv/bin/activate  # run this on every new shell to reactivate the venv (fish users use activate.fish instead of activate)
+$ pip install -r mergers_core/requirements.txt  # also only run this once
+```
+To deactivate, run `deactivate` anywhere.
+
 ## `./models/`
 
 * `constants.py` — Definitions shared by other code
@@ -20,6 +28,7 @@ Contact Nabeel Gillani (`n.gillani` at northeastern dot edu) or Madison Landry
    * Estimating impacts on segregation via dissimilarity score
    * Generating analytics CSVs after solving
 * `simulation_sweeps.py` — Organize simulations into batches (for Slurm)
+   * To generate, run `python -c 'import mergers_core.models.simulation_sweeps as s; s.generate_year_state_sweep_configs()'`
 
 ## `./utils/`
 
