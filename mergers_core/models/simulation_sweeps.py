@@ -86,6 +86,8 @@ def generate_year_state_sweep_configs(
         for row in configurations.itertuples()
     ]
 
+    print(f"Generated {len(configurations)} configurations.")
+
     for batch_name in configurations["batch"].unique():
         output_path = Path(output_dir.format(batch_name))
         output_path.mkdir(parents=True, exist_ok=True)
@@ -112,9 +114,11 @@ def run_sweep_for_chunk(
     chunk_id,
     num_total_chunks,
     group_id,
+    batch_name,
     solver_function=solve_and_output_results,
-    sweeps_dir=os.path.join("data", "sweep_configs", sys.argv[4]),
 ):
+    sweeps_dir = os.path.join("data", "sweep_configs", batch_name)
+
     df_configs = pd.read_csv(
         os.path.join(sweeps_dir, f"{group_id}.csv"),
         dtype={
@@ -152,9 +156,9 @@ def run_sweep_for_chunk(
 
 if __name__ == "__main__":
     generate_year_state_sweep_configs()
-    # if len(sys.argv) < 4:
+    # if len(sys.argv) < 5:
     #     print(
-    #         "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <group_id>"
+    #         "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <group_id> <batch_name>"
     #     )
     #     sys.exit(1)
-    # run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
+    # run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4])
