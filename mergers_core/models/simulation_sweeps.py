@@ -1,21 +1,21 @@
 import pandas as pd
 import sys
-import numpy as np
 from pathlib import Path
 import itertools
 import os
 
 from mergers_core.models.merge_cp_sat import solve_and_output_results
-from mergers_core.models.constants import MAX_SOLVER_TIME
 
 
 def _get_district_and_state_ids(
     districts_to_process_file, min_elem_schools, dists_to_remove, n_schools
 ):
     df_districts = pd.read_csv(districts_to_process_file, dtype={"district_id": str})
-    df_districts = df_districts[
-        df_districts["num_schools"] >= min_elem_schools
-    ].reset_index(drop=True)
+
+    if min_elem_schools:
+        df_districts = df_districts[
+            df_districts["num_schools"] >= min_elem_schools
+        ].reset_index(drop=True)
 
     if dists_to_remove:
         df_removed = pd.read_csv(dists_to_remove, dtype={"district_id": str})
@@ -24,7 +24,7 @@ def _get_district_and_state_ids(
         ].reset_index(drop=True)
 
     sorted_districts = df_districts.sort_values(by="num_schools", ascending=False)
-    if n_schools >= len(sorted_districts):
+    if not n_schools:
         return sorted_districts[["district_id", "state"]]
     return sorted_districts.head(n_schools)[["district_id", "state"]]
 
@@ -33,10 +33,9 @@ def generate_year_state_sweep_configs(
     districts_to_process_file=os.path.join(
         "data", "solver_files", "2122", "out_sorted_states.csv"
     ),
-    max_cluster_node_time=43200,
-    total_cluster_tasks_per_group=500,
-    min_schools=8,  # Districts with strictly fewer schools are not processed
-    n_districts=1092,  # The n districts with the most schools are chosen
+    # One of these options is respected. If they're both None, a different file is used.
+    min_schools=None,  # Districts with strictly fewer schools are not processed
+    n_districts=None,  # The n districts with the most schools are chosen
     batch_root="min_elem_{}_constrained_{}_{}",
     dists_to_remove=None,
     output_dir=os.path.join("data", "sweep_configs", "{}"),
@@ -45,9 +44,15 @@ def generate_year_state_sweep_configs(
     exclude = list(locals().keys())
     exclude.append("exclude")
 
-    district_id_and_state = _get_district_and_state_ids(
-        districts_to_process_file, min_schools, dists_to_remove, n_districts
-    ).itertuples()
+    if not min_schools and not n_districts:
+        district_id_and_state = pd.read_csv(
+            os.path.join("data", "top_200_districts.csv"), dtype={"district_id": str}
+        ).itertuples()
+    else:
+        district_id_and_state = _get_district_and_state_ids(
+            districts_to_process_file, min_schools, dists_to_remove, n_districts
+        ).itertuples()
+
     school_increase_threshold = [0.1]
     school_decrease_threshold = [0.2, 1.0]
     dissimilarity_weight = [0, 1]
@@ -73,9 +78,8 @@ def generate_year_state_sweep_configs(
         t.district_id for t in configurations["district_id_and_state"]
     ]
     configurations["state"] = [t.state for t in configurations["district_id_and_state"]]
-    configurations = configurations.drop("district_id_and_state", axis=1)
 
-    configurations = configurations[
+    configurations = configurations.drop("district_id_and_state", axis=1)[
         ~(
             (configurations["population_consistency_weight"] == 0)
             & (configurations["dissimilarity_weight"] == 0)
@@ -84,7 +88,7 @@ def generate_year_state_sweep_configs(
 
     configurations["batch"] = [
         batch_root.format(
-            min_schools,
+            min_schools or n_districts or "top-200",
             row.dissimilarity_flavor,
             row.population_consistency_metric,
         )
