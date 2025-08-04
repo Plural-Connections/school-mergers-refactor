@@ -159,10 +159,11 @@ def run_sweep_for_chunk(
 
 
 if __name__ == "__main__":
-    generate_year_state_sweep_configs()
-    # if len(sys.argv) < 5:
-    #     print(
-    #         "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <group_id> <batch_name>"
-    #     )
-    #     sys.exit(1)
-    # run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4])
+    if len(sys.argv) < 5:
+        print(
+            "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <group_id> <batch_name>"
+        )
+        sys.exit(1)
+    run_sweep_for_chunk(
+        int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+    )

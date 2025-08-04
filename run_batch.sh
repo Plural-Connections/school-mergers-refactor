@@ -13,4 +13,4 @@
 
 module load python
 source venv313/bin/activate
-python mergers_core/models/simulation_sweeps.py $SLURM_ARRAY_TASK_ID 500 $1 $2
+python -m mergers_core.models.simulation_sweeps $SLURM_ARRAY_TASK_ID 500 $1 $2
