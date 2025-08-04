@@ -30,7 +30,7 @@ def _get_district_and_state_ids(
 
 def generate_year_state_sweep_configs(
     districts_to_process_file=os.path.join(
-        "data", "solver_files", "out_sorted_states.csv"
+        "data", "solver_files", "2122", "out_sorted_states.csv"
     ),
     max_cluster_node_time=43200,
     total_cluster_tasks_per_group=500,
