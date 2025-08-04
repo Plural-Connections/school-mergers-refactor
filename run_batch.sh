@@ -18,4 +18,6 @@ fi
 
 module load python
 source venv313/bin/activate
-python -m mergers_core.models.simulation_sweeps $SLURM_ARRAY_TASK_ID $1 $2
+index=$(( $SLURM_ARRAY_TASK_ID + $1 ))
+shift
+python -m mergers_core.models.simulation_sweeps $index "$@"

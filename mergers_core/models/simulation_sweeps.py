@@ -126,12 +126,11 @@ def generate_year_state_sweep_configs(
 
 
 def run_entry(
-    entry_index,
-    configs_file,
-    batch_name,
+    entry_index: int,
+    configs_file: str,
+    batch_name: str,
     solver_function=solve_and_output_results,
 ):
-
     config = pd.read_csv(
         configs_file,
         header=None,
@@ -153,4 +152,4 @@ if __name__ == "__main__":
             "Usage: python simulation_sweeps.py <entry_index> <configs_file> <batch_name>"
         )
         sys.exit(1)
-    run_entry(int(sys.argv[1]), sys.argv[2], sys.argv[3])
+    run_entry(int[sys.argv[1]], *sys.argv[2:])
