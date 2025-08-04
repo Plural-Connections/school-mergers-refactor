@@ -12,5 +12,5 @@
 #SBATCH --array=0-499 #Run all jobs in parallel
 
 module load python
-source ../venv313/bin/activate
-python models.simulation_sweeps.py $SLURM_ARRAY_TASK_ID 500 $1 $2
+source venv313/bin/activate
+python mergers_core/models/simulation_sweeps.py $SLURM_ARRAY_TASK_ID 500 $1 $2
