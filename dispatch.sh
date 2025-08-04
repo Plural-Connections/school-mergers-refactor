@@ -36,4 +36,4 @@ if [[ $lines_left -gt 0 ]]; then
     send_out_batch $lines_left $full_file $batchname
 fi
 
-echo Done!
+rm $full_file
