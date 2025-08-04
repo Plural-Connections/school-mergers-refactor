@@ -1072,8 +1072,9 @@ def solve_and_output_results(
     status = solver.Solve(model)
 
     this_result_dirname = (
-        f"{interdistrict}_{school_decrease_threshold}_"
-        f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s"
+        f"{school_decrease_threshold}_"
+        f"{dissimilarity_weight},{population_consistency_weight}_"
+        f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s_"
         f"{solver.NumBranches()}_{solver.NumConflicts()}"
     )
     curr_output_dir = (
