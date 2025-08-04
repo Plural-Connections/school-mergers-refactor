@@ -4,8 +4,8 @@ SLURM_MAX_TASKS=1000  # Could be different- use `scontrol show config | grep Max
 send_out_batch() {
     end=$1
     shift
-    echo Running batch name=${3} ${2}:0-$end
-    sbatch --job-name=${3} --dependency=singleton --array=0-$end run_batch.sh $jobs_run $@
+    echo Running batch name=${2} ${1}:0-$end
+    sbatch --job-name=${2} --dependency=singleton --array=0-$end run_batch.sh $jobs_run $@
 }
 
 if [[ -z $1 ]]; then
