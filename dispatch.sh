@@ -26,13 +26,13 @@ cat "${batch_dirs[@]}" > $full_file
 lines_left=$(wc -l < $full_file)
 jobs_run=0
 while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
-    send_out_batch ${jobs_run} $(( $jobs_run + $SLURM_MAX_TASKS )) $full_file $batchname
+    send_out_batch ${jobs_run} $(( $jobs_run + $SLURM_MAX_TASKS - 1 )) $full_file $batchname
     jobs_run=$(( $jobs_run + $SLURM_MAX_TASKS ))
     lines_left=$(( $lines_left - $SLURM_MAX_TASKS ))
 done
 
 if [[ $lines_left -gt 0 ]]; then
-    send_out_batch ${jobs_run} $(( $jobs_run + $lines_left )) $full_file $batchname
+    send_out_batch ${jobs_run} $(( $jobs_run + $lines_left - 1 )) $full_file $batchname
 fi
 
 echo Done!
