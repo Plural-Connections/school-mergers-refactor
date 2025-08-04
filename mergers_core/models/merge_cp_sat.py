@@ -964,7 +964,16 @@ def solve_and_output_results(
     schools_in_play_file_name: str = "schools_in_play.csv",
     s3_bucket: str = "s3://school-mergers/",
 ):
-    print(f"Loading and processing data for {state} {district_id} ...")
+    print(
+        f"""Settings:
+        school: {state} {district_id}
+        school decrease threshold: {school_decrease_threshold}
+        weights: {dissimilarity_weight} {population_consistency_weight}
+        metric & flavor: {population_consistency_metric} {dissimilarity_flavor}
+        minimize: {minimize}
+        batch: {batch}"""
+    )
+
     (
         school_capacities,
         permissible_matches,
@@ -1012,13 +1021,11 @@ def solve_and_output_results(
     # Create the cp model
     model = cp_model.CpModel()
 
-    print("Initializing variables ...")
     (
         matches,
         grades_interval_binary,
     ) = initialize_variables(model, df_schools_in_play)
 
-    print("Setting constraints ...")
     set_constraints(
         model,
         school_capacities,
@@ -1029,7 +1036,6 @@ def solve_and_output_results(
         grades_interval_binary,
     )
 
-    print("Setting objective function ...")
     dissimilarity = calculate_dissimilarity(
         model,
         total_per_grade_per_school,
@@ -1082,7 +1088,6 @@ def solve_and_output_results(
     )
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Status is {constants.STATUSES[status]}")
-        print("Outputting solution ...")
         output_solver_solution(
             solver,
             matches,
