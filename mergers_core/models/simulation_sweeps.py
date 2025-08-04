@@ -161,4 +161,4 @@ if __name__ == "__main__":
             "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <batch_name>"
         )
         sys.exit(1)
-    run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), sys.argv[4])
+    run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), sys.argv[3])
