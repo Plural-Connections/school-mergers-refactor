@@ -1,5 +1,8 @@
 import os
 import time
+from mergers_core.models.simulation_sweeps import generate_year_state_sweep_configs
+
+generate_year_state_sweep_configs()
 
 group = 0
 
