@@ -53,6 +53,7 @@ def generate_year_state_sweep_configs(
         "average_difference",
         # "median_difference",
     ]
+    minimize = [True]
 
     dissimilarity_flavor = ["bh_wa", "wnw"]
     interdistrict = [False]
@@ -128,6 +129,7 @@ def run_sweep_for_chunk(
             "dissimilarity_weight": int,
             "population_consistency_weight": int,
             "population_consistency_metric": str,
+            "minimize": bool,
             "dissimilarity_flavor": str,
             "interdistrict": bool,
             "write_to_s3": bool,
@@ -148,6 +150,8 @@ def run_sweep_for_chunk(
     configs_to_compute = configs[start_index:end_index]
 
     for config in configs_to_compute:
+        config["batch"] = batch_name
+
         try:
             solver_function(**config)
         except Exception as e:
