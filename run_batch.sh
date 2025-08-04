@@ -11,6 +11,7 @@
 #SBATCH --mail-user=se.gracia@northeastern.edu #email recipient
 #SBATCH --array=0-499 #Run all jobs in parallel
 
+# Make sure you pass the batch name to run.
 module load python
 source venv313/bin/activate
-python -m mergers_core.models.simulation_sweeps $SLURM_ARRAY_TASK_ID 500 $1 $2
+python -m mergers_core.models.simulation_sweeps $SLURM_ARRAY_TASK_ID 500 $1

@@ -1,13 +1,10 @@
 import os
+import sys
 import time
-from mergers_core.models.simulation_sweeps import generate_year_state_sweep_configs
 
-generate_year_state_sweep_configs()
 
+batch_name = sys.argv[1]
 group = 0
-
-batch_name = "min_elem_6_constrained_bh_wa_average_difference"
-
 groups_list = [
     int(csv_file.split(".")[0])
     for csv_file in os.listdir(f"data/sweep_configs/{batch_name}")
@@ -24,7 +21,7 @@ while group < num_groups:
             int(os.popen(f"squeue -u {user} | wc -l").read().strip()) - 1
         )
         print(f"On batch {group - 1}, Still running {num_running_or_queued} jobs")
-        time.sleep(600)
+        time.sleep(60)
 
     print(f"Submitting batch #{group}")
     os.system(f"sbatch run_batch.sh {group} {batch_name}")

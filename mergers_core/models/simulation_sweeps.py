@@ -23,9 +23,10 @@ def _get_district_and_state_ids(
             ~df_districts["district_id"].isin(df_removed["district_id"])
         ].reset_index(drop=True)
 
-    return df_districts.sort_values(by="num_schools").head(n_schools)[
-        ["district_id", "state"]
-    ]
+    sorted_districts = df_districts.sort_values(by="num_schools", ascending=False)
+    if n_schools >= len(sorted_districts):
+        return sorted_districts[["district_id", "state"]]
+    return sorted_districts.head(n_schools)[["district_id", "state"]]
 
 
 def generate_year_state_sweep_configs(
@@ -34,8 +35,8 @@ def generate_year_state_sweep_configs(
     ),
     max_cluster_node_time=43200,
     total_cluster_tasks_per_group=500,
-    min_schools=6,  # Districts with fewer schools are not processed
-    n_schools=120,
+    min_schools=8,  # Districts with strictly fewer schools are not processed
+    n_districts=1092,  # The n districts with the most schools are chosen
     batch_root="min_elem_{}_constrained_{}_{}",
     dists_to_remove=None,
     output_dir=os.path.join("data", "sweep_configs", "{}"),
@@ -45,8 +46,9 @@ def generate_year_state_sweep_configs(
     exclude.append("exclude")
 
     district_id_and_state = _get_district_and_state_ids(
-        districts_to_process_file, min_schools, dists_to_remove, n_schools
+        districts_to_process_file, min_schools, dists_to_remove, n_districts
     ).itertuples()
+    school_increase_threshold = [0.1]
     school_decrease_threshold = [0.2, 1.0]
     dissimilarity_weight = [0, 1]
     population_consistency_weight = [0, 1]
@@ -91,21 +93,6 @@ def generate_year_state_sweep_configs(
 
     print(f"Generated {len(configurations)} configurations.")
 
-    num_jobs_per_group = int(
-        np.floor(max_cluster_node_time / MAX_SOLVER_TIME)
-        * total_cluster_tasks_per_group
-    )
-    num_cluster_groups_per_batch = int(
-        np.ceil(
-            len(configurations)
-            / len(configurations["batch"].unique())
-            / num_jobs_per_group
-        )
-    )
-    print(
-        f"{num_jobs_per_group} jobs per group, making {num_cluster_groups_per_batch} groups per batch."
-    )
-
     for batch_name in configurations["batch"].unique():
         output_path = Path(output_dir.format(batch_name))
         output_path.mkdir(parents=True, exist_ok=True)
@@ -114,28 +101,24 @@ def generate_year_state_sweep_configs(
             configurations["batch"] == batch_name
         ].drop("batch", axis=1)
 
-        for i in range(num_cluster_groups_per_batch):
-            df_chunk = batch_configurations.iloc[
-                i * num_jobs_per_group : (i + 1) * num_jobs_per_group
-            ]
-            df_chunk.to_csv(output_path / f"{i}.csv", index=False)
+        batch_configurations.to_csv(output_path / "configs.csv", index=False)
 
 
 def run_sweep_for_chunk(
     chunk_id,
     num_total_chunks,
-    group_id,
     batch_name,
     solver_function=solve_and_output_results,
 ):
     sweeps_dir = os.path.join("data", "sweep_configs", batch_name)
 
     df_configs = pd.read_csv(
-        os.path.join(sweeps_dir, f"{group_id}.csv"),
+        os.path.join(sweeps_dir, "configs.csv"),
         dtype={
             "district_id": str,
             "state": str,
             "school_decrease_threshold": float,
+            "school_increase_threshold": float,
             "dissimilarity_weight": int,
             "population_consistency_weight": int,
             "population_consistency_metric": str,
@@ -169,11 +152,9 @@ def run_sweep_for_chunk(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
+    if len(sys.argv) < 4:
         print(
-            "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <group_id> <batch_name>"
+            "Usage: python simulation_sweeps.py <chunk_id> <num_total_chunks> <batch_name>"
         )
         sys.exit(1)
-    run_sweep_for_chunk(
-        int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
-    )
+    run_sweep_for_chunk(int(sys.argv[1]), int(sys.argv[2]), sys.argv[4])

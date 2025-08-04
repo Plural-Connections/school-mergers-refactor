@@ -342,6 +342,7 @@ def set_constraints(
     model: cp_model.CpModel,
     school_capacities: dict[str, int],
     school_decrease_threshold: float,
+    school_increase_threshold: float,
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
     permissible_matches: dict[str, list[str]],
     matches: dict[str, dict[str, cp_model.IntVar]],
@@ -382,7 +383,7 @@ def set_constraints(
         p_min⋅∑_g∈G(Es,g) ≤ ∑_g∈G(∑_s′∈S(Ms,s′))⋅Rs,g⋅Es,g ≤ Capacity(s) ∀ s∈S
 
         Each school's future enrollment (the enrollment expected after students have
-        moved up grades) must stay within the enrollment bounds.
+        moved up grades) must stay within the enrollment bounds:
         g_s′^end>g_s^end ∧ Ms,s′=1 ⇒
             p_min⋅∑_g∈G(Es′,g)
             ≤ ∑_g∈G(∑_s′′∈S(Ms,s′′))⋅Rs,g⋅Es′′,g ≤
@@ -397,6 +398,8 @@ def set_constraints(
         school_capacities: Maps school ID to its student capacity.
         school_decrease_threshold: The maximum allowable percentage
             decrease in a school's enrollment.
+        school_increase_threshold: The maximum allowable percentage
+            increase in a school's enrollment over its capacity.
         students_per_grade_per_school: Student counts by grade,
             school, and race.
         permissible_matches: Defines which schools are allowed to merge.
@@ -553,7 +556,8 @@ def set_constraints(
             # If the condition is met, the students assigned to school1 must
             # fit within the capacity of school2.
             model.Add(
-                sum(students_at_this_school) <= school_capacities[school2]
+                sum(students_at_this_school)
+                <= round((1 + school_increase_threshold) * school_capacities[school2])
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
             # The enrollment floor constraint also applies to the feeder school.
@@ -951,6 +955,7 @@ def solve_and_output_results(
     state: str,
     district_id: str,
     school_decrease_threshold: float,
+    school_increase_threshold: float,
     dissimilarity_weight: float,
     population_consistency_weight: float,
     population_consistency_metric: str,
@@ -1030,6 +1035,7 @@ def solve_and_output_results(
         model,
         school_capacities,
         school_decrease_threshold,
+        school_increase_threshold,
         total_per_grade_per_school,
         permissible_matches,
         matches,
@@ -1215,6 +1221,7 @@ if __name__ == "__main__":
         state="AZ",
         district_id="0404720",  # div by zero at scale, nothing locally
         school_decrease_threshold=0.2,
+        school_increase_threshold=0.1,
         dissimilarity_weight=1,
         population_consistency_weight=0,
         population_consistency_metric="median",
