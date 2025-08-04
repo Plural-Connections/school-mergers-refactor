@@ -910,7 +910,7 @@ def set_objective(
         optimize_function = model.Maximize
 
     if population_consistency_weight == 0:
-        print("Objective function: minimize dissimilarity")
+        print(f"Objective function: minimize dissimilarity ({dissimilarity_flavor})")
         optimize_function(dissimilarity_index)
         return
 
@@ -1205,17 +1205,17 @@ if __name__ == "__main__":
         # "5400930": "WV",
     }
 
-    for district_id, state in districts.items():
-        solve_and_output_results(
-            state=state,
-            district_id=district_id,
-            school_decrease_threshold=0.2,
-            dissimilarity_weight=1,
-            population_consistency_weight=1,
-            population_consistency_metric="median",
-            interdistrict=False,
-            dissimilarity_flavor="bh_wa",
-            minimize=True,
-            batch="test_single_batch",
-            write_to_s3=False,
-        )
+    # for district_id, state in districts.items():
+    solve_and_output_results(
+        state="AZ",
+        district_id="0404720",  # div by zero at scale, nothing locally
+        school_decrease_threshold=0.2,
+        dissimilarity_weight=1,
+        population_consistency_weight=0,
+        population_consistency_metric="median",
+        interdistrict=False,
+        dissimilarity_flavor="bh_wa",
+        minimize=True,
+        batch="test_single_batch",
+        write_to_s3=False,
+    )
