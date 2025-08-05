@@ -1,6 +1,8 @@
 .DS_Store
 __pychache__/
 *.pyc
+venv*
 dashboard/data/*
 data
 data.zip
+logs/
