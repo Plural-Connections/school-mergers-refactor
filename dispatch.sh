@@ -9,7 +9,7 @@ send_out_batch() {
     else
         dependency="--dependency=afterok"
     fi
-    command=sbatch --job-name=${2} $dependency --array=0-$array_end run_batch.sh $jobs_run $@
+    command="sbatch --job-name=${2} $dependency --array=0-$array_end run_batch.sh $jobs_run $@"
     echo $command
     sbatch_output=$($command)
     echo $sbatch_output
@@ -55,6 +55,6 @@ fi
 
 exec 3>&-
 
-command=srun --dependency=${dependency: -1} rm $full_file
+command="srun --dependency=${dependency: -1} rm $full_file"
 echo $command
 $command
