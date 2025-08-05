@@ -10,7 +10,7 @@
 #SBATCH --mail-type=END #Mail when job starts and ends
 #SBATCH --mail-user=se.gracia@northeastern.edu #email recipient
 
-if [[ ( ! -v SLURM_ARRAY_TASK_ID ) -o ( ! -z $2 ) ]]; then
+if [[ ( ! -v SLURM_ARRAY_TASK_ID ) || ( -z $2 ) ]]; then
     echo "Usage: sbatch --array=0-<N> run_batch.sh <configs file> <batch name>"
     echo "(running of this script is typically handled by dispatch.sh)"
     exit 1
