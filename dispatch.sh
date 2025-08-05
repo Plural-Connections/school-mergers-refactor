@@ -4,10 +4,10 @@ SLURM_MAX_TASKS=1000  # Could be different- use `scontrol show config | grep Max
 send_out_batch() {
     array_end=$1; shift
     dependency_id=$1; shift
-    if [[ -z $dependency_id ]]; then
+    if [[ $dependency_id = "NONE" ]]; then
         dependency=""
     else
-        dependency="--dependency=afterok"
+        dependency="--dependency=afterany:$dependency_id"
     fi
     command="sbatch --job-name=${2} $dependency --array=0-$array_end run_batch.sh $jobs_run $@"
     echo $command
@@ -15,7 +15,7 @@ send_out_batch() {
     echo $sbatch_output
     # sbatch's output looks like: 'Submitted batch job 12345'
     read _ _ _ job_id <<< $sbatch_output
-    echo Job ID is $job_id
+    echo submitted batch $job_id
     echo $job_id >&2
 }
 
@@ -40,21 +40,22 @@ exec 3>&1  # fd 3 redirects to stdout
 lines_left=$(wc -l < $full_file)
 jobs_run=0
 all_deps=''
-dependency=''
+dependency="NONE"
 while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
-    dependency=$(send_out_batch $SLURM_MAX_TASKS $dependency $full_file $batchname 2>&1 1>&3)
-    all_deps+=afterany:$dependency:
+    dependency=$(send_out_batch $SLURM_MAX_TASKS "$dependency" $full_file $batchname 2>&1 1>&3)
+    all_deps+="afterany:$dependency:"
     jobs_run=$(( $jobs_run + $SLURM_MAX_TASKS ))
     lines_left=$(( $lines_left - $SLURM_MAX_TASKS ))
 done
 
 if [[ $lines_left -gt 0 ]]; then
     dependency=$(send_out_batch $lines_left $dependency $full_file $batchname 2>&1 1>&3)
-    all_deps+=afterany:$dependency:
+    all_deps+="afterany:$dependency:"
 fi
 
 exec 3>&-
 
-command="srun --dependency=${dependency: -1} rm $full_file"
-echo $command
-$command
+wait_dummy="srun --dependency=${all_deps::-1} echo done"
+echo $wait_dummy $action
+$wait_dummy "$action"
+rm $full_file
