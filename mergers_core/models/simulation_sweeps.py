@@ -60,9 +60,14 @@ def generate_year_state_sweep_configs(
     exclude.append("exclude")
 
     if not min_schools and not n_districts:
-        district_id_and_state = pd.read_csv(
-            os.path.join("data", "top_200_districts.csv"), dtype={"district_id": str}
-        ).itertuples()
+        district_id_and_state = (
+            pd.read_csv(
+                os.path.join("data", "top_200_districts.csv"),
+                dtype={"district_id": str},
+            )
+            .sample(50)
+            .itertuples()
+        )
     else:
         district_id_and_state = _get_district_and_state_ids(
             districts_to_process_file, min_schools, dists_to_remove, n_districts
@@ -152,4 +157,4 @@ if __name__ == "__main__":
             "Usage: python simulation_sweeps.py <entry_index> <configs_file> <batch_name>"
         )
         sys.exit(1)
-    run_entry(int[sys.argv[1]], *sys.argv[2:])
+    run_entry(int(sys.argv[1]), *sys.argv[2:])
