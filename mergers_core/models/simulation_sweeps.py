@@ -65,7 +65,7 @@ def generate_year_state_sweep_configs(
                 os.path.join("data", "top_200_districts.csv"),
                 dtype={"district_id": str},
             )
-            .sample(50)
+            .sample(10)
             .itertuples()
         )
     else:
