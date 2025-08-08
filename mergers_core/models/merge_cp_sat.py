@@ -525,6 +525,9 @@ def set_constraints(
         for grade in constants.GRADE_TO_INDEX.values():
             all_grades_served_s.append(grades_at_school[school1][grade] * grade)
         model.AddMaxEquality(max_grade_served_s, all_grades_served_s)
+        students_at_this_school = _get_students_at_school(
+            model, matches, grades_at_school, school1, students_per_grade_per_school
+        )
 
         for school2 in matches[school1]:
             if school1 == school2:
