@@ -247,10 +247,7 @@ def initialize_variables(
 
         # Hint: Initially, assume each school is only "matched" with itself.
         for school_2 in nces_ids:
-            if school == school_2:
-                model.AddHint(matches[school][school_2], True)
-            else:
-                model.AddHint(matches[school][school_2], False)
+            model.AddHint(matches[school][school_2], school == school_2)
 
     return (
         matches,
