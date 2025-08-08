@@ -1240,13 +1240,13 @@ if __name__ == "__main__":
 
     # for district_id, state in districts.items():
     solve_and_output_results(
-        state="AZ",
-        district_id="0404720",  # div by zero at scale, nothing locally
+        state="GA",
+        district_id="1302550",
         school_decrease_threshold=0.2,
         school_increase_threshold=0.1,
-        dissimilarity_weight=1,
-        population_consistency_weight=0,
-        population_consistency_metric="median",
+        dissimilarity_weight=0,
+        population_consistency_weight=1,
+        population_consistency_metric="average_difference",
         interdistrict=False,
         dissimilarity_flavor="bh_wa",
         minimize=True,
