@@ -407,6 +407,19 @@ def set_constraints(
         grades_at_school: Dictionary of binary grade variables.
     """
 
+    students_at_each_school = {
+        school: sum(
+            _get_students_at_school(
+                model,
+                matches,
+                grades_at_school,
+                school,
+                students_per_grade_per_school,
+            )
+        )
+        for school in matches
+    }
+
     # --- Symmetry and transitivity ---
     # Ensures that if A is matched with B, B is matched with A.
     # Also enforces transitivity for 3-way mergers: if A-B and B-C, then A-C.
@@ -437,10 +450,7 @@ def set_constraints(
 
     for school1 in matches:
         # --- Enrollment must be within a specified minimum and maximum capacity ---
-        students_at_this_school = _get_students_at_school(
-            model, matches, grades_at_school, school1, students_per_grade_per_school
-        )
-        model.Add(sum(students_at_this_school) <= school_capacities[school1])
+        model.Add(students_at_each_school[school1] <= school_capacities[school1])
 
         school_current_population = sum(
             [
@@ -456,7 +466,7 @@ def set_constraints(
             )
         )
         model.Add(
-            constants.SCALING[0] * sum(students_at_this_school)
+            constants.SCALING[0] * students_at_each_school[school1]
             >= enrollment_lower_bound
         )
 
@@ -525,9 +535,6 @@ def set_constraints(
         for grade in constants.GRADE_TO_INDEX.values():
             all_grades_served_s.append(grades_at_school[school1][grade] * grade)
         model.AddMaxEquality(max_grade_served_s, all_grades_served_s)
-        students_at_this_school = _get_students_at_school(
-            model, matches, grades_at_school, school1, students_per_grade_per_school
-        )
 
         for school2 in matches[school1]:
             if school1 == school2:
@@ -566,7 +573,7 @@ def set_constraints(
             # If the condition is met, the students assigned to school1 must
             # fit within the capacity of school2.
             model.Add(
-                sum(students_at_this_school)
+                students_at_each_school[school1]
                 <= round((1 + school_increase_threshold) * school_capacities[school2])
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
