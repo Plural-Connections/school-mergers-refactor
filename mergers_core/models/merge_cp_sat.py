@@ -496,6 +496,10 @@ def set_constraints(
     for school1 in matches:
         # --- Grade Completeness Constraint ---
         # Ensure that a group of merged schools combined serve a full set of grades.
+        num_matches = sum(matches[school1].values())
+        is_multi_merger = model.NewBoolVar(f"{school1}_is_multi_merger")
+        model.Add(num_matches > 1).OnlyEnforceIf(is_multi_merger)
+        model.Add(num_matches <= 1).OnlyEnforceIf(is_multi_merger.Not())
 
         # Calculate the number of grade levels this school will offer postmerger.
         num_grades_in_school = sum(grades_at_school[school1])
@@ -521,7 +525,7 @@ def set_constraints(
 
             num_grades_represented.append(num_grades_s2)
 
-        model.Add(sum(num_grades_represented) == len(constants.GRADE_TO_INDEX))
+        model.Add(sum(num_grades_represented) == len(constants.GRADE_TO_INDEX)).OnlyEnforceIf(is_multi_merger)
 
     for school1 in matches:
         # --- Feeder Pattern Capacity Constraints ---
