@@ -474,10 +474,13 @@ def set_constraints(
 
             # --- No Grade Overlap Constraint ---
             # If two schools are merged, they cannot serve the same grade levels.
+            # It is permitted for neither school to serve a grade level because of
+            # triple mergers. In those cases, the grade completeness constriant ensures
+            # that every grade is served.
             if school1 != school2:
                 for i in range(len(constants.GRADE_TO_INDEX)):
                     model.Add(
-                        grades_at_school[school1][i] + grades_at_school[school2][i] == 1
+                        grades_at_school[school1][i] + grades_at_school[school2][i] <= 1
                     ).OnlyEnforceIf(matches[school1][school2])
 
     for school1 in matches:
