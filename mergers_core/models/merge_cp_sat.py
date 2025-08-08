@@ -445,27 +445,27 @@ def set_constraints(
         model.Add(num_matches >= 1)
         model.Add(num_matches <= 3)
 
-    for school1 in matches:
-        # --- Enrollment must be within a specified minimum and maximum capacity ---
-        model.Add(students_at_each_school[school1] <= school_capacities[school1])
-
-        school_current_population = sum(
-            [
-                students_per_grade_per_school[school1]["num_total"][i]
-                for i in constants.GRADE_TO_INDEX.values()
-            ]
-        )
-        enrollment_lower_bound = int(
-            constants.SCALING[0]
-            * np.round(
-                (1 - school_decrease_threshold) * school_current_population,
-                decimals=constants.SCALING[1],
-            )
-        )
-        model.Add(
-            constants.SCALING[0] * students_at_each_school[school1]
-            >= enrollment_lower_bound
-        )
+    # for school1 in matches:
+    #     # --- Enrollment must be within a specified minimum and maximum capacity ---
+    #     model.Add(students_at_each_school[school1] <= school_capacities[school1])
+    #
+    #     school_current_population = sum(
+    #         [
+    #             students_per_grade_per_school[school1]["num_total"][i]
+    #             for i in constants.GRADE_TO_INDEX.values()
+    #         ]
+    #     )
+    #     enrollment_lower_bound = int(
+    #         constants.SCALING[0]
+    #         * np.round(
+    #             (1 - school_decrease_threshold) * school_current_population,
+    #             decimals=constants.SCALING[1],
+    #         )
+    #     )
+    #     model.Add(
+    #         constants.SCALING[0] * students_at_each_school[school1]
+    #         >= enrollment_lower_bound
+    #     )
 
     for school1 in matches:
         for school2 in matches[school1]:
@@ -522,9 +522,9 @@ def set_constraints(
 
     for school1 in matches:
         # --- Feeder Pattern Capacity Constraints ---
-        # If school s and school s' are merged AND s' serves higher grades than s, then
-        # the total number of students assigned to s must not exceed the
-        # capacity of s'.
+        # If school s (feeder) and school s' (receiving) are merged AND s' serves higher
+        # grades than s, then the total number of students assigned to s must not exceed
+        # the capacity of s'.
         max_grade_served_s = model.NewIntVar(
             0, max(constants.GRADE_TO_INDEX.values()), f"{school1}_grade_max"
         )
@@ -575,7 +575,7 @@ def set_constraints(
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
             # The enrollment floor constraint also applies to the feeder school.
-            this_school_enrollment_lower_bound = int(
+            feeder_school_enrollment_lower_bound = int(
                 constants.SCALING[0]
                 * np.round(
                     (1 - school_decrease_threshold)
@@ -589,8 +589,8 @@ def set_constraints(
                 )
             )
             model.Add(
-                constants.SCALING[0] * sum(students_at_this_school)
-                >= this_school_enrollment_lower_bound
+                constants.SCALING[0] * students_at_each_school[school1]
+                >= feeder_school_enrollment_lower_bound
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
 
