@@ -515,7 +515,9 @@ def set_constraints(
         # If school s and school s' are merged AND s' serves higher grades than s, then
         # the total number of students assigned to s must not exceed the
         # capacity of s'.
-        max_grade_served_s = model.NewIntVar(0, 20, f"{school1}_grade_max")
+        max_grade_served_s = model.NewIntVar(
+            0, max(constants.GRADE_TO_INDEX.values()), f"{school1}_grade_max"
+        )
         all_grades_served_s = []
         for grade in constants.GRADE_TO_INDEX.values():
             all_grades_served_s.append(grades_at_school[school1][grade] * grade)
@@ -527,7 +529,9 @@ def set_constraints(
 
             # Determine if s2 serves higher grades than s.
             max_grade_served_s2 = model.NewIntVar(
-                0, 20, f"{school1}_{school2}_grade_max"
+                0,
+                max(constants.GRADE_TO_INDEX.values()),
+                f"{school1}_{school2}_grade_max",
             )
             all_grades_served_s2 = []
             for grade in constants.GRADE_TO_INDEX.values():
@@ -659,7 +663,9 @@ def calculate_dissimilarity(
         # --- Calculate Dissimilarity Index Term for the School ---
         # Scaled total A students at the school.
         scaled_total_a_students_at_school = model.NewIntVar(
-            0, constants.SCALING[0] ** 2, ""
+            0,
+            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+            f"{school}_scaled_total_a",
         )
         model.Add(
             scaled_total_a_students_at_school
@@ -668,7 +674,9 @@ def calculate_dissimilarity(
 
         # Scaled total B students at the school.
         scaled_total_b_students_at_school = model.NewIntVar(
-            0, constants.SCALING[0] ** 2, ""
+            0,
+            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+            f"{school}_scaled_total_b",
         )
         model.Add(
             scaled_total_b_students_at_school
@@ -676,7 +684,9 @@ def calculate_dissimilarity(
         )
 
         # (A students at school / total A students in district)
-        a_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        a_ratio_at_school = model.NewIntVar(
+            0, constants.SCALING[0], f"{school}_a_ratio"
+        )
         model.AddDivisionEquality(
             a_ratio_at_school,
             scaled_total_a_students_at_school,
@@ -685,7 +695,9 @@ def calculate_dissimilarity(
         )
 
         # (B students at school / total B students in district)
-        b_ratio_at_school = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        b_ratio_at_school = model.NewIntVar(
+            0, constants.SCALING[0], f"{school}_b_ratio"
+        )
         model.AddDivisionEquality(
             b_ratio_at_school,
             scaled_total_b_students_at_school,
@@ -693,7 +705,7 @@ def calculate_dissimilarity(
             + total_across_schools_by_category["num_asian"],
         )
 
-        term = model.NewIntVar(0, constants.SCALING[0] ** 2, "")
+        term = model.NewIntVar(0, constants.SCALING[0], f"{school}_dissimilarity_term")
         model.AddAbsEquality(
             term,
             a_ratio_at_school - b_ratio_at_school,
@@ -830,7 +842,7 @@ def setup_population_capacity(
     for school in matches:
         percentage = model.NewIntVar(
             0,
-            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+            constants.SCALING[0],
             f"{school}_capacity_percentage",
         )
 
