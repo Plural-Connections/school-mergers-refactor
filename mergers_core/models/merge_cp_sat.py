@@ -434,7 +434,10 @@ def set_constraints(
 
     for school1 in matches:
         # --- Enrollment must be within a specified minimum and maximum capacity ---
-        model.Add(students_at_each_school[school1] <= school_capacities[school1])
+        model.Add(
+            students_at_each_school[school1]
+            <= round((1 + school_increase_threshold) * school_capacities[school1])
+        )
 
         school_current_population = sum(
             [
