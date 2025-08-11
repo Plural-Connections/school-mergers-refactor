@@ -60,87 +60,74 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
               enrollment and demographic data for all schools involved in the
               potential mergers.
     """
-    df_schools_current_district, df_schools = _load_and_filter_nces_schools(
-        os.path.join("data", "solver_files", "2122", state, "school_enrollments.csv"),
-        [district_id],
+    # Load school enrollment data
+    enrollment_file = os.path.join(
+        "data", "solver_files", "2122", state, "school_enrollments.csv"
     )
+    df_schools, _ = _load_and_filter_nces_schools(enrollment_file, [district_id])
 
-    unique_schools: list[str] = list(
-        set(df_schools_current_district["NCESSCH"].tolist())
-    )
-    permissible_matches: dict = dict()
-    districts_involved: set = set()
+    unique_schools = list(set(df_schools["NCESSCH"].tolist()))
 
-    # Load permissible merger data based on whether the scenario is interdistrict.
+    # Load permissible merger data
     if interdistrict:
-        permissible_matches = header.read_json(
-            os.path.join(
-                "data",
-                "solver_files",
-                "2122",
-                state,
-                "between_within_district_allowed_mergers.json",
-            )
+        merger_file = os.path.join(
+            "data",
+            "solver_files",
+            "2122",
+            state,
+            "between_within_district_allowed_mergers.json",
         )
-        # Identify all districts that are involved in the potential mergers.
-        for school in unique_schools:
-            districts_involved.update(
-                [school_2[:7] for school_2 in permissible_matches[school]]
-            )
+        permissible_matches = header.read_json(merger_file)
+        districts_involved = {
+            school[:7]
+            for school in unique_schools
+            for school_2 in permissible_matches.get(school, [])
+        }
     else:
-        permissible_matches = header.read_json(
-            os.path.join(
-                "data",
-                "solver_files",
-                "2122",
-                state,
-                "within_district_allowed_mergers.json",
-            )
+        merger_file = os.path.join(
+            "data",
+            "solver_files",
+            "2122",
+            state,
+            "within_district_allowed_mergers.json",
         )
-        districts_involved.add(district_id)
+        permissible_matches = header.read_json(merger_file)
+        districts_involved = {district_id}
 
-    districts_involved: list[str] = list(districts_involved)
-
-    # Load school capacity data and filter for the involved districts.
+    # Load and merge capacity data
+    capacity_file = "data/school_data/21_22_school_capacities.csv"
     df_capacities, _ = _load_and_filter_nces_schools(
-        "data/school_data/21_22_school_capacities.csv", districts_involved
+        capacity_file, list(districts_involved)
     )
-
-    school_capacities = {
-        df_capacities["NCESSCH"][i]: int(df_capacities["student_capacity"][i])
-        for i in range(len(df_capacities))
-    }
-
-    # Filter the main schools DataFrame to include all schools "in play".
-    df_schools_in_play = df_schools[
-        df_schools["leaid"].isin(districts_involved)
-    ].reset_index(drop=True)
 
     df_schools_in_play = pd.merge(
-        df_schools_in_play,
+        df_schools,
         df_capacities[["NCESSCH", "student_capacity"]],
         on="NCESSCH",
         how="left",
     )
-
-    # Aggregate student counts by grade and race for each school.
-    students_per_grade_per_school: dict[str, dict[str, list[int]]] = defaultdict(
-        lambda: defaultdict(list)
+    school_capacities = (
+        pd.Series(df_capacities.student_capacity.values, index=df_capacities.NCESSCH)
+        .astype(int)
+        .to_dict()
     )
-    total_pop_per_cat_across_schools = Counter()
-    for i in range(len(df_schools_in_play)):
-        for race in constants.RACE_KEYS.values():
-            students_per_grade_per_school[df_schools_in_play["NCESSCH"][i]][race] = [
-                int(df_schools_in_play[f"{race}_{grade}"][i])
-                for grade in constants.GRADE_TO_INDEX
-            ]
 
-            # Sum up the total population for each racial category across all schools.
-            total_pop_per_cat_across_schools[race] += sum(
-                [
-                    int(df_schools_in_play[f"{race}_{grade}"][i])
-                    for grade in constants.GRADE_TO_INDEX
-                ]
+    # Vectorized aggregation of student counts
+    students_per_grade_per_school = defaultdict(lambda: defaultdict(list))
+    total_pop_per_cat_across_schools = Counter()
+
+    for race in constants.RACE_KEYS.values():
+        grade_columns = [f"{race}_{grade}" for grade in constants.GRADE_TO_INDEX]
+
+        # Sum population for each category across all schools
+        total_pop_per_cat_across_schools[race] = int(
+            df_schools_in_play[grade_columns].sum().sum()
+        )
+
+        # Group by school and create the nested dictionary
+        for ncessch, row in df_schools_in_play.iterrows():
+            students_per_grade_per_school[row["NCESSCH"]][race] = (
+                row[grade_columns].astype(int).tolist()
             )
 
     return (
