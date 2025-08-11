@@ -1,5 +1,11 @@
-#!/bin/bash
+#!/bin/bash -e
 SLURM_MAX_TASKS=1000  # Could be different- use `scontrol show config | grep MaxArraySize`
+
+__cleanup() {
+    scancel -u $USER
+    skill -u $USER
+    rm $full_file
+}
 
 send_out_batch() {
     array_end=$1; shift
@@ -9,15 +15,16 @@ send_out_batch() {
     else
         dependency="--dependency=afterany:$dependency_id"
     fi
-    command="sbatch --job-name=${2} $dependency --array=0-$array_end run_batch.sh $jobs_run $@"
+    command="sbatch --job-name=${2} --array=0-$array_end run_batch.sh $jobs_run $@"
     echo $command
     sbatch_output=$($command)
     echo $sbatch_output
     # sbatch's output looks like: 'Submitted batch job 12345'
     read _ _ _ job_id <<< $sbatch_output
-    echo submitted batch $job_id
     echo $job_id >&2
 }
+
+trap __cleanup INT HUP TERM
 
 if [[ -z $1 ]]; then
     echo You must pass a batch name. I\'m not smart enough to make my own!
@@ -32,7 +39,8 @@ else
     batch_dirs=$@
 fi
 
-full_file=$(mktemp)
+full_file=data/sweep_configs/merged_$batchname
+rm -f $full_file && touch $full_file
 cat "${batch_dirs[@]}" > $full_file
 
 exec 3>&1  # fd 3 redirects to stdout
@@ -57,5 +65,5 @@ exec 3>&-
 
 wait_dummy="srun --dependency=${all_deps::-1} echo done"
 echo $wait_dummy $action
-$wait_dummy "$action"
-rm $full_file
+# $wait_dummy "$action"
+# rm $full_file
