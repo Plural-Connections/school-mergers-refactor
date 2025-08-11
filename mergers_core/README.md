@@ -15,6 +15,8 @@ $ pip install -r mergers_core/requirements.txt  # also only run this once
 ```
 To deactivate, run `deactivate` anywhere.
 
+Running the code on a Slurm cluster is handled by `dispatch.sh <batch> [<configs_file> ...]`.
+
 ## `./models/`
 
 * `constants.py` — Definitions shared by other code

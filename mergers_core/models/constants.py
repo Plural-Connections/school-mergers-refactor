@@ -1,8 +1,7 @@
 # Solver constants
-# MAX_SOLVER_TIME = 10200  # 2 hours 50 minutes (just under 3 to account for other stuff that might take time)
-MAX_SOLVER_TIME = 19800  # 5 hours 30 minutes (just under 6 to account for other stuff that might take time e.g. loading data etc.)
-# MAX_SOLVER_TIME = 39600  # 11 hours
-NUM_SOLVER_THREADS = 1  # Only use the default SAT search
+HOURS_TO_SECONDS = 60 * 60
+MAX_SOLVER_TIME = 5.5 * HOURS_TO_SECONDS
+NUM_SOLVER_THREADS = 4
 
 # To scale variables so they satisfy cp-sat's integer requirements
 SCALING = (100000, 5)
