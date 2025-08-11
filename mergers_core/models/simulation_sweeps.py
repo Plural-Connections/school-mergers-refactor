@@ -65,6 +65,7 @@ def generate_year_state_sweep_configs(
                 os.path.join("data", "top_200_districts.csv"),
                 dtype={"district_id": str},
             )
+            .sample(frac=1)  # shuffle districts
             .itertuples()
         )
     else:
