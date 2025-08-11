@@ -38,7 +38,7 @@ def _get_district_and_state_ids(
             ~df_districts["district_id"].isin(df_removed["district_id"])
         ].reset_index(drop=True)
 
-    sorted_districts = df_districts.sort_values(by="num_schools", ascending=False)
+    sorted_districts = df_districts.sort_values(by="num_schools", ascending=True)
     if not n_schools:
         return sorted_districts[["district_id", "state"]]
     return sorted_districts.head(n_schools)[["district_id", "state"]]
@@ -48,7 +48,7 @@ def generate_year_state_sweep_configs(
     districts_to_process_file=os.path.join(
         "data", "solver_files", "2122", "out_sorted_states.csv"
     ),
-    # One of these options is respected. If they're both None, a different file is used.
+    # If these options are both None, a different file is used.
     min_schools=None,  # Districts with strictly fewer schools are not processed
     n_districts=None,  # The n districts with the most schools are chosen
     batch_root="min_elem_{}_{}_{}",
@@ -65,7 +65,6 @@ def generate_year_state_sweep_configs(
                 os.path.join("data", "top_200_districts.csv"),
                 dtype={"district_id": str},
             )
-            .sample(10)
             .itertuples()
         )
     else:
@@ -141,7 +140,7 @@ def run_entry(
         header=None,
         names=CONFIG_ENTRY_TYPES.keys(),
         dtype=CONFIG_ENTRY_TYPES,
-    )[entry_index].to_dict()
+    ).iloc[entry_index].to_dict()
 
     config["batch"] = batch_name
 
