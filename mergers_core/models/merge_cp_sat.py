@@ -721,7 +721,6 @@ def _sort_sequence(
     """
     Given a list of IntVars, returs a new list of IntVars with the same values, but in
     sorted order.
-    This creates roughly 2n² + 3n constraints.
 
     Arguments:
         model: The CP-SAT model instance.
@@ -870,12 +869,14 @@ def setup_population_capacity(
         len(percentages),
     )
 
-    median = _median(
-        model,
-        list(percentages.values()),
-        constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-        "pop_capacity",
-    )
+    median = None
+    if population_consistency_metric == "median":
+        median = _median(
+            model,
+            list(percentages.values()),
+            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
+            "pop_capacity",
+        )
 
     differences = []
     for school in matches:
@@ -896,7 +897,11 @@ def setup_population_capacity(
         len(differences),
     )
 
-    median_difference = _median(model, differences, constants.SCALING[0], "median_diff")
+    median_difference = None
+    if population_consistency_metric == "median_difference":
+        median_difference = _median(
+            model, differences, constants.SCALING[0], "median_diff"
+        )
 
     return {
         "median": median,
@@ -1089,6 +1094,8 @@ def solve_and_output_results(
 
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
+
+    solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)
 
