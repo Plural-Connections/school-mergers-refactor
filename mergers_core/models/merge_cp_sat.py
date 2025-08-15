@@ -12,9 +12,23 @@ from collections import Counter, defaultdict
 from pathlib import Path
 import os
 from fractions import Fraction
+from mergers_core.models.config import Config
 
 
-def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
+def _load_and_filter_nces_schools(
+    filename: os.PathLike, districts: list[str]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load NCES school data from a CSV and filter by district.
+
+    Args:
+        filename: Path to the NCES school data CSV file.
+        districts: A list of district IDs to filter the schools by.
+
+    Returns:
+        A tuple containing two DataFrames:
+        - The filtered DataFrame containing only schools from the specified districts.
+        - The original, unfiltered DataFrame.
+    """
     dataframe = pd.read_csv(filename, dtype={"NCESSCH": str})
     # District ID is the first 7 characters of the NCES school ID
     dataframe["leaid"] = dataframe["NCESSCH"].str[:7]
@@ -26,35 +40,33 @@ def _load_and_filter_nces_schools(filename: os.PathLike, districts: list[str]):
     return filtered, dataframe
 
 
-def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> tuple[
+def load_and_process_data(
+    config: Config,
+) -> tuple[
     dict[str, int],
     dict[str, list[str]],
     dict[str, dict[str, list[int]]],
     Counter[str],
     pd.DataFrame,
 ]:
-    """
-    Loads and preprocesses all necessary data for the CP-SAT model.
+    """Loads and preprocesses all necessary data for the CP-SAT model.
 
     This function reads school enrollment data, capacity data, and permissible
     merger information from CSV and JSON files. It filters this data for the
     specified district and other districts involved in potential interdistrict
     mergers. It then calculates and aggregates student counts by race and grade.
 
-    Arguments:
-        state: The state to process.
-        district_id: The district to process.
-        interdistrict: Flag indicating whether to consider mergers
-            between different districts.
+    Args:
+        config: The configuration for this run.
 
     Returns:
-        tuple: A tuple containing:
+        A tuple containing:
             - school_capacities: Maps school ID to its student capacity.
             - permissible_matches: Maps each school ID to a list of
               other school IDs it is allowed to merge with.
-            - total_per_grade_per_school: Nested dictionary
+            - students_per_grade_per_school: Nested dictionary
               mapping school ID and race to a list of student counts per grade.
-            - total_pop_per_cat_across_schools: Counts of total
+            - total_across_schools_by_category: Counts of total
               students per racial category across all involved schools.
             - df_schools_in_play: DataFrame containing detailed
               enrollment and demographic data for all schools involved in the
@@ -62,19 +74,19 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
     """
     # Load school enrollment data
     enrollment_file = os.path.join(
-        "data", "solver_files", "2122", state, "school_enrollments.csv"
+        "data", "solver_files", "2122", config.district.state, "school_enrollments.csv"
     )
-    df_schools, _ = _load_and_filter_nces_schools(enrollment_file, [district_id])
+    df_schools, _ = _load_and_filter_nces_schools(enrollment_file, [config.district.id])
 
     unique_schools = list(set(df_schools["NCESSCH"].tolist()))
 
     # Load permissible merger data
-    if interdistrict:
+    if config.interdistrict:
         merger_file = os.path.join(
             "data",
             "solver_files",
             "2122",
-            state,
+            config.district.state,
             "between_within_district_allowed_mergers.json",
         )
         permissible_matches = header.read_json(merger_file)
@@ -88,11 +100,11 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
             "data",
             "solver_files",
             "2122",
-            state,
+            config.district.state,
             "within_district_allowed_mergers.json",
         )
         permissible_matches = header.read_json(merger_file)
-        districts_involved = {district_id}
+        districts_involved = {config.district.id}
 
     # Load and merge capacity data
     capacity_file = "data/school_data/21_22_school_capacities.csv"
@@ -114,13 +126,13 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
 
     # Vectorized aggregation of student counts
     students_per_grade_per_school = defaultdict(lambda: defaultdict(list))
-    total_pop_per_cat_across_schools = Counter()
+    total_across_schools_by_category = Counter()
 
     for race in constants.RACE_KEYS.values():
         grade_columns = [f"{race}_{grade}" for grade in constants.GRADE_TO_INDEX]
 
         # Sum population for each category across all schools
-        total_pop_per_cat_across_schools[race] = int(
+        total_across_schools_by_category[race] = int(
             df_schools_in_play[grade_columns].sum().sum()
         )
 
@@ -134,28 +146,27 @@ def load_and_process_data(state: str, district_id: str, interdistrict: bool) -> 
         school_capacities,
         permissible_matches,
         students_per_grade_per_school,
-        total_pop_per_cat_across_schools,
+        total_across_schools_by_category,
         df_schools_in_play,
     )
 
 
 def initialize_variables(
     model: cp_model.CpModel, df_schools_in_play: pd.DataFrame
-) -> tuple[dict[str, dict[str, cp_model.IntVar]], dict[str, cp_model.IntVar]]:
-    """
-    Initializes the core variables for the CP-SAT model.
+) -> tuple[dict[str, dict[str, cp_model.IntVar]], dict[str, list[cp_model.IntVar]]]:
+    """Initializes the core variables for the CP-SAT model.
 
     This function creates the decision variables that the solver will manipulate
     to find an optimal solution. These include variables for school matches and
     grade assignments.
 
-    Arguments:
+    Args:
         model: The CP-SAT model instance.
         df_schools_in_play: DataFrame containing data for all
             schools to be considered in the model.
 
     Returns:
-        tuple: A tuple containing:
+        A tuple containing:
             - matches: A nested dictionary of boolean variables, where
               matches[s1][s2] is true if school s1 and s2 are merged.
             - grades_interval_binary: A dictionary mapping each school ID
@@ -245,12 +256,11 @@ def initialize_variables(
 def _get_students_at_school(
     model: cp_model.CpModel,
     matches: dict[str, dict[str, cp_model.IntVar]],
-    grades_at_school: dict[str, list[cp_model.IntVar]],
+    grades_interval_binary: dict[str, list[cp_model.IntVar]],
     school: str,
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
 ) -> list[cp_model.IntVar]:
-    """
-    Calculates the number of students that will be assigned to a school building.
+    """Calculates the number of students that will be assigned to a school building.
 
     This function determines the total student population for a given school
     building ('school') based on a potential merger scenario. It calculates this
@@ -260,11 +270,11 @@ def _get_students_at_school(
     2.  Students from a merged school ('school2') who are in the grade levels
         that 'school' will serve. This is calculated for each potential merger.
 
-    Arguments:
+    Args:
         model: The CP-SAT model instance.
         matches: A nested dictionary of boolean variables, where
             matches[s1][s2] is true if school s1 and s2 are merged.
-        grades_at_school: A dictionary mapping each school ID to a list
+        grades_interval_binary: A dictionary mapping each school ID to a list
             of binary variables, one for each grade level, indicating if the
             school serves that grade.
         school: The NCESSCH ID of the school building for which to
@@ -274,7 +284,7 @@ def _get_students_at_school(
             category within each school.
 
     Returns:
-        list: A list of CP-SAT integer variables representing the different
+        A list of CP-SAT integer variables representing the different
         groups of students that will make up the new population of the school
         building. The sum of this list would represent the total enrollment.
     """
@@ -283,7 +293,7 @@ def _get_students_at_school(
     students_at_school = sum(
         [
             students_per_grade_per_school[school]["num_total"][grade]
-            * grades_at_school[school][grade]
+            * grades_interval_binary[school][grade]
             for grade in constants.GRADE_TO_INDEX.values()
         ]
     )
@@ -304,7 +314,7 @@ def _get_students_at_school(
                 == sum(
                     [
                         students_per_grade_per_school[school2]["num_total"][i]
-                        * grades_at_school[school][i]
+                        * grades_interval_binary[school][i]
                         for i in constants.GRADE_TO_INDEX.values()
                     ]
                 )
@@ -324,16 +334,14 @@ def _get_students_at_school(
 
 def set_constraints(
     model: cp_model.CpModel,
+    config: Config,
     school_capacities: dict[str, int],
-    school_decrease_threshold: float,
-    school_increase_threshold: float,
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
     permissible_matches: dict[str, list[str]],
     matches: dict[str, dict[str, cp_model.IntVar]],
-    grades_at_school: dict[str, list[cp_model.IntVar]],
+    grades_interval_binary: dict[str, list[cp_model.IntVar]],
 ) -> None:
-    """
-    Defines the set of rules and limitations for the school merger problem.
+    """Defines the set of rules and limitations for the school merger problem.
 
     The main constraints, expressed mathematically, are:
 
@@ -377,18 +385,15 @@ def set_constraints(
         Every grade must be served by one school in every merger:
         ∑s'∈S (Ms,s' * ∑g∈G Rs',g) = |G| ∀ s∈S
 
-    Arguments:
+    Args:
         model: The CP-SAT model instance.
+        config: The configuration for this run.
         school_capacities: Maps school ID to its student capacity.
-        school_decrease_threshold: The maximum allowable percentage
-            decrease in a school's enrollment.
-        school_increase_threshold: The maximum allowable percentage
-            increase in a school's enrollment over its capacity.
         students_per_grade_per_school: Student counts by grade,
             school, and race.
         permissible_matches: Defines which schools are allowed to merge.
         matches: Dictionary of boolean match variables.
-        grades_at_school: Dictionary of binary grade variables.
+        grades_interval_binary: Dictionary of binary grade variables.
     """
 
     students_at_each_school = {
@@ -396,7 +401,7 @@ def set_constraints(
             _get_students_at_school(
                 model,
                 matches,
-                grades_at_school,
+                grades_interval_binary,
                 school,
                 students_per_grade_per_school,
             )
@@ -436,7 +441,9 @@ def set_constraints(
         # --- Enrollment must be within a specified minimum and maximum capacity ---
         model.Add(
             students_at_each_school[school1]
-            <= round((1 + school_increase_threshold) * school_capacities[school1])
+            <= round(
+                (1 + config.school_increase_threshold) * school_capacities[school1]
+            )
         )
 
         school_current_population = sum(
@@ -448,7 +455,7 @@ def set_constraints(
         enrollment_lower_bound = int(
             constants.SCALING[0]
             * np.round(
-                (1 - school_decrease_threshold) * school_current_population,
+                (1 - config.school_decrease_threshold) * school_current_population,
                 decimals=constants.SCALING[1],
             )
         )
@@ -477,7 +484,9 @@ def set_constraints(
             if school1 != school2:
                 for i in range(len(constants.GRADE_TO_INDEX)):
                     model.Add(
-                        grades_at_school[school1][i] + grades_at_school[school2][i] <= 1
+                        grades_interval_binary[school1][i]
+                        + grades_interval_binary[school2][i]
+                        <= 1
                     ).OnlyEnforceIf(matches[school1][school2])
 
     for school1 in matches:
@@ -485,7 +494,7 @@ def set_constraints(
         # Ensure that a group of merged schools combined serve a full set of grades.
 
         # Calculate the number of grade levels this school will offer postmerger.
-        num_grades_in_school = sum(grades_at_school[school1])
+        num_grades_in_school = sum(grades_interval_binary[school1])
         model.Add(num_grades_in_school >= 0)
         model.Add(num_grades_in_school <= len(constants.GRADE_TO_INDEX))
         num_grades_represented = [num_grades_in_school]
@@ -498,7 +507,7 @@ def set_constraints(
             )
             if school1 != school2:
                 model.Add(
-                    num_grades_s2 == sum(grades_at_school[school2])
+                    num_grades_s2 == sum(grades_interval_binary[school2])
                 ).OnlyEnforceIf(matches[school1][school2])
                 model.Add(num_grades_s2 == 0).OnlyEnforceIf(
                     matches[school1][school2].Not()
@@ -520,7 +529,7 @@ def set_constraints(
         )
         all_grades_served_s = []
         for grade in constants.GRADE_TO_INDEX.values():
-            all_grades_served_s.append(grades_at_school[school1][grade] * grade)
+            all_grades_served_s.append(grades_interval_binary[school1][grade] * grade)
         model.AddMaxEquality(max_grade_served_s, all_grades_served_s)
 
         for school2 in matches[school1]:
@@ -535,7 +544,9 @@ def set_constraints(
             )
             all_grades_served_s2 = []
             for grade in constants.GRADE_TO_INDEX.values():
-                all_grades_served_s2.append(grades_at_school[school2][grade] * grade)
+                all_grades_served_s2.append(
+                    grades_interval_binary[school2][grade] * grade
+                )
             model.AddMaxEquality(max_grade_served_s2, all_grades_served_s2)
 
             s2_serving_higher_grades_than_s = model.NewBoolVar(
@@ -561,14 +572,16 @@ def set_constraints(
             # fit within the capacity of school2.
             model.Add(
                 students_at_each_school[school1]
-                <= round((1 + school_increase_threshold) * school_capacities[school2])
+                <= round(
+                    (1 + config.school_increase_threshold) * school_capacities[school2]
+                )
             ).OnlyEnforceIf(matched_and_s2_higher_grade)
 
             # The enrollment floor constraint also applies to the feeder school.
             feeder_school_enrollment_lower_bound = int(
                 constants.SCALING[0]
                 * np.round(
-                    (1 - school_decrease_threshold)
+                    (1 - config.school_decrease_threshold)
                     * sum(
                         [
                             students_per_grade_per_school[school2]["num_total"][i]
@@ -586,30 +599,32 @@ def set_constraints(
 
 def calculate_dissimilarity(
     model: cp_model.CpModel,
-    total_per_grade_per_school: dict[str, dict[str, list[int]]],
+    students_per_grade_per_school: dict[str, dict[str, list[int]]],
     total_across_schools_by_category: Counter[str],
     matches: dict[str, dict[str, cp_model.IntVar]],
     grades_interval_binary: dict[str, list[cp_model.IntVar]],
     groups_a: list[str],
     groups_b: list[str],
-) -> object:  # SumArray of linear expressions
-    """
-    Returns a LinearExpr that calculates the dissimilarity index between two groups.
+) -> cp_model.LinearExpr:
+    """Returns a LinearExpr that calculates the dissimilarity index between two groups.
 
     The dissimilarity index is the sum of this absolute difference for all schools:
     ┃ group_school   non_group_school ┃
     ┃ ———————————— - ———————————————— ┃
     ┃ group_total     non_group_total ┃
 
-    Arguments:
+    Args:
         model: The CP-SAT model instance.
-        total_per_grade_per_school: Student counts by grade,
+        students_per_grade_per_school: Student counts by grade,
             school, and race.
-        total_pop_per_cat_across_schools: Total student counts by race.
+        total_across_schools_by_category: Total student counts by race.
         matches: Dictionary of boolean match variables.
         grades_interval_binary: Dictionary of binary grade variables.
         groups_a: Groups of students for the first half of a dissimilarity term.
         groups_b: Groups of students for the second half of a dissimilarity term.
+
+    Returns:
+        A LinearExpr representing the dissimilarity index.
     """
 
     for idx in range(len(groups_a)):
@@ -626,14 +641,17 @@ def calculate_dissimilarity(
         for school_2 in matches[school]:
             students_at_s2_a = sum(
                 sum(
-                    total_per_grade_per_school[school_2][group][i] for group in groups_a
+                    students_per_grade_per_school[school_2][group][i]
+                    for group in groups_a
                 )
                 * grades_interval_binary[school][i]
                 for i in constants.GRADE_TO_INDEX.values()
             )
 
             sum_school2_a = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_group_a_{school},{school_2}"
+                0,
+                constants.MAX_TOTAL_STUDENTS,
+                f"sum_s2_group_a_{school},{school_2}",
             )
             model.Add(sum_school2_a == students_at_s2_a).OnlyEnforceIf(
                 matches[school][school_2]
@@ -645,7 +663,8 @@ def calculate_dissimilarity(
         for school_2 in matches[school]:
             students_at_s2_b = sum(
                 sum(
-                    total_per_grade_per_school[school_2][group][i] for group in groups_b
+                    students_per_grade_per_school[school_2][group][i]
+                    for group in groups_b
                 )
                 * grades_interval_binary[school][i]
                 for i in constants.GRADE_TO_INDEX.values()
@@ -721,11 +740,10 @@ def _sort_sequence(
     max_val: int,
     name_prefix: str,
 ) -> list[cp_model.IntVar]:
-    """
-    Given a list of IntVars, returs a new list of IntVars with the same values, but in
+    """Given a list of IntVars, returns a new list of IntVars with the same values, but in
     sorted order.
 
-    Arguments:
+    Args:
         model: The CP-SAT model instance.
         sequence: A list of IntVars.
         max_val: The maximum value of the input IntVars.
@@ -734,14 +752,14 @@ def _sort_sequence(
     Returns:
         A sorted list of IntVars.
     """
-    sorted = [
+    sorted_vars = [
         model.NewIntVar(0, max_val, f"{name_prefix}_sorted_{i}")
         for i in range(len(sequence))
     ]
 
     # Enforce sorted order
     for i in range(len(sequence) - 1):
-        model.Add(sorted[i] <= sorted[i + 1])
+        model.Add(sorted_vars[i] <= sorted_vars[i + 1])
 
     permutation_indices = [
         model.NewIntVar(0, len(sequence) - 1, f"{name_prefix}_perm_{i}")
@@ -750,10 +768,10 @@ def _sort_sequence(
     model.AddAllDifferent(permutation_indices)
 
     for i in range(len(sequence)):
-        # sorted[i] == sequence[permutation_indices[i]]
-        model.AddElement(permutation_indices[i], sequence, sorted[i])
+        # sorted_vars[i] == sequence[permutation_indices[i]]
+        model.AddElement(permutation_indices[i], sequence, sorted_vars[i])
 
-    return sorted
+    return sorted_vars
 
 
 def _median(
@@ -762,10 +780,9 @@ def _median(
     max_val: int,
     name_prefix: str,
 ) -> cp_model.IntVar:
-    """
-    Returns the median of the input sequence.
+    """Returns the median of the input sequence.
 
-    Arguments:
+    Args:
         model: The CP-SAT model instance.
         sequence: A list of IntVars.
         max_val: The maximum value of the input IntVars.
@@ -785,15 +802,15 @@ def _median(
         index = len(sequence) // 2
         return sorted_sequence[index]
 
-    sum = model.NewIntVar(0, max_val * 2, f"{name_prefix}_sum")
+    sum_var = model.NewIntVar(0, max_val * 2, f"{name_prefix}_sum")
     model.Add(
-        sum
+        sum_var
         == sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2]
     )
     median_var = model.NewIntVar(0, max_val, f"{name_prefix}_median")
     model.AddDivisionEquality(
         median_var,
-        sum,
+        sum_var,
         2,
     )
     return median_var
@@ -801,25 +818,25 @@ def _median(
 
 def setup_population_capacity(
     model: cp_model.CpModel,
+    config: Config,
     matches: dict[str, dict[str, cp_model.IntVar]],
-    grades_at_school: dict[str, list[cp_model.IntVar]],
+    grades_interval_binary: dict[str, list[cp_model.IntVar]],
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
     school_capacities: dict[str, int],
-    population_consistency_metric: str,
-) -> object:
-    """
-    Returns a LinearExpr that represents the population consistency index. This index is
-    the average distance from the mean population for each school's population.
+) -> cp_model.IntVar | None:
+    """Returns a LinearExpr that represents the population consistency index.
 
-    Arguments:
+    This index is the average distance from the mean population for each
+    school's population.
+
+    Args:
         model: The CP-SAT model instance.
         matches: A nested dictionary of boolean variables, where
             matches[s1][s2] is true if school s1 and s2 are merged.
-        grades_at_school: Dictionary of binary grade variables.
+        grades_interval_binary: Dictionary of binary grade variables.
         students_per_grade_per_school: Student counts by grade,
             school, and race.
         school_capacities: Dictionary of school capacities.
-        population_consistency_metric: The metric to use for population consistency.
 
     Returns:
         A LinearExpr that represents the population consistency index.
@@ -829,7 +846,7 @@ def setup_population_capacity(
             _get_students_at_school(
                 model,
                 matches,
-                grades_at_school,
+                grades_interval_binary,
                 school,
                 students_per_grade_per_school,
             )
@@ -873,7 +890,7 @@ def setup_population_capacity(
     )
 
     median = None
-    if population_consistency_metric == "median":
+    if config.population_consistency_metric == "median":
         median = _median(
             model,
             list(percentages.values()),
@@ -901,7 +918,7 @@ def setup_population_capacity(
     )
 
     median_difference = None
-    if population_consistency_metric == "median_difference":
+    if config.population_consistency_metric == "median_difference":
         median_difference = _median(
             model, differences, constants.SCALING[0], "median_diff"
         )
@@ -910,32 +927,43 @@ def setup_population_capacity(
         "median": median,
         "average_difference": average_difference,
         "median_difference": median_difference,
-    }[population_consistency_metric]
+    }[config.population_consistency_metric]
 
 
 def set_objective(
+    *,
     model: cp_model.CpModel,
-    dissimilarity_flavor: str,
+    config: Config,
     dissimilarity_index: cp_model.IntVar,
     population_consistency_metric: cp_model.IntVar,
     pre_dissimilarity: float,
     pre_population_consistency: float,
-    dissimilarity_weight: float,
-    population_consistency_weight: float,
-    minimize: bool,
 ) -> None:
-    """Sets the multi-objective function for the solver."""
-    if minimize:
+    """Sets the multi-objective function for the solver.
+
+    Args:
+        model: The CP-SAT model instance.
+        config: The configuration for this run.
+        dissimilarity_index: The variable representing the dissimilarity index.
+        population_consistency_metric: The variable representing the population
+            consistency metric.
+        pre_dissimilarity: The dissimilarity index before optimization.
+        pre_population_consistency: The population consistency metric before
+            optimization.
+    """
+    if config.minimize:
         optimize_function = model.Minimize
     else:
         optimize_function = model.Maximize
 
-    if population_consistency_weight == 0:
-        print(f"Objective function: minimize dissimilarity ({dissimilarity_flavor})")
+    if config.population_consistency_weight == 0:
+        print(
+            f"Objective function: minimize dissimilarity ({config.dissimilarity_flavor})"
+        )
         optimize_function(dissimilarity_index)
         return
 
-    if dissimilarity_weight == 0:
+    if config.dissimilarity_weight == 0:
         print("Objective function: minimize population_consistency_metric")
         optimize_function(population_consistency_metric)
         return
@@ -950,15 +978,15 @@ def set_objective(
     # values of the metrics themselves, preventing one metric from dominating
     # the objective function simply due to its scale.
     ratio = Fraction(
-        int(dissimilarity_weight * constants.SCALING[0]),
-        int(population_consistency_weight * constants.SCALING[0]),
+        int(config.dissimilarity_weight * constants.SCALING[0]),
+        int(config.population_consistency_weight * constants.SCALING[0]),
     )
     ratio = ratio * starting_ratio
     ratio = ratio.limit_denominator(1000)
 
     print(
-        f"Objective function: {'minimize' if minimize else 'maximize'}"
-        f" {ratio.numerator} * dissimilarity ({dissimilarity_flavor})"
+        f"Objective function: {'minimize' if config.minimize else 'maximize'}"
+        f" {ratio.numerator} * dissimilarity ({config.dissimilarity_flavor})"
         f" + {ratio.denominator} * population_consistency_metric"
     )
     optimize_function(
@@ -968,46 +996,45 @@ def set_objective(
 
 
 def solve_and_output_results(
-    *,  # enforce good practice
-    state: str,
-    district_id: str,
-    school_decrease_threshold: float,
-    school_increase_threshold: float,
-    dissimilarity_weight: float,
-    population_consistency_weight: float,
-    population_consistency_metric: str,
-    interdistrict: bool,
-    dissimilarity_flavor: str,
-    minimize: bool,
-    batch: str,
-    write_to_s3: bool,
-    mergers_file_name: str = "school_mergers.csv",
-    grades_served_file_name: str = "grades_served.csv",
-    schools_in_play_file_name: str = "schools_in_play.csv",
+    config: Config,
     s3_bucket: str = "s3://school-mergers/",
-):
+) -> None:
+    """Main function to run the school merger optimization.
+
+    This function orchestrates the entire process:
+    1.  Loads and processes the data.
+    2.  Calculates initial dissimilarity and population consistency metrics.
+    3.  Initializes the CP-SAT model and variables.
+    4.  Sets the constraints for the model.
+    5.  Defines and sets the multi-objective function.
+    6.  Runs the solver.
+    7.  Outputs the results.
+
+    Args:
+        config: The configuration for this run.
+        s3_bucket: The S3 bucket to write the results to.
+    """
     print(
         f"""Settings:
-        school: {state} {district_id}
-        school decrease threshold: {school_decrease_threshold}
-        weights: {dissimilarity_weight} {population_consistency_weight}
-        metric & flavor: {population_consistency_metric} {dissimilarity_flavor}
-        minimize: {minimize}
-        batch: {batch}"""
+        school: {config.district.id} in {config.district.state}
+        school decrease threshold: {config.school_decrease_threshold}
+        weights: {config.dissimilarity_weight} {config.population_consistency_weight}
+        metric & flavor: {config.population_consistency_metric} {config.dissimilarity_flavor}
+        minimize: {config.minimize}"""
     )
 
     (
         school_capacities,
         permissible_matches,
-        total_per_grade_per_school,
-        total_pop_per_cat_across_schools,
+        students_per_grade_per_school,
+        total_across_schools_by_category,
         df_schools_in_play,
-    ) = load_and_process_data(state, district_id, interdistrict)
+    ) = load_and_process_data(config)
 
     # --- Calculate Initial Metrics ---
     initial_school_clusters = list(df_schools_in_play["NCESSCH"])
     initial_num_per_cat_per_school = defaultdict(Counter)
-    for school_id, school_data in total_per_grade_per_school.items():
+    for school_id, school_data in students_per_grade_per_school.items():
         for race, grade_counts in school_data.items():
             initial_num_per_cat_per_school[race][school_id] = sum(grade_counts)
 
@@ -1018,7 +1045,7 @@ def solve_and_output_results(
         df_schools_in_play, initial_num_per_cat_per_school
     )
 
-    if dissimilarity_flavor == "bh_wa":
+    if config.dissimilarity_flavor == "bh_wa":
         pre_dissimilarity = pre_dissim_bh_wa
         groups_a = ["black", "hispanic"]
         groups_b = ["white", "asian"]
@@ -1037,7 +1064,7 @@ def solve_and_output_results(
         groups_b = ["white"]
 
     pre_population_consistency = pre_population_consistencies[
-        population_consistency_metric
+        config.population_consistency_metric
     ]
 
     # Create the cp model
@@ -1046,48 +1073,44 @@ def solve_and_output_results(
     (
         matches,
         grades_interval_binary,
-    ) = initialize_variables(model, df_schools_in_play)
+    ) = initialize_variables(model=model, df_schools_in_play=df_schools_in_play)
 
     set_constraints(
-        model,
-        school_capacities,
-        school_decrease_threshold,
-        school_increase_threshold,
-        total_per_grade_per_school,
-        permissible_matches,
-        matches,
-        grades_interval_binary,
+        model=model,
+        config=config,
+        school_capacities=school_capacities,
+        students_per_grade_per_school=students_per_grade_per_school,
+        permissible_matches=permissible_matches,
+        matches=matches,
+        grades_interval_binary=grades_interval_binary,
     )
 
-    dissimilarity = calculate_dissimilarity(
-        model,
-        total_per_grade_per_school,
-        total_pop_per_cat_across_schools,
-        matches,
-        grades_interval_binary,
-        groups_a,
-        groups_b,
+    dissimilarity_index = calculate_dissimilarity(
+        model=model,
+        students_per_grade_per_school=students_per_grade_per_school,
+        total_across_schools_by_category=total_across_schools_by_category,
+        matches=matches,
+        grades_interval_binary=grades_interval_binary,
+        groups_a=groups_a,
+        groups_b=groups_b,
     )
 
-    population_consistency = setup_population_capacity(
-        model,
-        matches,
-        grades_interval_binary,
-        total_per_grade_per_school,
-        school_capacities,
-        population_consistency_metric,
+    population_consistency_metric = setup_population_capacity(
+        model=model,
+        config=config,
+        matches=matches,
+        grades_interval_binary=grades_interval_binary,
+        students_per_grade_per_school=students_per_grade_per_school,
+        school_capacities=school_capacities,
     )
 
     set_objective(
-        model,
-        dissimilarity_flavor,
-        dissimilarity,
-        population_consistency,
-        pre_dissimilarity,
-        pre_population_consistency,
-        dissimilarity_weight,
-        population_consistency_weight,
-        minimize,
+        model=model,
+        config=config,
+        dissimilarity_index=dissimilarity_index,
+        population_consistency_metric=population_consistency_metric,
+        pre_dissimilarity=pre_dissimilarity,
+        pre_population_consistency=pre_population_consistency,
     )
     print("Solving ...")
     solver = cp_model.CpSolver()
@@ -1103,39 +1126,25 @@ def solve_and_output_results(
     status = solver.Solve(model)
 
     this_result_dirname = (
-        f"{school_decrease_threshold}_"
-        f"{dissimilarity_weight},{population_consistency_weight}_"
+        f"{config.school_decrease_threshold}_"
+        f"{config.dissimilarity_weight},{config.population_consistency_weight}_"
         f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s_"
         f"{solver.NumBranches()}_{solver.NumConflicts()}"
     )
-    curr_output_dir = (
-        f"data/results/{batch}/{state}/{district_id}/{this_result_dirname}"
-    )
+    output_dir = f"data/results/{config.district.state}/{config.district.id}/{this_result_dirname}"
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Status is {constants.STATUSES[status]}")
         output_solver_solution(
-            solver,
-            matches,
-            grades_interval_binary,
-            state,
-            district_id,
-            school_decrease_threshold,
-            interdistrict,
-            df_schools_in_play,
-            curr_output_dir,
-            s3_bucket,
-            write_to_s3,
-            mergers_file_name,
-            grades_served_file_name,
-            schools_in_play_file_name,
-            pre_dissim_wnw,
-            pre_dissim_bh_wa,
-            pre_population_consistencies,
-            population_consistency_metric,
-            dissimilarity_weight,
-            population_consistency_weight,
-            dissimilarity_flavor,
-            minimize,
+            config=config,
+            solver=solver,
+            matches=matches,
+            grades_interval_binary=grades_interval_binary,
+            df_schools_in_play=df_schools_in_play,
+            output_dir=output_dir,
+            s3_bucket=s3_bucket,
+            pre_dissim_wnw=pre_dissim_wnw,
+            pre_dissim_bh_wa=pre_dissim_bh_wa,
+            pre_population_consistencies=pre_population_consistencies,
         )
 
     else:
@@ -1143,110 +1152,20 @@ def solve_and_output_results(
         print(model.Validate())
         result = {"status": status}
         df_r = pd.DataFrame(result, index=[0])
-        if write_to_s3:
-            df_r.to_csv(s3_bucket + curr_output_dir, index=False)
+        if config.write_to_s3:
+            df_r.to_csv(s3_bucket + output_dir, index=False)
         else:
-            Path(curr_output_dir).mkdir(parents=True, exist_ok=True)
-            header.write_json(os.path.join(curr_output_dir, "output.json"), result)
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            header.write_json(os.path.join(output_dir, "output.json"), result)
 
 
 if __name__ == "__main__":
-    districts = {
-        "0100007": "AL",
-        "0101380": "AL",
-        "0404630": "AZ",
-        "0600016": "CA",
-        "0604800": "CA",
-        "0611850": "CA",
-        "0626670": "CA",
-        "0627180": "CA",
-        "0628140": "CA",
-        "0629610": "CA",
-        "0637380": "CA",
-        "0638670": "CA",
-        "0643080": "CA",
-        "0804530": "CO",
-        "0807230": "CO",
-        "0902670": "CT",
-        "1200930": "FL",
-        # "1301380": "GA",
-        # "1302400": "GA",
-        # "1305370": "GA",
-        # "1704710": "IL",
-        # "1710200": "IL",
-        # "1714460": "IL",
-        # "1726400": "IL",
-        # "1737170": "IL",
-        # "1801200": "TX",
-        # "1805670": "IN",
-        # "1926400": "IA",
-        # "2103090": "KY",
-        # "2201620": "LA",
-        # "2400690": "MD",
-        # "2600015": "MI",
-        # "2621840": "MI",
-        # "2803480": "MS",
-        # "2918540": "MO",
-        # "2920670": "MO",
-        # "2923550": "MO",
-        # "2926070": "MO",
-        # "2928950": "MO",
-        # "3172390": "NE",
-        # "3178660": "NE",
-        # "3200360": "NV",
-        # "3404500": "NJ",
-        # "3412480": "NJ",
-        # "3500010": "NM",
-        # "3500900": "NM",
-        # "3500990": "NM",
-        # "3501680": "NM",
-        # "3600094": "NY",
-        # "3625350": "NY",
-        # "3629370": "NY",
-        # "3700420": "NC",
-        # "3700750": "NC",
-        # "3704080": "NC",
-        # "3704320": "NC",
-        # "3704650": "NC",
-        # "3904426": "OH",
-        # "3904481": "OH",
-        # "4112240": "OR",
-        # "4207710": "PA",
-        # "4209300": "PA",
-        # "4221090": "PA",
-        # "4224320": "PA",
-        # "4225290": "PA",
-        # "4500900": "SC",
-        # "4503060": "SC",
-        # "4700147": "FL",
-        # "4702580": "TN",
-        # "4703480": "TN",
-        # "4703990": "TN",
-        # "4815910": "TX",
-        # "4820600": "TX",
-        # "4844960": "TX",
-        # "4846530": "TX",
-        # "5102520": "VA",
-        # "5102940": "VA",
-        # "5104150": "VA",
-        # "5304860": "WA",
-        # "5305220": "WA",
-        # "5308160": "WA",
-        # "5400930": "WV",
-    }
-
-    # for district_id, state in districts.items():
     solve_and_output_results(
-        state="GA",
-        district_id="1302550",
-        school_decrease_threshold=0.2,
-        school_increase_threshold=0.1,
-        dissimilarity_weight=0,
-        population_consistency_weight=1,
-        population_consistency_metric="average_difference",
-        interdistrict=False,
-        dissimilarity_flavor="bh_wa",
-        minimize=True,
-        batch="test_single_batch",
-        write_to_s3=False,
+        Config.custom_config(
+            district=Config.district("MA", "2508700"),
+            dissimilarity_weight=0,
+            population_consistency_weight=1,
+            population_consistency_metric="average_difference",
+            dissimilarity_flavor="bh_wa",
+        )
     )

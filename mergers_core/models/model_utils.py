@@ -423,31 +423,19 @@ def maybe_load_large_files(state):
 
 
 def output_solver_solution(
+    *,
+    config,
     solver,
     matches,
     grades_interval_binary,
-    state,
-    district_id,
-    school_decrease_threshold,
-    interdistrict,
     df_schools_in_play,
     output_dir,
     s3_bucket,
-    write_to_s3,
-    mergers_file_name,
-    grades_served_file_name,
-    schools_in_play_file_name,
     pre_dissim_wnw,
     pre_dissim_bh_wa,
     pre_population_consistencies,
-    population_consistency_metric,
-    dissimilarity_weight,
-    population_consistency_weight,
-    dissimilarity_flavor,
-    minimize,
-    results_file_name="analytics.csv",
 ):
-    maybe_load_large_files(state)
+    maybe_load_large_files(config.district.state)
 
     # Extract solver variables
     match_data = {"school_1": [], "school_2": []}
@@ -466,7 +454,7 @@ def output_solver_solution(
             val = solver.BooleanValue(grades_interval_binary[school][idx])
             grades_served_data[grade].append(val)
 
-    if write_to_s3:
+    if config.write_to_s3:
         output_dir = s3_bucket + output_dir
     else:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -479,10 +467,10 @@ def output_solver_solution(
         .rename(columns={"school_2": "school_cluster"})
     )
     df_grades = pd.DataFrame(grades_served_data)
-    df_mergers_g.to_csv(os.path.join(output_dir, mergers_file_name), index=False)
-    df_grades.to_csv(os.path.join(output_dir, grades_served_file_name), index=False)
+    df_mergers_g.to_csv(os.path.join(output_dir, "school_mergers.csv"), index=False)
+    df_grades.to_csv(os.path.join(output_dir, "grades_served.csv"), index=False)
     df_schools_in_play.to_csv(
-        os.path.join(output_dir, schools_in_play_file_name), index=False
+        os.path.join(output_dir, "schools_in_play.csv"), index=False
     )
 
     # Compute post-solver outcomes of interest
@@ -498,7 +486,7 @@ def output_solver_solution(
             num_students_switching_per_school,
             travel_time_impacts,
         ) = check_solution_validity_and_compute_outcomes(
-            df_mergers_g, df_grades, df_schools_in_play, state
+            df_mergers_g, df_grades, df_schools_in_play, config.district.state
         )
 
     except Exception as e:
@@ -509,33 +497,23 @@ def output_solver_solution(
         return
 
     pre_population_consistency = pre_population_consistencies[
-        population_consistency_metric
+        config.population_consistency_metric
     ]
     post_population_consistency = post_population_consistencies[
-        population_consistency_metric
+        config.population_consistency_metric
     ]
 
     # Output results
     data_to_output = {
         name: locals()[name]
         for name in [
-            "state",
-            "district_id",
-            "school_decrease_threshold",
-            "interdistrict",
             "pre_dissim_wnw",
             "post_dissim_wnw",
             "pre_dissim_bh_wa",
             "post_dissim_bh_wa",
-            "pre_population_consistency",
-            "post_population_consistency",
-            "population_consistency_metric",
-            "dissimilarity_weight",
-            "population_consistency_weight",
-            "dissimilarity_flavor",
-            "minimize",
         ]
     }
+    data_to_output.update(config.to_dict())
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
     data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
@@ -549,7 +527,7 @@ def output_solver_solution(
 
     print()
 
-    print(f"Used metric {population_consistency_metric}")
+    print(f"Used metric {config.population_consistency_metric}")
     print("Pre population consistencies:")
     for metric, value in pre_population_consistencies.items():
         print(f"\t{metric}: {value}")
@@ -568,12 +546,16 @@ def output_solver_solution(
         )
     except (KeyError, ZeroDivisionError) as e:
         print(f"Could not print travel time stats: {e}")
+        traceback.print_exc()
 
-    pd.DataFrame(data_to_output, index=[0]).to_csv(
-        os.path.join(output_dir, results_file_name), index=False
+    # We need to do this dictionary comprehension because otherwise pandas sees the
+    # district namedtuple and decides that the dataframe must have two rows, which we
+    # don't want.
+    pd.DataFrame({k: [v] for k, v in data_to_output.items()}, index=[0]).to_csv(
+        os.path.join(output_dir, "analytics.csv"), index=False
     )
 
-    things_to_output = travel_time_impacts | {
+    impacts = travel_time_impacts | {
         name: locals()[name]
         for name in [
             "num_per_school_per_grade_per_cat",
@@ -582,17 +564,16 @@ def output_solver_solution(
         ]
     }
 
-    # Output number of students per race, per school
-    if write_to_s3:
+    if config.write_to_s3:
         from s3fs import S3FileSystem
 
-        for name, thing in things_to_output.items():
+        for name, thing in impacts.items():
             s3 = S3FileSystem()
             with s3.open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(thing, file)
 
     else:
-        for name, thing in things_to_output.items():
+        for name, thing in impacts.items():
             with open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(thing, file)
 
@@ -611,7 +592,6 @@ def produce_post_solver_files(
     school_decrease_threshold,
     interdistrict,
     output_dir,
-    results_file_name="analytics.csv",
 ):
     # Compute pre/post dissim and other outcomes of interest
     try:
@@ -701,7 +681,7 @@ def produce_post_solver_files(
 
     try:
         pd.DataFrame(data_to_output, index=[0]).to_csv(
-            os.path.join(output_dir, results_file_name), index=False
+            os.path.join(output_dir, "analytics.csv"), index=False
         )
 
         for name, value in things_to_output.items():
