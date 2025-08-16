@@ -4,7 +4,7 @@ import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import (
     output_solver_solution,
     compute_dissimilarity_metrics,
-    compute_population_consistencies,
+    compute_population_metrics,
 )
 import pandas as pd
 import numpy as np
@@ -817,7 +817,7 @@ def _median(
     return median_var
 
 
-def setup_population_capacity(
+def setup_population_metric(
     model: cp_model.CpModel,
     config: config.Config,
     matches: dict[str, dict[str, cp_model.IntVar]],
@@ -891,7 +891,7 @@ def setup_population_capacity(
     )
 
     median = None
-    if config.population_consistency_metric == "median":
+    if config.population_metric == "median":
         median = _median(
             model,
             list(percentages.values()),
@@ -919,7 +919,7 @@ def setup_population_capacity(
     )
 
     median_difference = None
-    if config.population_consistency_metric == "median_difference":
+    if config.population_metric == "median_difference":
         median_difference = _median(
             model, differences, constants.SCALING[0], "median_diff"
         )
@@ -928,7 +928,7 @@ def setup_population_capacity(
         "median": median,
         "average_difference": average_difference,
         "median_difference": median_difference,
-    }[config.population_consistency_metric]
+    }[config.population_metric]
 
 
 def set_objective(
@@ -936,9 +936,9 @@ def set_objective(
     model: cp_model.CpModel,
     config: config.Config,
     dissimilarity_index: cp_model.IntVar,
-    population_consistency_metric: cp_model.IntVar,
+    population_metric: cp_model.IntVar,
     pre_dissimilarity: float,
-    pre_population_consistency: float,
+    pre_population_metric: float,
 ) -> None:
     """Sets the multi-objective function for the solver.
 
@@ -959,28 +959,28 @@ def set_objective(
 
     obj = "⇣" if config.minimize else "⇡"
 
-    if config.population_consistency_weight == 0:
+    if config.population_metric_weight == 0:
         print(f"Objective: {obj} dissimilarity ({config.dissimilarity_flavor})")
         optimize_function(dissimilarity_index)
         return
 
     if config.dissimilarity_weight == 0:
-        print(f"Objective: {obj} population consistency")
-        optimize_function(population_consistency_metric)
+        print(f"Objective: {obj} population metric")
+        optimize_function(population_metric)
         return
 
     # Handle case where a pre-computation is zero to avoid division errors
-    if pre_population_consistency == 0 or pre_dissimilarity == 0:
+    if pre_population_metric == 0 or pre_dissimilarity == 0:
         starting_ratio = Fraction(1, 1)
     else:
-        starting_ratio = Fraction(pre_dissimilarity / pre_population_consistency)
+        starting_ratio = Fraction(pre_dissimilarity / pre_population_metric)
 
     # This ratio balances the weights provided by the user with the initial
     # values of the metrics themselves, preventing one metric from dominating
     # the objective function simply due to its scale.
     ratio = Fraction(
         int(config.dissimilarity_weight * constants.SCALING[0]),
-        int(config.population_consistency_weight * constants.SCALING[0]),
+        int(config.population_metric_weight * constants.SCALING[0]),
     )
     ratio = ratio * starting_ratio
     ratio = ratio.limit_denominator(1000)
@@ -988,11 +988,11 @@ def set_objective(
     print(
         f"Objective: {obj}"
         f" {ratio.numerator} * dissimilarity ({config.dissimilarity_flavor})"
-        f" + {ratio.denominator} * population consistency"
+        f" + {ratio.denominator} * population metric"
     )
     optimize_function(
         ratio.numerator * dissimilarity_index
-        + ratio.denominator * population_consistency_metric
+        + ratio.denominator * population_metric
     )
 
 
@@ -1035,7 +1035,7 @@ def solve_and_output_results(
     pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
         initial_school_clusters, initial_num_per_cat_per_school
     )
-    pre_population_consistencies = compute_population_consistencies(
+    pre_population_metrics = compute_population_metrics(
         df_schools_in_play, initial_num_per_cat_per_school
     )
 
@@ -1057,8 +1057,8 @@ def solve_and_output_results(
         ]
         groups_b = ["white"]
 
-    pre_population_consistency = pre_population_consistencies[
-        config.population_consistency_metric
+    pre_population_metric = pre_population_metrics[
+        config.population_metric
     ]
 
     # Create the cp model
@@ -1089,7 +1089,7 @@ def solve_and_output_results(
         groups_b=groups_b,
     )
 
-    population_consistency_metric = setup_population_capacity(
+    population_metric = setup_population_metric(
         model=model,
         config=config,
         matches=matches,
@@ -1102,9 +1102,9 @@ def solve_and_output_results(
         model=model,
         config=config,
         dissimilarity_index=dissimilarity_index,
-        population_consistency_metric=population_consistency_metric,
+        population_metric=population_metric,
         pre_dissimilarity=pre_dissimilarity,
-        pre_population_consistency=pre_population_consistency,
+        pre_population_metric=pre_population_metric,
     )
     print("Solving ...")
     solver = cp_model.CpSolver()
@@ -1121,7 +1121,7 @@ def solve_and_output_results(
 
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
-        f"{config.dissimilarity_weight},{config.population_consistency_weight}_"
+        f"{config.dissimilarity_weight},{config.population_metric_weight}_"
         f"{constants.STATUSES[status]}_{solver.WallTime():.5f}s_"
         f"{solver.NumBranches()}_{solver.NumConflicts()}"
     )
@@ -1138,7 +1138,7 @@ def solve_and_output_results(
             s3_bucket=s3_bucket,
             pre_dissim_wnw=pre_dissim_wnw,
             pre_dissim_bh_wa=pre_dissim_bh_wa,
-            pre_population_consistencies=pre_population_consistencies,
+            pre_population_metrics=pre_population_metrics,
         )
 
     else:
@@ -1158,8 +1158,8 @@ if __name__ == "__main__":
     #     config.Config.custom_config(
     #         district=config.District("MA", "2508700"),
     #         dissimilarity_weight=0,
-    #         population_consistency_weight=1,
-    #         population_consistency_metric="average_difference",
+    #         population_metric_weight=1,
+    #         population_metric="average_difference",
     #         dissimilarity_flavor="bh_wa",
     #     )
     # )

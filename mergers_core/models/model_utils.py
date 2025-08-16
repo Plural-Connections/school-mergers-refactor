@@ -286,7 +286,7 @@ def compute_dissimilarity_metrics(school_clusters, num_per_cat_per_school):
     return dissim_val, bh_wa_dissim_val
 
 
-def compute_population_consistencies(df_schools_in_play, num_per_cat_per_school):
+def compute_population_metrics(df_schools_in_play, num_per_cat_per_school):
     school_capacities = df_schools_in_play.set_index("NCESSCH")[
         "student_capacity"
     ].to_dict()
@@ -381,7 +381,7 @@ def check_solution_validity_and_compute_outcomes(
         school_clusters, num_per_cat_per_school
     )
 
-    population_consistencies = compute_population_consistencies(
+    population_metrics = compute_population_metrics(
         df_schools_in_play, num_per_cat_per_school
     )
 
@@ -400,7 +400,7 @@ def check_solution_validity_and_compute_outcomes(
     return (
         dissim_val,
         bh_wa_dissim_val,
-        population_consistencies,
+        population_metrics,
         num_per_cat_per_school,
         num_per_school_per_grade_per_cat,
         num_total_students,
@@ -433,7 +433,7 @@ def output_solver_solution(
     s3_bucket,
     pre_dissim_wnw,
     pre_dissim_bh_wa,
-    pre_population_consistencies,
+    pre_population_metrics,
 ):
     maybe_load_large_files(config.district.state)
 
@@ -478,7 +478,7 @@ def output_solver_solution(
         (
             post_dissim_wnw,
             post_dissim_bh_wa,
-            post_population_consistencies,
+            post_population_metrics,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -496,11 +496,11 @@ def output_solver_solution(
         header.write_json(os.path.join(output_dir, "errors.json"), errors)
         return
 
-    pre_population_consistency = pre_population_consistencies[
-        config.population_consistency_metric
+    pre_population_metric = pre_population_metrics[
+        config.population_metric
     ]
-    post_population_consistency = post_population_consistencies[
-        config.population_consistency_metric
+    post_population_metric = post_population_metrics[
+        config.population_metric
     ]
 
     # Output results
@@ -529,9 +529,9 @@ def output_solver_solution(
     print(f"dissim{' ' * 14}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
     print(f"dissim{' ' * 12}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}")
 
-    for metric in pre_population_consistencies.keys():
+    for metric in pre_population_metrics.keys():
         stats = present_stat(
-            pre_population_consistencies[metric], post_population_consistencies[metric]
+            pre_population_metrics[metric], post_population_metrics[metric]
         )
         print(f"pop{(20 - len(metric)) * ' '}{metric}: {stats}")
 
@@ -595,7 +595,7 @@ def produce_post_solver_files(
 ):
     # Compute pre/post dissim and other outcomes of interest
     try:
-        pre_dissim, pre_dissim_bh_wa, pre_population_consistencies, _, _, _, _, _, _ = (
+        pre_dissim, pre_dissim_bh_wa, pre_population_metrics, _, _, _, _, _, _ = (
             check_solution_validity_and_compute_outcomes(
                 df_mergers_g, df_grades, df_schools_in_play, state
             )
@@ -604,7 +604,7 @@ def produce_post_solver_files(
         (
             post_dissim,
             post_dissim_bh_wa,
-            post_population_consistencies,
+            post_population_metrics,
             num_per_cat_per_school,
             num_per_school_per_grade_per_cat,
             num_total_students,
@@ -633,8 +633,8 @@ def produce_post_solver_files(
             "post_dissim",
             "pre_dissim_bh_wa",
             "post_dissim_bh_wa",
-            "pre_population_consistencies",
-            "post_population_consistencies",
+            "pre_population_metrics",
+            "post_population_metrics",
         ]
     }
     data_to_output.update(num_total_students)
@@ -650,13 +650,13 @@ def produce_post_solver_files(
 
     print()
 
-    print(f"Used metric {constants.POPULATION_CONSISTENCY_METRIC}")
-    print("Pre population consistencies:")
-    for metric in pre_population_consistencies:
-        print(f"\t{metric}: {pre_population_consistencies[metric]}")
-    print("Post population consistencies:")
-    for metric in post_population_consistencies:
-        print(f"\t{metric}: {post_population_consistencies[metric]}")
+    print(f"Used metric {constants.POPULATION_METRIC}")
+    print("Pre population metrics:")
+    for metric in pre_population_metrics:
+        print(f"\t{metric}: {pre_population_metrics[metric]}")
+    print("Post population metrics:")
+    for metric in post_population_metrics:
+        print(f"\t{metric}: {post_population_metrics[metric]}")
 
     print()
 

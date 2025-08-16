@@ -49,8 +49,8 @@ class Config:
         "school_increase_threshold": [0.1],
         "school_decrease_threshold": [0.2, 1.0],
         "dissimilarity_weight": [0, 1],
-        "population_consistency_weight": [0, 1],
-        "population_consistency_metric": [
+        "population_metric_weight": [0, 1],
+        "population_metric": [
             # "median",
             "average_difference",
             # "median_difference",
