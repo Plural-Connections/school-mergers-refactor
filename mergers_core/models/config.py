@@ -4,6 +4,20 @@ import typing
 import pandas as pd
 import itertools
 from collections import namedtuple
+import json
+
+
+class District(namedtuple("District", ["state", "id"])):
+    def __str__(self):
+        return f"{self.state}-{self.id}"
+
+    def __repr__(self):
+        return f"District(state={self.state}, id={self.id})"
+
+    @classmethod
+    def from_string(cls, string: str):
+        state, id = string.split("-")
+        return cls(state=state, id=id)
 
 
 def _load_district_list(
@@ -21,7 +35,10 @@ def _load_district_list(
     if district_count:
         df = df.head(district_count)
 
-    return df[["id", "state"]].itertuples(index=False, name="District")
+    return (
+        District(*row)
+        for row in df[["state", "id"]].itertuples(index=False, name="District")
+    )
 
 
 # Each Config object will have a member for each of the keys in possible_configs with
@@ -44,13 +61,19 @@ class Config:
         "write_to_s3": [False],
     }
 
+    def __str__(self):
+        configuration = self.to_dict()
+        configuration["district"] = str(configuration["district"])
+        return json.dumps(configuration, indent=4).strip("{}").replace('"', "")[:-1]
+
+    def __repr__(self):
+        return f"Config({self.__dict__!r})"
+
     def __init__(self, configs_file: str, entry_index: int):
-        conf = pd.read_csv(configs_file)
-        conf["district"] = conf[["id", "state"]].apply(
-            lambda series: Config.district(*series), axis=1
-        )
         self.__dict__.update(
-            conf.drop(["id", "state"], axis=1).iloc[entry_index].to_dict()
+            pd.read_csv(configs_file, converters={"district": District.from_string})
+            .iloc[entry_index]
+            .to_dict()
         )
 
     # Get a default config and override any elements you'd like.
@@ -60,10 +83,6 @@ class Config:
         config.__dict__.update({k: v[0] for k, v in cls.possible_configs.items()})
         config.__dict__.update(kwargs)
         return config
-
-    @staticmethod
-    def district(state: str, district_id: str):
-        return namedtuple("District", ["state", "id"])(state, district_id)
 
     def to_dict(self):
         result = self.__dict__.copy()
@@ -76,10 +95,7 @@ class Config:
 
 def generate_all_configs():
     os.makedirs("data/sweep_configs", exist_ok=True)
-    result = pd.DataFrame(
+    pd.DataFrame(
         itertools.product(*Config.possible_configs.values()),
         columns=Config.possible_configs.keys(),
-    )
-    result.join(
-        result["district"].apply(pd.Series).set_axis(["id", "state"], axis=1)
-    ).drop("district", axis=1).to_csv("data/sweep_configs/configs.csv", index=False)
+    ).to_csv("data/sweep_configs/configs.csv", index=False)
