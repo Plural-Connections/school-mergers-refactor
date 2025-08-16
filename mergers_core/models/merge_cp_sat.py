@@ -77,6 +77,7 @@ def load_and_process_data(
         "data", "solver_files", "2122", config.district.state, "school_enrollments.csv"
     )
     df_schools, _ = _load_and_filter_nces_schools(enrollment_file, [config.district.id])
+    print(f"Loaded {len(df_schools)} schools.")
 
     unique_schools = list(set(df_schools["NCESSCH"].tolist()))
 
@@ -1126,7 +1127,7 @@ def solve_and_output_results(
     )
     output_dir = f"data/results/{config.district.state}/{config.district.id}/{this_result_dirname}"
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        print(f"Status is {constants.STATUSES[status]}")
+        print(f"Status is {constants.STATUSES[status]}.")
         output_solver_solution(
             config=config,
             solver=solver,
@@ -1153,12 +1154,13 @@ def solve_and_output_results(
 
 
 if __name__ == "__main__":
-    solve_and_output_results(
-        config.Config.custom_config(
-            district=config.District("MA", "2508700"),
-            dissimilarity_weight=0,
-            population_consistency_weight=1,
-            population_consistency_metric="average_difference",
-            dissimilarity_flavor="bh_wa",
-        )
-    )
+    # solve_and_output_results(
+    #     config.Config.custom_config(
+    #         district=config.District("MA", "2508700"),
+    #         dissimilarity_weight=0,
+    #         population_consistency_weight=1,
+    #         population_consistency_metric="average_difference",
+    #         dissimilarity_flavor="bh_wa",
+    #     )
+    # )
+    solve_and_output_results(config.Config("data/sweep_configs/configs.csv"))
