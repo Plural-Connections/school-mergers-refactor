@@ -21,31 +21,37 @@ class District(namedtuple("District", ["state", "id"])):
 
 
 def _load_district_list(
-    filename: str,
+    filename: str,  # a csv file with a 'district' column
     school_count_lower_bound: typing.Optional[int] = None,  # inclusive
     district_count: typing.Optional[int] = None,
 ):
-    df = pd.read_csv(filename, dtype={"id": str})
-    if not min:
-        df = df[::-1]
 
-    if school_count_lower_bound and "num_schools" in df:
+    df = pd.read_csv(
+        filename, converters={"id": District.from_string}, index_col="district"
+    )
+
+    if "num_schools" not in df:
+        schools_per_district = pd.read_csv(
+            "data/all_schools.csv",
+            converters={"district": District.from_string},
+            index_col="district",
+        )
+        df = df.join(schools_per_district).sort_values(by="num_schools")
+
+    if school_count_lower_bound:
         df = df[df["num_schools"] >= school_count_lower_bound]
 
     if district_count:
         df = df.head(district_count)
 
-    return (
-        District(*row)
-        for row in df[["state", "id"]].itertuples(index=False, name="District")
-    )
+    return df.index
 
 
 # Each Config object will have a member for each of the keys in possible_configs with
 # its value in possible_configs[key].
 class Config:
     possible_configs = {
-        "district": list(_load_district_list("data/top_200_districts.csv")),
+        "district": list(_load_district_list("data/all_schools.csv")),
         "school_increase_threshold": [0.1],
         "school_decrease_threshold": [0.2, 1.0],
         "dissimilarity_weight": [0, 1],
@@ -96,9 +102,21 @@ class Config:
         return result
 
 
-def generate_all_configs():
+def generate_all_configs(min_schools: typing.Optional[int] = 4):
     os.makedirs("data/sweep_configs", exist_ok=True)
-    pd.DataFrame(
+    configs = pd.DataFrame(
         itertools.product(*Config.possible_configs.values()),
         columns=Config.possible_configs.keys(),
-    ).to_csv("data/sweep_configs/configs.csv", index=False)
+    )
+    # must optimize for one metric
+    configs = configs[
+        ~(
+            (configs["dissimilarity_weight"] == 0)
+            & (configs["population_metric_weight"] == 0)
+        )
+    ]
+    print(
+        f"Generated {len(configs)} configs for "
+        f"{len(Config.possible_configs["district"])} schools."
+    )
+    configs.to_csv("data/sweep_configs/configs.csv", index=False)
