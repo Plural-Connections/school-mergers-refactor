@@ -1,4 +1,5 @@
 import mergers_core.utils.header as header
+import sys
 import traceback
 import mergers_core.models.constants as constants
 import pandas as pd
@@ -9,6 +10,7 @@ import json
 from pathlib import Path
 import glob
 import shutil
+import mergers_core.models.config as config
 
 DF_BLOCKS = None
 TRAVEL_TIMES = None
@@ -348,7 +350,7 @@ def _count_switching_students(school_cluster_lists, df_grades, df_schools_in_pla
 
 
 def check_solution_validity_and_compute_outcomes(
-    df_mergers_, df_grades_, df_schools_in_play, state
+    df_mergers_, df_grades_, df_schools_in_play
 ):
     df_mergers = df_mergers_.copy(deep=True)
     df_grades = df_grades_.copy(deep=True)
@@ -422,58 +424,17 @@ def maybe_load_large_files(state):
         print("Loaded large files.")
 
 
-def output_solver_solution(
+def output_analytics(
     *,
     config,
-    solver,
-    matches,
-    grades_interval_binary,
-    df_schools_in_play,
     output_dir,
-    s3_bucket,
+    df_mergers_g,
+    df_grades,
+    df_schools_in_play,
     pre_dissim_wnw,
     pre_dissim_bh_wa,
     pre_population_metrics,
 ):
-    maybe_load_large_files(config.district.state)
-
-    # Extract solver variables
-    match_data = {"school_1": [], "school_2": []}
-    grades_served_data = {"NCESSCH": []} | {
-        g: [] for g in constants.GRADE_TO_INDEX.keys()
-    }
-    for school in matches:
-        for school_2 in matches[school]:
-            val = solver.BooleanValue(matches[school][school_2])
-            if val:
-                match_data["school_1"].append(school)
-                match_data["school_2"].append(school_2)
-
-        grades_served_data["NCESSCH"].append(school)
-        for idx, grade in enumerate(constants.GRADE_TO_INDEX.keys()):
-            val = solver.BooleanValue(grades_interval_binary[school][idx])
-            grades_served_data[grade].append(val)
-
-    if config.write_to_s3:
-        output_dir = s3_bucket + output_dir
-    else:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-    df_mergers = pd.DataFrame(match_data)
-    df_mergers_g = (
-        df_mergers.groupby("school_1", as_index=False)
-        .agg({"school_2": ", ".join})
-        .drop_duplicates(subset="school_2")
-        .drop(columns=["school_1"])
-        .rename(columns={"school_2": "school_cluster"})
-    )
-    df_grades = pd.DataFrame(grades_served_data)
-    df_mergers_g.to_csv(os.path.join(output_dir, "school_mergers.csv"), index=False)
-    df_grades.to_csv(os.path.join(output_dir, "grades_served.csv"), index=False)
-    df_schools_in_play.to_csv(
-        os.path.join(output_dir, "schools_in_play.csv"), index=False
-    )
-
-    # Compute post-solver outcomes of interest
     try:
         (
             post_dissim_wnw,
@@ -486,7 +447,7 @@ def output_solver_solution(
             num_students_switching_per_school,
             travel_time_impacts,
         ) = check_solution_validity_and_compute_outcomes(
-            df_mergers_g, df_grades, df_schools_in_play, config.district.state
+            df_mergers_g, df_grades, df_schools_in_play
         )
 
     except Exception as e:
@@ -574,84 +535,175 @@ def output_solver_solution(
                 json.dump(thing, file)
 
 
-def produce_post_solver_files_parallel(
-    batch="min_elem_4_interdistrict_bottom_sensitivity",
-    solutions_dir="data/results/{}/",
+def output_solver_solution(
+    *,
+    config,
+    solver,
+    matches,
+    grades_interval_binary,
+    df_schools_in_play,
+    output_dir,
+    s3_bucket,
+    pre_dissim_wnw,
+    pre_dissim_bh_wa,
+    pre_population_metrics,
 ):
-    # Compute pre/post dissim and other outcomes of interest
+    maybe_load_large_files(config.district.state)
+
+    # Extract solver variables
+    match_data = {"school_1": [], "school_2": []}
+    grades_served_data = {"NCESSCH": []} | {
+        g: [] for g in constants.GRADE_TO_INDEX.keys()
+    }
+    for school in matches:
+        for school_2 in matches[school]:
+            val = solver.BooleanValue(matches[school][school_2])
+            if val:
+                match_data["school_1"].append(school)
+                match_data["school_2"].append(school_2)
+
+        grades_served_data["NCESSCH"].append(school)
+        for idx, grade in enumerate(constants.GRADE_TO_INDEX.keys()):
+            val = solver.BooleanValue(grades_interval_binary[school][idx])
+            grades_served_data[grade].append(val)
+
+    if config.write_to_s3:
+        output_dir = s3_bucket + output_dir
+    else:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+    df_mergers = pd.DataFrame(match_data)
+    df_mergers_g = (
+        df_mergers.groupby("school_1", as_index=False)
+        .agg({"school_2": ", ".join})
+        .drop_duplicates(subset="school_2")
+        .drop(columns=["school_1"])
+        .rename(columns={"school_2": "school_cluster"})
+    )
+    df_grades = pd.DataFrame(grades_served_data)
+    df_mergers_g.to_csv(os.path.join(output_dir, "school_mergers.csv"), index=False)
+    df_grades.to_csv(os.path.join(output_dir, "grades_served.csv"), index=False)
+    df_schools_in_play.to_csv(
+        os.path.join(output_dir, "schools_in_play.csv"), index=False
+    )
+
+    output_analytics(
+        config=config,
+        output_dir=output_dir,
+        df_mergers_g=df_mergers_g,
+        df_grades=df_grades,
+        df_schools_in_play=df_schools_in_play,
+        pre_dissim_wnw=pre_dissim_wnw,
+        pre_dissim_bh_wa=pre_dissim_bh_wa,
+        pre_population_metrics=pre_population_metrics,
+    )
+
+
+def produce_post_solver_files_parallel(solutions_dir):
+    assert len(solutions_dir.split("/")) == 3
+
+    schools_in_district = defaultdict(list)
+
     all_jobs = []
-    for state in os.listdir(solutions_dir.format(batch)):
-        if "consolidated" in state:
-            continue
-        for district_id in os.path.join(solutions_dir.format(batch), state):
-            try:
-                curr_dir = os.path.join(
-                    solutions_dir.format(batch),
-                    state,
-                    district_id,
+    for solution in glob.glob(solutions_dir + "/*/*/*"):
+        _, _, _, state, id, run_dir = solution.split("/")
+        directory = Path(solution)
+        district = config.District(state=state, id=id)
+        print(f"processing {district}: {directory}")
+        # parse run_dir for as much as we can
+        decrease_threshold, weights, _, _, _, _ = run_dir.split("_")
+        dissim_weight, pop_weight = weights.split(",")
+        this_config = config.Config.custom_config()
+
+        if "analytics.csv" in directory.iterdir():
+            # check the config in analytics.csv
+            analytics = pd.read_csv(directory / "analytics.csv")[
+                list(config.Config.possible_configs.keys())
+            ].iloc[0]
+            if (
+                analytics["district"] != district
+                or analytics["dissimilarity_weight"] != dissim_weight
+                or analytics["population_metric_weight"] != pop_weight
+                or analytics["school_decrease_threshold"] != decrease_threshold
+            ):
+                print(
+                    f"warning: {district} run {run_dir}'s analytics.csv disagrees with"
+                    f"its run_dir",
+                    file=sys.stderr,
                 )
-                soln_dirs = os.listdir(curr_dir)
-                for dir in soln_dirs:
-                    if ".html" in dir:
-                        continue
-                    this_dir = os.path.join(curr_dir, dir)
-                    df_mergers_g = pd.read_csv(
-                        glob.glob(
-                            os.path.join(
-                                this_dir,
-                                "**/**" + "school_mergers.csv",
-                            ),
-                            recursive=True,
-                        )[0],
-                        dtype=str,
-                    )
-                    df_grades = pd.read_csv(
-                        glob.glob(
-                            os.path.join(
-                                this_dir,
-                                "**/**" + "grades_served.csv",
-                            ),
-                            recursive=True,
-                        )[0],
-                        dtype={"NCESSCH": str},
-                    )
-                    df_schools_in_play = pd.read_csv(
-                        glob.glob(
-                            os.path.join(
-                                this_dir,
-                                "**/**" + "schools_in_play.csv",
-                            ),
-                            recursive=True,
-                        )[0],
-                        dtype={"NCESSCH": str},
-                    )
-                    this_dir_root = this_dir.split("/")[-1].split("_")
-                    interdistrict = False if this_dir_root[0] == "False" else True
-                    school_decrease_threshold = float(this_dir_root[1])
+            analytics["district"] = district
+            analytics["dissimilarity_weight"] = dissim_weight
+            analytics["population_metric_weight"] = pop_weight
+            analytics["school_decrease_threshold"] = decrease_threshold
+            this_config = config.Config.custom_config(**analytics.to_dict())
 
-                    all_jobs.append(
-                        (
-                            df_mergers_g,
-                            df_grades,
-                            df_schools_in_play,
-                            state,
-                            district_id,
-                            school_decrease_threshold,
-                            interdistrict,
-                            os.path.join(curr_dir, dir, ""),
-                        )
-                    )
+        df_mergers_g = pd.read_csv(
+            directory / "school_mergers.csv", dtype={"school_cluster": str}
+        )
+        df_grades = pd.read_csv(directory / "grades_served.csv", dtype={"NCESSCH": str})
+        df_schools_in_play = pd.read_csv(
+            directory / "schools_in_play.csv", dtype={"NCESSCH": str}
+        )
 
-            except Exception as e:
-                print(f"Exception {state}, {district_id}, {e}")
-                pass
+        df_schools_in_play_ = df_schools_in_play.set_index("NCESSCH")
+        num_per_cat_per_school = {
+            category: {
+                school_id: sum(
+                    df_schools_in_play_.loc[
+                        school_id,
+                        [
+                            f"{category}_{grade}"
+                            for grade in constants.GRADE_TO_INDEX.keys()
+                        ],
+                    ]
+                )
+                for school_id in df_schools_in_play_.index
+            }
+            for category in constants.RACE_KEYS.values()
+        }
+
+        pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
+            schools_in_district[district], num_per_cat_per_school
+        )
+
+        pre_population_metrics = compute_population_metrics(
+            df_schools_in_play, num_per_cat_per_school
+        )
+
+        all_jobs.append(
+            (
+                this_config,
+                directory / "analytics.csv",
+                df_mergers_g,
+                df_grades,
+                df_schools_in_play,
+                pre_dissim_wnw,
+                pre_dissim_bh_wa,
+                pre_population_metrics,
+            )
+        )
 
     print("Starting parallel processing ...")
+    print("Configurations:")
+    print(
+        pd.DataFrame(
+            all_jobs,
+            columns=[
+                "config",
+                "output",
+                "mergers_g",
+                "all_grades",
+                "schools",
+                "pre_dissim_wnw",
+                "pre_dissim_bh_wa",
+                "pre_pop_metrics",
+            ],
+        )
+    )
     from multiprocessing import Pool
 
     N_THREADS = 10
     p = Pool(N_THREADS)
-    p.starmap(output_solver_solution, all_jobs)
+    p.starmap(output_analytics, all_jobs)
 
     p.terminate()
     p.join()
@@ -731,5 +783,5 @@ def compare_batch_totals(
 
 
 if __name__ == "__main__":
-    produce_post_solver_files_parallel()
-    consolidate_results_files()
+    produce_post_solver_files_parallel("data/results/top-200")
+    # consolidate_results_files()

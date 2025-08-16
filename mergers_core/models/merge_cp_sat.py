@@ -2,7 +2,7 @@ from ortools.sat.python import cp_model
 import mergers_core.utils.header as header
 import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import (
-    output_solver_solution,
+    output_analytics,
     compute_dissimilarity_metrics,
     compute_population_metrics,
 )
@@ -991,8 +991,7 @@ def set_objective(
         f" + {ratio.denominator} * population metric"
     )
     optimize_function(
-        ratio.numerator * dissimilarity_index
-        + ratio.denominator * population_metric
+        ratio.numerator * dissimilarity_index + ratio.denominator * population_metric
     )
 
 
@@ -1057,9 +1056,7 @@ def solve_and_output_results(
         ]
         groups_b = ["white"]
 
-    pre_population_metric = pre_population_metrics[
-        config.population_metric
-    ]
+    pre_population_metric = pre_population_metrics[config.population_metric]
 
     # Create the cp model
     model = cp_model.CpModel()
@@ -1128,7 +1125,7 @@ def solve_and_output_results(
     output_dir = f"data/results/{config.district.state}/{config.district.id}/{this_result_dirname}"
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Status is {constants.STATUSES[status]}.")
-        output_solver_solution(
+        output_analytics(
             config=config,
             solver=solver,
             matches=matches,
