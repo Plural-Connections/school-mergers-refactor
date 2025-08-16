@@ -69,12 +69,15 @@ class Config:
     def __repr__(self):
         return f"Config({self.__dict__!r})"
 
-    def __init__(self, configs_file: str, entry_index: int):
-        self.__dict__.update(
-            pd.read_csv(configs_file, converters={"district": District.from_string})
-            .iloc[entry_index]
-            .to_dict()
+    def __init__(self, configs_file: str, entry_index: typing.Optional[int] = None):
+        configs = pd.read_csv(
+            configs_file, converters={"district": District.from_string}
         )
+        if entry_index:
+            config = configs.iloc[entry_index].to_dict()
+        else:
+            config = configs.sample(1).iloc[0].to_dict()
+        self.__dict__.update(config)
 
     # Get a default config and override any elements you'd like.
     @classmethod
