@@ -45,15 +45,12 @@ class Config:
     }
 
     def __init__(self, configs_file: str, entry_index: int):
+        conf = pd.read_csv(configs_file)
+        conf["district"] = conf[["id", "state"]].apply(
+            lambda series: Config.district(*series), axis=1
+        )
         self.__dict__.update(
-            pd.read_csv(
-                configs_file,
-                header=None,
-                names=self.possible_configs.keys(),
-                dtype=self.possible_configs,
-            )
-            .iloc[entry_index]
-            .to_dict()
+            conf.drop(["id", "state"], axis=1).iloc[entry_index].to_dict()
         )
 
     # Get a default config and override any elements you'd like.
@@ -72,19 +69,17 @@ class Config:
         result = self.__dict__.copy()
         for k in list(result.keys()):
             if k not in self.possible_configs:
-                print(f"warning: {k} not a possible config", file=sys.stderr)
+                print(f"warning: '{k}' is not a config key", file=sys.stderr)
                 result.pop(k)
         return result
 
 
 def generate_all_configs():
+    os.makedirs("data/sweep_configs", exist_ok=True)
     result = pd.DataFrame(
         itertools.product(*Config.possible_configs.values()),
         columns=Config.possible_configs.keys(),
-    ).drop(["district_id", "state"])
-    result = result.join(
-        result["district_id_and_state"].apply(lambda x: pd.Series(x._asdict()))
-    ).drop("district_id_and_state", axis=1)
-
-    os.makedirs("data/sweep_configs", exist_ok=True)
-    pd.to_csv(result, "data/sweep_configs/configs.csv")
+    )
+    result.join(
+        result["district"].apply(pd.Series).set_axis(["id", "state"], axis=1)
+    ).drop("district", axis=1).to_csv("data/sweep_configs/configs.csv", index=False)
