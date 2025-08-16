@@ -496,12 +496,8 @@ def output_solver_solution(
         header.write_json(os.path.join(output_dir, "errors.json"), errors)
         return
 
-    pre_population_metric = pre_population_metrics[
-        config.population_metric
-    ]
-    post_population_metric = post_population_metrics[
-        config.population_metric
-    ]
+    pre_population_metric = pre_population_metrics[config.population_metric]
+    post_population_metric = post_population_metrics[config.population_metric]
 
     # Output results
     data_to_output = {
@@ -576,119 +572,6 @@ def output_solver_solution(
         for name, thing in impacts.items():
             with open(os.path.join(output_dir, name + ".json"), "w") as file:
                 json.dump(thing, file)
-
-
-"""
-Produces post solver / analysis files in case the jobs running on the server failed to produce some
-"""
-
-
-def produce_post_solver_files(
-    df_mergers_g,
-    df_grades,
-    df_schools_in_play,
-    state,
-    district_id,
-    school_decrease_threshold,
-    interdistrict,
-    output_dir,
-):
-    # Compute pre/post dissim and other outcomes of interest
-    try:
-        pre_dissim, pre_dissim_bh_wa, pre_population_metrics, _, _, _, _, _, _ = (
-            check_solution_validity_and_compute_outcomes(
-                df_mergers_g, df_grades, df_schools_in_play, state
-            )
-        )
-
-        (
-            post_dissim,
-            post_dissim_bh_wa,
-            post_population_metrics,
-            num_per_cat_per_school,
-            num_per_school_per_grade_per_cat,
-            num_total_students,
-            num_students_switching,
-            num_students_switching_per_school,
-            travel_time_impacts,
-        ) = check_solution_validity_and_compute_outcomes(
-            df_mergers_g, df_grades, df_schools_in_play, state
-        )
-
-    except Exception as e:
-        print(f"ERROR!!!! {e}")
-        errors = {"error_message": str(e)}
-        header.write_json(os.path.join(output_dir, "errors.json"), errors)
-        return
-
-    # Output results
-    data_to_output = {
-        name: locals()[name]
-        for name in [
-            "state",
-            "district_id",
-            "school_decrease_threshold",
-            "interdistrict",
-            "pre_dissim",
-            "post_dissim",
-            "pre_dissim_bh_wa",
-            "post_dissim_bh_wa",
-            "pre_population_metrics",
-            "post_population_metrics",
-        ]
-    }
-    data_to_output.update(num_total_students)
-    data_to_output.update(num_students_switching)
-    data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
-    data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
-    data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
-
-    print(f"Pre dissim: {pre_dissim}")
-    print(f"Post dissim: {post_dissim}")
-    print(f"Pre bh-wa dissim: {pre_dissim_bh_wa}")
-    print(f"Post bh-wa dissim: {post_dissim_bh_wa}")
-
-    print()
-
-    print(f"Used metric {constants.POPULATION_METRIC}")
-    print("Pre population metrics:")
-    for metric in pre_population_metrics:
-        print(f"\t{metric}: {pre_population_metrics[metric]}")
-    print("Post population metrics:")
-    for metric in post_population_metrics:
-        print(f"\t{metric}: {post_population_metrics[metric]}")
-
-    print()
-
-    try:
-        print(
-            f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all']}\n",
-            f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60}\n",
-            f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
-            f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
-        )
-    except Exception:
-        pass
-
-    things_to_output = travel_time_impacts | {
-        name: locals()[name]
-        for name in [
-            "num_per_school_per_grade_per_cat",
-            "num_per_cat_per_school",
-            "num_students_switching_per_school",
-        ]
-    }
-
-    try:
-        pd.DataFrame(data_to_output, index=[0]).to_csv(
-            os.path.join(output_dir, "analytics.csv"), index=False
-        )
-
-        for name, value in things_to_output.items():
-            header.write_dict(os.path.join(output_dir, name), value)
-
-    except Exception:
-        pass
 
 
 def produce_post_solver_files_parallel(
@@ -768,7 +651,7 @@ def produce_post_solver_files_parallel(
 
     N_THREADS = 10
     p = Pool(N_THREADS)
-    p.starmap(produce_post_solver_files, all_jobs)
+    p.starmap(output_solver_solution, all_jobs)
 
     p.terminate()
     p.join()
