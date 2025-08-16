@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 import os
 from fractions import Fraction
-from mergers_core.models.config import Config
+import mergers_core.models.config as config
 
 
 def _load_and_filter_nces_schools(
@@ -41,7 +41,7 @@ def _load_and_filter_nces_schools(
 
 
 def load_and_process_data(
-    config: Config,
+    config: config.Config,
 ) -> tuple[
     dict[str, int],
     dict[str, list[str]],
@@ -334,7 +334,7 @@ def _get_students_at_school(
 
 def set_constraints(
     model: cp_model.CpModel,
-    config: Config,
+    config: config.Config,
     school_capacities: dict[str, int],
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
     permissible_matches: dict[str, list[str]],
@@ -634,7 +634,7 @@ def calculate_dissimilarity(
 
     dissimilarity_terms = []
     for school in matches:
-        # --- Calculate Student Counts for the New School Configuration ---
+        # --- Calculate Student Counts for the New School config.Configuration ---
         # Sum the number of A and B students that will be assigned to the
         # building of 'school'.
         total_a_students_at_school = []
@@ -818,7 +818,7 @@ def _median(
 
 def setup_population_capacity(
     model: cp_model.CpModel,
-    config: Config,
+    config: config.Config,
     matches: dict[str, dict[str, cp_model.IntVar]],
     grades_interval_binary: dict[str, list[cp_model.IntVar]],
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
@@ -933,7 +933,7 @@ def setup_population_capacity(
 def set_objective(
     *,
     model: cp_model.CpModel,
-    config: Config,
+    config: config.Config,
     dissimilarity_index: cp_model.IntVar,
     population_consistency_metric: cp_model.IntVar,
     pre_dissimilarity: float,
@@ -956,15 +956,15 @@ def set_objective(
     else:
         optimize_function = model.Maximize
 
+    obj = "⇣" if config.minimize else "⇡"
+
     if config.population_consistency_weight == 0:
-        print(
-            f"Objective function: minimize dissimilarity ({config.dissimilarity_flavor})"
-        )
+        print(f"Objective: {obj} dissimilarity ({config.dissimilarity_flavor})")
         optimize_function(dissimilarity_index)
         return
 
     if config.dissimilarity_weight == 0:
-        print("Objective function: minimize population_consistency_metric")
+        print(f"Objective: {obj} population consistency")
         optimize_function(population_consistency_metric)
         return
 
@@ -985,9 +985,9 @@ def set_objective(
     ratio = ratio.limit_denominator(1000)
 
     print(
-        f"Objective function: {'minimize' if config.minimize else 'maximize'}"
+        f"Objective: {obj}"
         f" {ratio.numerator} * dissimilarity ({config.dissimilarity_flavor})"
-        f" + {ratio.denominator} * population_consistency_metric"
+        f" + {ratio.denominator} * population consistency"
     )
     optimize_function(
         ratio.numerator * dissimilarity_index
@@ -996,7 +996,7 @@ def set_objective(
 
 
 def solve_and_output_results(
-    config: Config,
+    config: config.Config,
     s3_bucket: str = "s3://school-mergers/",
 ) -> None:
     """Main function to run the school merger optimization.
@@ -1014,14 +1014,7 @@ def solve_and_output_results(
         config: The configuration for this run.
         s3_bucket: The S3 bucket to write the results to.
     """
-    print(
-        f"""Settings:
-        school: {config.district.id} in {config.district.state}
-        school decrease threshold: {config.school_decrease_threshold}
-        weights: {config.dissimilarity_weight} {config.population_consistency_weight}
-        metric & flavor: {config.population_consistency_metric} {config.dissimilarity_flavor}
-        minimize: {config.minimize}"""
-    )
+    print(f"Settings: {config}")
 
     (
         school_capacities,
@@ -1121,7 +1114,7 @@ def solve_and_output_results(
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
 
-    solver.parameters.log_search_progress = True
+    # solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)
 
@@ -1161,8 +1154,8 @@ def solve_and_output_results(
 
 if __name__ == "__main__":
     solve_and_output_results(
-        Config.custom_config(
-            district=Config.district("MA", "2508700"),
+        config.Config.custom_config(
+            district=config.District("MA", "2508700"),
             dissimilarity_weight=0,
             population_consistency_weight=1,
             population_consistency_metric="average_difference",
