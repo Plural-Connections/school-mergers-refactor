@@ -520,20 +520,20 @@ def output_solver_solution(
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
-    print(f"Pre dissim (wnw): {pre_dissim_wnw}")
-    print(f"Post dissim (wnw): {post_dissim_wnw}")
-    print(f"Pre dissim (bh-wa): {pre_dissim_bh_wa}")
-    print(f"Post dissim (bh-wa): {post_dissim_bh_wa}")
+    present_stat = (
+        lambda pre, post: f"{pre:.4f} -> {post:.4f}"
+        f" ({(post - pre) / pre * 100:+06.2f}%)"
+    )
 
     print()
+    print(f"dissim{' ' * 14}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
+    print(f"dissim{' ' * 12}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}")
 
-    print(f"Used metric {config.population_consistency_metric}")
-    print("Pre population consistencies:")
-    for metric, value in pre_population_consistencies.items():
-        print(f"\t{metric}: {value}")
-    print("Post population consistencies:")
-    for metric, value in post_population_consistencies.items():
-        print(f"\t{metric}: {value}")
+    for metric in pre_population_consistencies.keys():
+        stats = present_stat(
+            pre_population_consistencies[metric], post_population_consistencies[metric]
+        )
+        print(f"pop{(20 - len(metric)) * ' '}{metric}: {stats}")
 
     print()
 
