@@ -13,6 +13,7 @@ from pathlib import Path
 import os
 from fractions import Fraction
 import mergers_core.models.config as config
+import json
 
 
 def _load_and_filter_nces_schools(
@@ -925,6 +926,7 @@ def setup_population_metric(
         )
 
     return {
+        "average": average_percentage,
         "median": median,
         "average_difference": average_difference,
         "median_difference": median_difference,
@@ -1014,7 +1016,12 @@ def solve_and_output_results(
         config: The configuration for this run.
         s3_bucket: The S3 bucket to write the results to.
     """
-    print(f"Settings: {config}")
+    config_as_dict = config.to_dict()
+    config_as_dict["district"] = str(config_as_dict["district"])
+    config_pretty = (
+        json.dumps(config_as_dict, indent=4).strip("{}").replace('"', "")[:-1]
+    )
+    print(f"Settings: {config_pretty}")
 
     (
         school_capacities,
