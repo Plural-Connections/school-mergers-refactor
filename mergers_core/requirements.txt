@@ -11,3 +11,5 @@ scikit-learn
 tldextract
 black
 ortools
+orjson
+tqdm
