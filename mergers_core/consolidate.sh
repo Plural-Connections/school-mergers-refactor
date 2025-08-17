@@ -20,17 +20,20 @@ echo "using batch $batchname"
 files=($batchname/**/analytics.csv)
 files=($(ls -t "${files[@]}"))
 head -n 1 "${files[0]}" > $batchname.csv  # get csv column names once
-tail -q -n +2 "${files[@]}" >> $batchname.csv  # skip csv column names
+tail -q -n +2 "${files[@]}" | cut -d, -f -40 >> $batchname.csv  # skip csv column names
 
 lines_pre=$(wc -l $batchname.csv | awk '{print $1}')
 python3 <<EOF
 import pandas as pd
-columns_to_deduplicate = ["district_id", "state", "school_decrease_threshold", "dissimilarity_weight",
-                          "population_consistency_weight", "population_consistency_metric",
+columns_to_deduplicate = ["district", "school_decrease_threshold", "dissimilarity_weight",
+                          "population_metric_weight", "population_metric",
                           "dissimilarity_flavor"]
 df = pd.read_csv("${batchname}.csv")
-duplicates = df[df.duplicated(subset=columns_to_deduplicate, keep=False)][columns_to_deduplicate].drop_duplicates()
-df = df.drop_duplicates(subset=columns_to_deduplicate, keep="first")
+print(df[columns_to_deduplicate])
+duplicated = df.duplicated(subset=columns_to_deduplicate, keep=False)
+duplicates = df[duplicated][columns_to_deduplicate].drop_duplicates()
+print(df[duplicated])
+df = df[~duplicated]
 print(f"dropped {$lines_pre - len(df) - 1} line(s):\n{duplicates}")
 df.to_csv("${batchname}.csv", index=False)
 EOF
