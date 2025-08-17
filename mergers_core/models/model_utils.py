@@ -644,21 +644,20 @@ def produce_post_solver_files_parallel(solutions_dir):
         )
 
         df_schools_in_play_ = df_schools_in_play.set_index("NCESSCH")
-        num_per_cat_per_school = {
-            category: {
-                school_id: sum(
-                    df_schools_in_play_.loc[
-                        school_id,
-                        [
-                            f"{category}_{grade}"
-                            for grade in constants.GRADE_TO_INDEX.keys()
-                        ],
-                    ]
+        num_per_cat_per_school = {}
+        for category in constants.RACE_KEYS.values():
+            # Get all grade columns for the current category
+            grade_cols = [
+                f"{category}_{grade}"
+                for grade in constants.GRADE_TO_INDEX
+                if f"{category}_{grade}" in df_schools_in_play_.columns
+            ]
+
+            if grade_cols:
+                # Sum across the grade columns for all schools at once
+                num_per_cat_per_school[category] = (
+                    df_schools_in_play_[grade_cols].sum(axis=1).to_dict()
                 )
-                for school_id in df_schools_in_play_.index
-            }
-            for category in constants.RACE_KEYS.values()
-        }
 
         pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
             schools_in_district[district], num_per_cat_per_school
