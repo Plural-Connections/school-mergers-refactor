@@ -2,7 +2,7 @@ from ortools.sat.python import cp_model
 import mergers_core.utils.header as header
 import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import (
-    output_analytics,
+    output_solver_solution,
     compute_dissimilarity_metrics,
     compute_population_metrics,
 )
@@ -1125,7 +1125,7 @@ def solve_and_output_results(
     output_dir = f"data/results/{config.district.state}/{config.district.id}/{this_result_dirname}"
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Status is {constants.STATUSES[status]}.")
-        output_analytics(
+        output_solver_solution(
             config=config,
             solver=solver,
             matches=matches,
