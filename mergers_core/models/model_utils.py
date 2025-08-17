@@ -11,6 +11,8 @@ from pathlib import Path
 import glob
 import shutil
 import mergers_core.models.config as config
+import orjson
+import tqdm
 
 DF_BLOCKS = None
 TRAVEL_TIMES = None
@@ -300,7 +302,12 @@ def compute_population_metrics(df_schools_in_play, num_per_cat_per_school):
             percentages[school] = population / capacity
 
     if not percentages:
-        return {"median": 0, "average_difference": 0, "median_difference": 0}
+        return {
+            "average": 0,
+            "median": 0,
+            "average_difference": 0,
+            "median_difference": 0,
+        }
 
     list_percentages = list(percentages.values())
     average_percentage = np.mean(list_percentages)
@@ -308,6 +315,7 @@ def compute_population_metrics(df_schools_in_play, num_per_cat_per_school):
     average_difference = np.mean(differences)
 
     return {
+        "average": average_percentage,
         "median": np.median(list_percentages),
         "average_difference": average_difference,
         "median_difference": np.median(differences),
@@ -418,10 +426,10 @@ def maybe_load_large_files(state):
         DF_BLOCKS = pd.read_csv(
             constants.BLOCKS_FILE.format(state),
             dtype={"ncessch": str, "block_id": str},
+            engine="pyarrow",
         )
-        TRAVEL_TIMES = header.read_json(constants.TRAVEL_TIMES_FILE.format(state))
-
-        print("Loaded large files.")
+        with open(constants.TRAVEL_TIMES_FILE.format(state)) as f:
+            TRAVEL_TIMES = orjson.loads(f.read())
 
 
 def output_analytics(
@@ -433,7 +441,12 @@ def output_analytics(
     pre_dissim_wnw,
     pre_dissim_bh_wa,
     pre_population_metrics,
+    *,
+    print_to_stdout=True,
 ):
+    maybe_load_large_files(config.district.state)
+    os.makedirs(output_dir, exist_ok=True)
+
     try:
         (
             post_dissim_wnw,
@@ -456,8 +469,35 @@ def output_analytics(
         header.write_json(os.path.join(output_dir, "errors.json"), errors)
         return
 
-    pre_population_metric = pre_population_metrics[config.population_metric]
-    post_population_metric = post_population_metrics[config.population_metric]
+    present_stat = (
+        lambda pre, post: f"{pre:.4f} -> {post:.4f}"
+        f" ({(post - pre) / pre * 100:+06.2f}%)"
+    )
+
+    if print_to_stdout:
+        print(f"dissim{' ' * 14}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
+        print(
+            f"dissim{' ' * 12}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}"
+        )
+
+        for metric in pre_population_metrics.keys():
+            stats = present_stat(
+                pre_population_metrics[metric], post_population_metrics[metric]
+            )
+            print(f"pop{(20 - len(metric)) * ' '}{metric}: {stats}")
+
+        print()
+
+        try:
+            print(
+                f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all'] * 100:+06.2f}\n",
+                f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60:.4f}\n",
+                f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
+                f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
+            )
+        except (KeyError, ZeroDivisionError) as e:
+            print(f"Could not print travel time stats: {e}")
+            traceback.print_exc()
 
     # Output results
     data_to_output = {
@@ -470,43 +510,21 @@ def output_analytics(
         ]
     }
     data_to_output.update(config.to_dict())
+    data_to_output.update(
+        {"pre_population_" + k: v for k, v in pre_population_metrics.items()}
+    )
+    data_to_output.update(
+        {"post_population_" + k: v for k, v in post_population_metrics.items()}
+    )
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
     data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
 
-    present_stat = (
-        lambda pre, post: f"{pre:.4f} -> {post:.4f}"
-        f" ({(post - pre) / pre * 100:+06.2f}%)"
-    )
-
-    print()
-    print(f"dissim{' ' * 14}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
-    print(f"dissim{' ' * 12}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}")
-
-    for metric in pre_population_metrics.keys():
-        stats = present_stat(
-            pre_population_metrics[metric], post_population_metrics[metric]
-        )
-        print(f"pop{(20 - len(metric)) * ' '}{metric}: {stats}")
-
-    print()
-
-    try:
-        print(
-            f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all']}\n",
-            f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60}\n",
-            f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
-            f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60}",
-        )
-    except (KeyError, ZeroDivisionError) as e:
-        print(f"Could not print travel time stats: {e}")
-        traceback.print_exc()
-
     # We need to do this dictionary comprehension because otherwise pandas sees the
-    # district namedtuple and decides that the dataframe must have two rows, which we
-    # don't want.
+    # district namedtuple in the config and decides that the dataframe must have two
+    # rows, which we don't want.
     pd.DataFrame({k: [v] for k, v in data_to_output.items()}, index=[0]).to_csv(
         os.path.join(output_dir, "analytics.csv"), index=False
     )
@@ -597,27 +615,34 @@ def output_solver_solution(
     )
 
 
+def _wrapper(args):
+    output_analytics(*args, print_to_stdout=False)
+
+
 def produce_post_solver_files_parallel(solutions_dir):
     assert len(solutions_dir.split("/")) == 3
 
-    schools_in_district = defaultdict(list)
-
     all_jobs = []
-    for solution in glob.glob(solutions_dir + "/*/*/*"):
+    for solution in tqdm.tqdm(glob.glob(solutions_dir + "/*/*/*"), desc="generate"):
         _, _, _, state, id, run_dir = solution.split("/")
         directory = Path(solution)
         district = config.District(state=state, id=id)
-        print(f"processing {district}: {directory}")
         # parse run_dir for as much as we can
         decrease_threshold, weights, _, _, _, _ = run_dir.split("_")
         dissim_weight, pop_weight = weights.split(",")
-        this_config = config.Config.custom_config()
+        this_config = config.Config.custom_config(
+            district=district,
+            school_decrease_threshold=decrease_threshold,
+            dissimilarity_weight=dissim_weight,
+            population_metric_weight=pop_weight,
+        )
 
         if "analytics.csv" in directory.iterdir():
             # check the config in analytics.csv
-            analytics = pd.read_csv(directory / "analytics.csv")[
-                list(config.Config.possible_configs.keys())
-            ].iloc[0]
+            analytics = pd.read_csv(
+                directory / "analytics.csv",
+                converters={"district": config.District.from_string},
+            )[list(config.Config.possible_configs.keys())].iloc[0]
             if (
                 analytics["district"] != district
                 or analytics["dissimilarity_weight"] != dissim_weight
@@ -660,7 +685,7 @@ def produce_post_solver_files_parallel(solutions_dir):
                 )
 
         pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
-            schools_in_district[district], num_per_cat_per_school
+            df_schools_in_play["NCESSCH"], num_per_cat_per_school
         )
 
         pre_population_metrics = compute_population_metrics(
@@ -670,7 +695,7 @@ def produce_post_solver_files_parallel(solutions_dir):
         all_jobs.append(
             (
                 this_config,
-                directory / "analytics.csv",
+                directory,
                 df_mergers_g,
                 df_grades,
                 df_schools_in_play,
@@ -680,31 +705,14 @@ def produce_post_solver_files_parallel(solutions_dir):
             )
         )
 
-    print("Starting parallel processing ...")
-    print("Configurations:")
-    print(
-        pd.DataFrame(
-            all_jobs,
-            columns=[
-                "config",
-                "output",
-                "mergers_g",
-                "all_grades",
-                "schools",
-                "pre_dissim_wnw",
-                "pre_dissim_bh_wa",
-                "pre_pop_metrics",
-            ],
-        )
+    from tqdm.contrib.concurrent import process_map
+
+    process_map(
+        _wrapper,
+        all_jobs,
+        chunksize=1,
+        desc="run",
     )
-    from multiprocessing import Pool
-
-    N_THREADS = 10
-    p = Pool(N_THREADS)
-    p.starmap(output_analytics, all_jobs)
-
-    p.terminate()
-    p.join()
 
 
 def consolidate_results_files(
