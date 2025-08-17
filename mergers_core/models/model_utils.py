@@ -425,7 +425,6 @@ def maybe_load_large_files(state):
 
 
 def output_analytics(
-    *,
     config,
     output_dir,
     df_mergers_g,
