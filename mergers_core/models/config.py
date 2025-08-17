@@ -4,7 +4,6 @@ import typing
 import pandas as pd
 import itertools
 from collections import namedtuple
-import json
 
 
 class District(namedtuple("District", ["state", "id"])):
@@ -27,7 +26,9 @@ def _load_district_list(
 ):
 
     df = pd.read_csv(
-        filename, converters={"id": District.from_string}, index_col="district"
+        filename,
+        converters={"district": District.from_string},
+        index_col="district",
     )
 
     if "num_schools" not in df:
@@ -51,12 +52,13 @@ def _load_district_list(
 # its value in possible_configs[key].
 class Config:
     possible_configs = {
-        "district": list(_load_district_list("data/all_schools.csv")),
+        "district": list(_load_district_list("data/all_schools.csv", 5)),
         "school_increase_threshold": [0.1],
         "school_decrease_threshold": [0.2, 1.0],
         "dissimilarity_weight": [0, 1],
         "population_metric_weight": [0, 1],
         "population_metric": [
+            # "average",
             # "median",
             "average_difference",
             # "median_difference",
@@ -68,9 +70,7 @@ class Config:
     }
 
     def __str__(self):
-        configuration = self.to_dict()
-        configuration["district"] = str(configuration["district"])
-        return json.dumps(configuration, indent=4).strip("{}").replace('"', "")[:-1]
+        return f"{self.__dict__}"
 
     def __repr__(self):
         return f"Config({self.__dict__!r})"
