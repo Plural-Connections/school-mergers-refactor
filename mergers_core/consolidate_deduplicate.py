@@ -1,8 +1,11 @@
 # Run by consolidate.sh
 
 import pandas as pd
+import sys
 
-df = pd.read_csv("${batchname}.csv", dtype={"district": str})
+
+batchname = sys.argv[1]
+df = pd.read_csv(f"{batchname}.csv", dtype={"district": str})
 columns_to_deduplicate = [
     "district",
     "school_decrease_threshold",
@@ -25,4 +28,4 @@ if dropped_count > 0:
     print(dropped_keys)
 
 df = df[~duplicated_mask]
-df.to_csv("${batchname}.csv", index=False)
+df.to_csv(f"{batchname}.csv", index=False)

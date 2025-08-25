@@ -6,7 +6,7 @@ shopt -s globstar
 # the output is called <batchname>.csv where batchname is the only batch in ../data/results or
 # the first argument if there are multiple present
 
-cd ../data/results
+pushd ../data/results > /dev/null
 batches=(*)
 
 if [[ ${#batches[@]} -gt 1 && -z $1 ]]; then
@@ -19,21 +19,9 @@ echo "using batch $batchname"
 
 files=($batchname/**/analytics.csv)
 files=($(ls -t "${files[@]}"))
+echo "header is from ${files[0]}"
 head -n 1 "${files[0]}" > $batchname.csv  # get csv column names once
 tail -q -n +2 "${files[@]}" | cut -d, -f -40 >> $batchname.csv  # skip csv column names
 
-lines_pre=$(wc -l $batchname.csv | awk '{print $1}')
-python3 <<EOF
-import pandas as pd
-columns_to_deduplicate = ["district", "school_decrease_threshold", "dissimilarity_weight",
-                          "population_metric_weight", "population_metric",
-                          "dissimilarity_flavor"]
-df = pd.read_csv("${batchname}.csv")
-print(df[columns_to_deduplicate])
-duplicated = df.duplicated(subset=columns_to_deduplicate, keep=False)
-duplicates = df[duplicated][columns_to_deduplicate].drop_duplicates()
-print(df[duplicated])
-df = df[~duplicated]
-print(f"dropped {$lines_pre - len(df) - 1} line(s):\n{duplicates}")
-df.to_csv("${batchname}.csv", index=False)
-EOF
+popd > /dev/null
+# python3 consolidate_deduplicate.py $batchname
