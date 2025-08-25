@@ -19,16 +19,16 @@ def compute_stats(df):
     final_df = pd.DataFrame(
         np.zeros((3, 10), dtype=np.float64),
         columns=[
-            "med %Δdissim",
-            "avg %Δdissim",
-            "med %Δpop (avg)",
-            "avg %Δpop (avg)",
-            "med %Δpop (med)",
-            "avg %Δpop (med)",
-            "med %Δpop (avgΔ)",
-            "avg %Δpop (avgΔ)",
-            "med %Δpop (medΔ)",
-            "avg %Δpop (medΔ)",
+            "m %Δdissim",
+            "a %Δdissim",
+            "m %Δpop (a)",
+            "a %Δpop (a)",
+            "m %Δpop (m)",
+            "a %Δpop (m)",
+            "m %Δpop (aΔ)",
+            "a %Δpop (aΔ)",
+            "m %Δpop (mΔ)",
+            "a %Δpop (mΔ)",
         ],
     )
     for stat_index, row in enumerate([dissim_rows, pop_rows, both_rows]):
@@ -72,13 +72,19 @@ def compute_stats(df):
     return final_df
 
 
+print("m = median; a = average; SDT = school decrease threshold")
+
 df = pd.read_csv("../data/results/top-200.csv")
+stats = pd.concat(
+    [
+        compute_stats(df[df["school_decrease_threshold"] == 0.2]),
+        compute_stats(df[df["school_decrease_threshold"] == 1.0]),
+        compute_stats(df),
+    ],
+    keys=["0.2", "1.0", "all"],
+)
+stats.index.names = ["SDT", "objective"]
 
-print("runs with a capacity lower bound of 80%:")
-print(compute_stats(df[df["school_decrease_threshold"] == 0.2]))
-
-print("\nruns with a capacity lower bound of 0%:")
-print(compute_stats(df[df["school_decrease_threshold"] == 1.0]))
-
-print("\nall runs:")
-print(compute_stats(df))
+print(stats)
+print(stats.to_csv(None, float_format="%.6f").strip())
+stats.to_csv("stats.csv", float_format="%.6f")
