@@ -619,93 +619,125 @@ def _wrapper(args):
     output_analytics(*args, print_to_stdout=False)
 
 
+def _prepare_job(solution):
+    _, _, _, state, id, run_dir = solution.split("/")
+    directory = Path(solution)
+    district = config.District(state=state, id=id)
+    # parse run_dir for as much as we can
+    decrease_threshold, weights, _, _, _, _ = run_dir.split("_")
+    dissim_weight, pop_weight = weights.split(",")
+
+    dissim_weight = int(dissim_weight)
+    pop_weight = int(pop_weight)
+    decrease_threshold = float(decrease_threshold)
+
+    this_config = config.Config.custom_config(
+        district=district,
+        school_decrease_threshold=decrease_threshold,
+        dissimilarity_weight=dissim_weight,
+        population_metric_weight=pop_weight,
+    )
+
+    if (directory / "analytics.csv").exists():
+        # check the config in analytics.csv
+        analytics = pd.read_csv(
+            directory / "analytics.csv",
+            converters={"district": config.District.from_string},
+        )
+        config_keys = set(config.Config.possible_configs.keys()) & set(
+            analytics.columns
+        )
+        configuration = analytics.iloc[0][list(config_keys)]
+        if (
+            configuration["district"] != district
+            or configuration["dissimilarity_weight"] != dissim_weight
+            or configuration["population_metric_weight"] != pop_weight
+            or configuration["school_decrease_threshold"] != decrease_threshold
+        ):
+            print(
+                f"warning: {district} run {run_dir}'s analytics.csv disagrees with "
+                f"its run_dir",
+                file=sys.stderr,
+            )
+            print(f"    run_dir: {run_dir}", file=sys.stderr)
+            print(f"    config: {this_config}", file=sys.stderr)
+            print(f"    analytics.csv:\n{configuration}", file=sys.stderr)
+
+            if configuration["district"] != district:
+                print("    district mismatch", file=sys.stderr)
+
+            if configuration["dissimilarity_weight"] != dissim_weight:
+                print("    dissimilarity_weight mismatch", file=sys.stderr)
+
+            if configuration["population_metric_weight"] != pop_weight:
+                print("    population_metric_weight mismatch", file=sys.stderr)
+
+            if configuration["school_decrease_threshold"] != decrease_threshold:
+                print("    school_decrease_threshold mismatch", file=sys.stderr)
+
+        configuration["district"] = district
+        configuration["dissimilarity_weight"] = dissim_weight
+        configuration["population_metric_weight"] = pop_weight
+        configuration["school_decrease_threshold"] = decrease_threshold
+        this_config = config.Config.custom_config(**configuration.to_dict())
+
+    df_mergers_g = pd.read_csv(
+        directory / "school_mergers.csv", dtype={"school_cluster": str}
+    )
+    df_grades = pd.read_csv(directory / "grades_served.csv", dtype={"NCESSCH": str})
+    df_schools_in_play = pd.read_csv(
+        directory / "schools_in_play.csv", dtype={"NCESSCH": str}
+    )
+
+    df_schools_in_play_ = df_schools_in_play.set_index("NCESSCH")
+    num_per_cat_per_school = {}
+    for category in constants.RACE_KEYS.values():
+        # Get all grade columns for the current category
+        grade_cols = [
+            f"{category}_{grade}"
+            for grade in constants.GRADE_TO_INDEX
+            if f"{category}_{grade}" in df_schools_in_play_.columns
+        ]
+
+        if grade_cols:
+            # Sum across the grade columns for all schools at once
+            num_per_cat_per_school[category] = (
+                df_schools_in_play_[grade_cols].sum(axis=1).to_dict()
+            )
+
+    pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
+        df_schools_in_play["NCESSCH"], num_per_cat_per_school
+    )
+
+    pre_population_metrics = compute_population_metrics(
+        df_schools_in_play, num_per_cat_per_school
+    )
+
+    return (
+        this_config,
+        directory,
+        df_mergers_g,
+        df_grades,
+        df_schools_in_play,
+        pre_dissim_wnw,
+        pre_dissim_bh_wa,
+        pre_population_metrics,
+    )
+
+
 def produce_post_solver_files_parallel(solutions_dir):
     assert len(solutions_dir.split("/")) == 3
 
-    all_jobs = []
-    for solution in tqdm.tqdm(glob.glob(solutions_dir + "/*/*/*"), desc="generate"):
-        _, _, _, state, id, run_dir = solution.split("/")
-        directory = Path(solution)
-        district = config.District(state=state, id=id)
-        # parse run_dir for as much as we can
-        decrease_threshold, weights, _, _, _, _ = run_dir.split("_")
-        dissim_weight, pop_weight = weights.split(",")
-        this_config = config.Config.custom_config(
-            district=district,
-            school_decrease_threshold=decrease_threshold,
-            dissimilarity_weight=dissim_weight,
-            population_metric_weight=pop_weight,
-        )
-
-        if "analytics.csv" in directory.iterdir():
-            # check the config in analytics.csv
-            analytics = pd.read_csv(
-                directory / "analytics.csv",
-                converters={"district": config.District.from_string},
-            )[list(config.Config.possible_configs.keys())].iloc[0]
-            if (
-                analytics["district"] != district
-                or analytics["dissimilarity_weight"] != dissim_weight
-                or analytics["population_metric_weight"] != pop_weight
-                or analytics["school_decrease_threshold"] != decrease_threshold
-            ):
-                print(
-                    f"warning: {district} run {run_dir}'s analytics.csv disagrees with"
-                    f"its run_dir",
-                    file=sys.stderr,
-                )
-            analytics["district"] = district
-            analytics["dissimilarity_weight"] = dissim_weight
-            analytics["population_metric_weight"] = pop_weight
-            analytics["school_decrease_threshold"] = decrease_threshold
-            this_config = config.Config.custom_config(**analytics.to_dict())
-
-        df_mergers_g = pd.read_csv(
-            directory / "school_mergers.csv", dtype={"school_cluster": str}
-        )
-        df_grades = pd.read_csv(directory / "grades_served.csv", dtype={"NCESSCH": str})
-        df_schools_in_play = pd.read_csv(
-            directory / "schools_in_play.csv", dtype={"NCESSCH": str}
-        )
-
-        df_schools_in_play_ = df_schools_in_play.set_index("NCESSCH")
-        num_per_cat_per_school = {}
-        for category in constants.RACE_KEYS.values():
-            # Get all grade columns for the current category
-            grade_cols = [
-                f"{category}_{grade}"
-                for grade in constants.GRADE_TO_INDEX
-                if f"{category}_{grade}" in df_schools_in_play_.columns
-            ]
-
-            if grade_cols:
-                # Sum across the grade columns for all schools at once
-                num_per_cat_per_school[category] = (
-                    df_schools_in_play_[grade_cols].sum(axis=1).to_dict()
-                )
-
-        pre_dissim_wnw, pre_dissim_bh_wa = compute_dissimilarity_metrics(
-            df_schools_in_play["NCESSCH"], num_per_cat_per_school
-        )
-
-        pre_population_metrics = compute_population_metrics(
-            df_schools_in_play, num_per_cat_per_school
-        )
-
-        all_jobs.append(
-            (
-                this_config,
-                directory,
-                df_mergers_g,
-                df_grades,
-                df_schools_in_play,
-                pre_dissim_wnw,
-                pre_dissim_bh_wa,
-                pre_population_metrics,
-            )
-        )
-
     from tqdm.contrib.concurrent import process_map
+
+    solutions = glob.glob(solutions_dir + "/*/*/*")
+
+    all_jobs = process_map(
+        _prepare_job,
+        solutions,
+        chunksize=1,
+        desc="generate",
+    )
 
     process_map(
         _wrapper,
