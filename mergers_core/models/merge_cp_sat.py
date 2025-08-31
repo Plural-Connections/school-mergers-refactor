@@ -847,8 +847,7 @@ def setup_population_metric(
         sum(
             value
             for school in students_per_grade_per_school.values()
-            for grade in school.values()
-            for value in grade
+            for value in school["num_total"]
         )
         / sum(school_capacities.values())
         * constants.SCALING[0]
