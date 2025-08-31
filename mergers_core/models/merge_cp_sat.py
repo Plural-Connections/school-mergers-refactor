@@ -1131,7 +1131,7 @@ def solve_and_output_results(
         )
 
     else:
-        print("Status: ", status)
+        print(f"Status is {constants.STATUSES[status]}.")
         print(model.Validate())
         result = {"status": status}
         df_r = pd.DataFrame(result, index=[0])
