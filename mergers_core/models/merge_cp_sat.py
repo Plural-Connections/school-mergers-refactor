@@ -454,15 +454,11 @@ def set_constraints(
                 for i in constants.GRADE_TO_INDEX.values()
             ]
         )
-        enrollment_lower_bound = int(
-            constants.SCALING[0]
-            * np.round(
-                (1 - config.school_decrease_threshold) * school_current_population,
-                decimals=constants.SCALING[1],
-            )
+        enrollment_lower_bound = round(
+            (1 - config.school_decrease_threshold) * school_current_population,
         )
         model.Add(
-            constants.SCALING[0] * students_at_each_school[school1]
+            students_at_each_school[school1]
             >= enrollment_lower_bound
         )
 
@@ -1139,13 +1135,12 @@ def solve_and_output_results(
 
 
 if __name__ == "__main__":
-    # solve_and_output_results(
-    #     config.Config.custom_config(
-    #         district=config.District("MA", "2508700"),
-    #         dissimilarity_weight=0,
-    #         population_metric_weight=1,
-    #         population_metric="average_divergence",
-    #         dissimilarity_flavor="bh_wa",
-    #     )
-    # )
-    solve_and_output_results(config.Config("data/sweep_configs/configs.csv"))
+    solve_and_output_results(
+        config.Config.custom_config(
+            district=config.District("WA", "5302850"),
+            dissimilarity_weight=0,
+            population_metric_weight=1,
+            population_metric="average_divergence",
+        )
+    )
+    # solve_and_output_results(config.Config("data/sweep_configs/configs.csv"))
