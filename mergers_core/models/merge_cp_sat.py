@@ -449,18 +449,12 @@ def set_constraints(
         )
 
         school_current_population = sum(
-            [
-                students_per_grade_per_school[school1]["num_total"][i]
-                for i in constants.GRADE_TO_INDEX.values()
-            ]
+            students_per_grade_per_school[school1]["num_total"]
         )
         enrollment_lower_bound = round(
             (1 - config.school_decrease_threshold) * school_current_population,
         )
-        model.Add(
-            students_at_each_school[school1]
-            >= enrollment_lower_bound
-        )
+        model.Add(students_at_each_school[school1] >= enrollment_lower_bound)
 
     for school1 in matches:
         for school2 in matches[school1]:
