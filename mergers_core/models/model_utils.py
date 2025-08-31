@@ -12,7 +12,6 @@ import glob
 import shutil
 import mergers_core.models.config as config
 import orjson
-import tqdm
 
 DF_BLOCKS = None
 TRAVEL_TIMES = None
