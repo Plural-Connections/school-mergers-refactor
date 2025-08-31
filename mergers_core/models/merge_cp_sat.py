@@ -893,18 +893,12 @@ def setup_population_metric(
         model.AddAbsEquality(difference, percentages[school] - district_utilization)
         differences.append(difference)
 
-    average_divergence = model.NewIntVar(0, constants.SCALING[0], "average_divergence")
-    sum_differences_var = model.NewIntVar(
+    sum_differences = model.NewIntVar(
         0,
         len(differences) * constants.SCALING[0],
         "sum_differences_var",
     )
-    model.Add(sum_differences_var == sum(differences))
-    model.AddDivisionEquality(
-        average_divergence,
-        sum_differences_var,
-        len(differences),
-    )
+    model.Add(sum_differences == sum(differences))
 
     median_divergence = None
     if config.population_metric == "median_divergence":
@@ -913,7 +907,9 @@ def setup_population_metric(
         )
 
     return {
-        "average_divergence": average_divergence,
+        # Dividing by the number of schools to get the actual average won't change the
+        # optimization results.
+        "average_divergence": sum_differences,
         "median_divergence": median_divergence,
     }[config.population_metric]
 
