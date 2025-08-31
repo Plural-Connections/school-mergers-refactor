@@ -58,10 +58,8 @@ class Config:
         "dissimilarity_weight": [0, 1],
         "population_metric_weight": [0, 1],
         "population_metric": [
-            # "average",
-            # "median",
-            "average_difference",
-            # "median_difference",
+            "average_divergence",
+            # "median_divergence",
         ],
         "minimize": [True],
         "dissimilarity_flavor": ["bh_wa", "wnw"],

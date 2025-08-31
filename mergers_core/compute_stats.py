@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 
-POPULATION_METRIC = "median_difference"
+POPULATION_METRIC = "median_divergence"
 
 
 def compute_stats(df):
@@ -44,19 +44,19 @@ def compute_stats(df):
         post_pop_median = np.array(row["post_population_median"])
         Δpop_median = (post_pop_median - pre_pop_median) / pre_pop_median
 
-        pre_pop_average_difference = np.array(row["pre_population_average_difference"])
-        post_pop_average_difference = np.array(
-            row["post_population_average_difference"]
+        pre_pop_average_divergence = np.array(row["pre_population_average_divergence"])
+        post_pop_average_divergence = np.array(
+            row["post_population_average_divergence"]
         )
-        Δpop_average_difference = (
-            post_pop_average_difference - pre_pop_average_difference
-        ) / pre_pop_average_difference
+        Δpop_average_divergence = (
+            post_pop_average_divergence - pre_pop_average_divergence
+        ) / pre_pop_average_divergence
 
-        pre_pop_median_difference = np.array(row["pre_population_median_difference"])
-        post_pop_median_difference = np.array(row["post_population_median_difference"])
-        Δpop_median_difference = (
-            post_pop_median_difference - pre_pop_median_difference
-        ) / pre_pop_median_difference
+        pre_pop_median_divergence = np.array(row["pre_population_median_divergence"])
+        post_pop_median_divergence = np.array(row["post_population_median_divergence"])
+        Δpop_median_divergence = (
+            post_pop_median_divergence - pre_pop_median_divergence
+        ) / pre_pop_median_divergence
 
         final_df.loc[stat_index] = [
             np.median(Δdissim) * 100,
@@ -65,10 +65,10 @@ def compute_stats(df):
             np.mean(Δpop_median) * 100,
             np.median(Δpop_average) * 100,
             np.mean(Δpop_average) * 100,
-            np.median(Δpop_average_difference) * 100,
-            np.mean(Δpop_average_difference) * 100,
-            np.median(Δpop_median_difference) * 100,
-            np.mean(Δpop_median_difference) * 100,
+            np.median(Δpop_average_divergence) * 100,
+            np.mean(Δpop_average_divergence) * 100,
+            np.median(Δpop_median_divergence) * 100,
+            np.mean(Δpop_median_divergence) * 100,
         ]
     final_df.index = ["dissim", "pop", "both"]
     return final_df

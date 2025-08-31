@@ -843,7 +843,18 @@ def setup_population_metric(
     Returns:
         A LinearExpr that represents the population consistency index.
     """
-    school_population_variables = {
+    district_utilization = int(
+        sum(
+            value
+            for school in students_per_grade_per_school.values()
+            for grade in school.values()
+            for value in grade
+        )
+        / sum(school_capacities.values())
+        * constants.SCALING[0]
+    )
+
+    school_populations = {
         school: sum(
             _get_students_at_school(
                 model,
@@ -856,57 +867,34 @@ def setup_population_metric(
         for school in matches
     }
 
-    percentages: dict[str, cp_model.IntVar] = dict()
-    for school in matches:
-        percentage = model.NewIntVar(
+    percentages = {
+        school: model.NewIntVar(
             0,
             constants.SCALING[0],
-            f"{school}_capacity_percentage",
+            f"{school}_percentage",
         )
-
-        numerator_expr = constants.SCALING[0] * school_population_variables[school]
-        numerator_var = model.NewIntVar(
+        for school in matches
+    }
+    for school, percentage in percentages.items():
+        numerator = model.NewIntVar(
             0,
             constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-            f"{school}_numerator_var",
+            f"{school}_numerator",
         )
-        model.Add(numerator_var == numerator_expr)
+        model.Add(numerator == school_populations[school] * constants.SCALING[0])
         model.AddDivisionEquality(
             percentage,
-            numerator_var,
+            numerator,
             school_capacities[school],
-        )
-        percentages.update({school: percentage})
-
-    average_percentage = model.NewIntVar(0, constants.SCALING[0], "average_percentage")
-    sum_percentages_var = model.NewIntVar(
-        0,
-        len(percentages) * constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-        "sum_percentages_var",
-    )
-    model.Add(sum_percentages_var == sum(percentages.values()))
-    model.AddDivisionEquality(
-        average_percentage,
-        sum_percentages_var,
-        len(percentages),
-    )
-
-    median = None
-    if config.population_metric == "median":
-        median = _median(
-            model,
-            list(percentages.values()),
-            constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-            "pop_capacity",
         )
 
     differences = []
     for school in matches:
         difference = model.NewIntVar(0, constants.SCALING[0], f"{school}_difference")
-        model.AddAbsEquality(difference, percentages[school] - average_percentage)
+        model.AddAbsEquality(difference, percentages[school] - district_utilization)
         differences.append(difference)
 
-    average_difference = model.NewIntVar(0, constants.SCALING[0], "average_difference")
+    average_divergence = model.NewIntVar(0, constants.SCALING[0], "average_divergence")
     sum_differences_var = model.NewIntVar(
         0,
         len(differences) * constants.SCALING[0],
@@ -914,22 +902,20 @@ def setup_population_metric(
     )
     model.Add(sum_differences_var == sum(differences))
     model.AddDivisionEquality(
-        average_difference,
+        average_divergence,
         sum_differences_var,
         len(differences),
     )
 
-    median_difference = None
-    if config.population_metric == "median_difference":
-        median_difference = _median(
+    median_divergence = None
+    if config.population_metric == "median_divergence":
+        median_divergence = _median(
             model, differences, constants.SCALING[0], "median_diff"
         )
 
     return {
-        "average": average_percentage,
-        "median": median,
-        "average_difference": average_difference,
-        "median_difference": median_difference,
+        "average_divergence": average_divergence,
+        "median_divergence": median_divergence,
     }[config.population_metric]
 
 
@@ -1163,7 +1149,7 @@ if __name__ == "__main__":
     #         district=config.District("MA", "2508700"),
     #         dissimilarity_weight=0,
     #         population_metric_weight=1,
-    #         population_metric="average_difference",
+    #         population_metric="average_divergence",
     #         dissimilarity_flavor="bh_wa",
     #     )
     # )

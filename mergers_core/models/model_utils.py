@@ -305,20 +305,20 @@ def compute_population_metrics(df_schools_in_play, num_per_cat_per_school):
         return {
             "average": 0,
             "median": 0,
-            "average_difference": 0,
-            "median_difference": 0,
+            "average_divergence": 0,
+            "median_divergence": 0,
         }
 
     list_percentages = list(percentages.values())
     average_percentage = np.mean(list_percentages)
     differences = [np.abs(p - average_percentage) for p in list_percentages]
-    average_difference = np.mean(differences)
+    average_divergence = np.mean(differences)
 
     return {
         "average": average_percentage,
         "median": np.median(list_percentages),
-        "average_difference": average_difference,
-        "median_difference": np.median(differences),
+        "average_divergence": average_divergence,
+        "median_divergence": np.median(differences),
     }
 
 
