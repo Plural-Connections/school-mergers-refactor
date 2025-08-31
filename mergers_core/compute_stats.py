@@ -33,29 +33,31 @@ def compute_stats(df):
     )
     for stat_index, row in enumerate([dissim_rows, pop_rows, both_rows]):
         pre_dissim = np.array(row["pre_dissim_bh_wa"])
-        Δdissim = (np.array(row["post_dissim_bh_wa"]) - pre_dissim) / pre_dissim
+        post_dissim = np.array(row["post_dissim_bh_wa"])
+        Δdissim = (post_dissim - pre_dissim) / pre_dissim
 
         pre_pop_average = np.array(row["pre_population_average"])
-        Δpop_average = (
-            np.array(row["post_population_average"]) - pre_pop_average
-        ) / pre_pop_average
+        post_pop_average = np.array(row["post_population_average"])
+        Δpop_average = (post_pop_average - pre_pop_average) / pre_pop_average
 
         pre_pop_median = np.array(row["pre_population_median"])
-        Δpop_median = (
-            np.array(row["post_population_median"]) - pre_pop_median
-        ) / pre_pop_median
+        post_pop_median = np.array(row["post_population_median"])
+        Δpop_median = (post_pop_median - pre_pop_median) / pre_pop_median
 
         pre_pop_average_difference = np.array(row["pre_population_average_difference"])
+        post_pop_average_difference = np.array(
+            row["post_population_average_difference"]
+        )
         Δpop_average_difference = (
-            np.array(row["post_population_average_difference"])
-            - pre_pop_average_difference
+            post_pop_average_difference - pre_pop_average_difference
         ) / pre_pop_average_difference
 
         pre_pop_median_difference = np.array(row["pre_population_median_difference"])
+        post_pop_median_difference = np.array(row["post_population_median_difference"])
         Δpop_median_difference = (
-            np.array(row["post_population_median_difference"])
-            - pre_pop_median_difference
+            post_pop_median_difference - pre_pop_median_difference
         ) / pre_pop_median_difference
+
         final_df.loc[stat_index] = [
             np.median(Δdissim) * 100,
             np.mean(Δdissim) * 100,
@@ -75,6 +77,7 @@ def compute_stats(df):
 print("m = median; a = average; SDT = school decrease threshold")
 
 df = pd.read_csv("../data/results/top-200.csv")
+df1 = df[df[""] == "bh_wa"]
 stats = pd.concat(
     [
         compute_stats(df[df["school_decrease_threshold"] == 0.2]),
@@ -86,5 +89,4 @@ stats = pd.concat(
 stats.index.names = ["SDT", "objective"]
 
 print(stats)
-print(stats.to_csv(None, float_format="%.6f").strip())
 stats.to_csv("stats.csv", float_format="%.6f")
