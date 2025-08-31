@@ -488,7 +488,7 @@ def output_analytics(
             print(
                 f"Switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all'] * 100:05.2f}%\n",
                 f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60:.4f}\n",
-                f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
+                f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}\n",
                 f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
             )
         except (KeyError, ZeroDivisionError) as e:
