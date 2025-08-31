@@ -302,20 +302,17 @@ def compute_population_metrics(df_schools_in_play, num_per_cat_per_school):
 
     if not percentages:
         return {
-            "average": 0,
-            "median": 0,
             "average_divergence": 0,
             "median_divergence": 0,
         }
 
-    list_percentages = list(percentages.values())
-    average_percentage = np.mean(list_percentages)
-    differences = [np.abs(p - average_percentage) for p in list_percentages]
+    district_utilization = sum(school_populations.values()) / sum(
+        school_capacities.values()
+    )
+    differences = [np.abs(p - district_utilization) for p in percentages.values()]
     average_divergence = np.mean(differences)
 
     return {
-        "average": average_percentage,
-        "median": np.median(list_percentages),
         "average_divergence": average_divergence,
         "median_divergence": np.median(differences),
     }
@@ -489,7 +486,7 @@ def output_analytics(
 
         try:
             print(
-                f"Percent switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all'] * 100:+06.2f}\n",
+                f"Switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all'] * 100:05.2f}%\n",
                 f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60:.4f}\n",
                 f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
                 f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
