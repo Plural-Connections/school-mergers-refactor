@@ -218,7 +218,8 @@ def initialize_variables(
         )
         # Create a binary variable for each grade to indicate if it's served.
         grades_interval_binary[school] = [
-            model.NewBoolVar(f"serves_grade_{school}_{i}") for i in constants.GRADE_TO_INDEX.values()
+            model.NewBoolVar(f"serves_grade_{school}_{i}")
+            for i in constants.GRADE_TO_INDEX.values()
         ]
 
         # Link the interval variables (start, end) to the binary grade indicators.
@@ -439,9 +440,7 @@ def set_constraints(
 
             # Transitivity for 3-school merges: A-B and B-C, then A-C
             for school3 in matches:
-                ab_and_bc = model.NewBoolVar(
-                    f"trans_{school1}_{school2}_{school3}"
-                )
+                ab_and_bc = model.NewBoolVar(f"trans_{school1}_{school2}_{school3}")
                 model.AddMultiplicationEquality(
                     ab_and_bc, [matches[school1][school2], matches[school2][school3]]
                 )
@@ -904,7 +903,9 @@ def setup_population_metric(
 
     differences = []
     for school in matches:
-        difference = model.NewIntVar(0, constants.SCALING[0], f"util_diff_from_mean_{school}")
+        difference = model.NewIntVar(
+            0, constants.SCALING[0], f"util_diff_from_mean_{school}"
+        )
         model.AddAbsEquality(difference, percentages[school] - district_utilization)
         differences.append(difference)
 
