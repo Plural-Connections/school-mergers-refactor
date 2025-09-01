@@ -998,18 +998,32 @@ def set_objective(
 
 
 class PrintLeniencyCallback(cp_model.CpSolverSolutionCallback):
-    def __init__(self, leniencies: dict[str, cp_model.IntVar]):
+    def __init__(self, _locals):
         super().__init__()
-        self._leniencies = leniencies
+        self.leniencies = _locals["leniencies"]
+        self.matches = _locals["matches"]
+        self.grades = _locals["grades_interval_binary"]
 
     def OnSolutionCallback(self) -> bool:
-        if not any(map(self.Value, self._leniencies.values())):
+        if not any(map(self.Value, self.leniencies.values())):
             return
 
         leniencies = list(
-            filter(lambda x: self.Value(self._leniencies[x]), self._leniencies)
+            filter(lambda x: self.Value(self.leniencies[x]), self.leniencies)
         )
         print(f"leniencies taken: {leniencies}")
+
+        print("grades:")
+        for school, grades in self.grades.items():
+            print(f"{school}: {list(map(self.Value, grades))}")
+
+        matches = [
+            [self.Value(col) for col in row.values()] for row in self.matches.values()
+        ]
+        print(matches)
+        print("matches:")
+        for row in matches:
+            print("".join((" ", "#")[self.Value(item)] for item in row))
 
         print(f"objective value: {int(self.ObjectiveValue())}")
         return True
@@ -1150,7 +1164,7 @@ def solve_and_output_results(
 
     solver.parameters.log_search_progress = True
 
-    status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(leniencies))
+    status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
 
     for idx, var in enumerate(model.Proto().variables):
         print(f"{idx:4}: {var.name} = [{var.domain[0]}, {var.domain[1]}]")
