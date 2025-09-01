@@ -242,7 +242,7 @@ def initialize_variables(
     # the search process.
     for school in nces_ids:
         # Hint: Initially, assume each school serves all its current grades.
-        for i in range(0, len(grades_interval_binary[school])):
+        for i in range(len(grades_interval_binary[school])):
             model.AddHint(grades_interval_binary[school][i], 1)
 
         # Hint: Initially, assume each school is only "matched" with itself.
