@@ -1,5 +1,6 @@
 from ortools.sat.python import cp_model
 import mergers_core.utils.header as header
+from mergers_core.utils.format_constraint import format_constraint
 import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import (
     output_solver_solution,
@@ -1173,6 +1174,11 @@ def solve_and_output_results(
     if len(leniencies_taken) > 0:
         print("Warning: leniencies were taken:")
         print(list(leniencies_taken))
+
+    for idx, constraint in enumerate(model.Proto().constraints):
+        print(
+            f"constraint {idx}: {format_constraint(constraint, model.Proto().variables)}"
+        )
 
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
