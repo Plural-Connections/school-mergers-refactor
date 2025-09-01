@@ -52,7 +52,6 @@ def format_constraint(constraint, vars):
     result = []
     if len(constraint.enforcement_literal) > 0:
         enforcement = [boolean(literal) for literal in constraint.enforcement_literal]
-
         result.append("enforcement: " + " && ".join(enforcement))
 
     constraint_name = constraint.WhichOneof("constraint")
@@ -78,6 +77,17 @@ def format_constraint(constraint, vars):
                 f"{linexpr(actual.target)} = "
                 f"{op.join(linexpr(expr) for expr in actual.exprs)}"
             )
+
+        case "lin_max":
+            result.append(
+                f"{linexpr(actual.target)} = "
+                f"max({', '.join(linexpr(expr) for expr in actual.exprs)})"
+            )
+
+        case "bool_or" | "bool_and" | "bool_xor":
+            ops = {"bool_or": " || ", "bool_and": " && ", "bool_xor": " ^ "}
+            op = ops[constraint_name]
+            result.append(op.join(boolean(literal) for literal in actual.literals))
 
         case _:
             raise Exception(f"Unknown constraint type: {constraint_name}")
