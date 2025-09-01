@@ -1095,7 +1095,6 @@ def solve_and_output_results(
             "native",
             "not_specified",
             "pacific_islander",
-            "total",
             "two_or_more",
         ]
         groups_b = ["white"]
