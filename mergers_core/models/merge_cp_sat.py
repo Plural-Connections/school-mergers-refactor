@@ -1117,6 +1117,10 @@ def solve_and_output_results(
         matches=matches,
         grades_interval_binary=grades_interval_binary,
     )
+    for school in matches:
+        for school_2 in matches:
+            model.Add(matches[school][school] == (school == school_2))
+
 
     for leniency in leniencies.values():
         model.AddHint(leniency, 0)
