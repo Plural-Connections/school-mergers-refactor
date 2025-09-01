@@ -411,16 +411,18 @@ def set_constraints(
         for school in matches
     }
 
-    leniency = {
+    leniency_taken = {
         name: model.NewBoolVar(f"leniency_{name}")
-        # name: 1
         for name in [
             "enrollment_cap",
             "permissible_match",
+            "grade_overlap",
             "grade_completeness",
             "feeder_cap",
         ]
     }
+    for leniency in leniency_taken.values():
+        model.Add(leniency == 0)
 
     # --- Symmetry and transitivity ---
     # Ensures that if A is matched with B, B is matched with A.
@@ -436,7 +438,7 @@ def set_constraints(
                 ab_and_bc = model.NewBoolVar(
                     f"{school1}-{school2}-{school3}_transitivity"
                 )
-                model.AddMultiplicationEquality(  # Multiplication parallels AND
+                model.AddMultiplicationEquality(
                     ab_and_bc, [matches[school1][school2], matches[school2][school3]]
                 )
                 model.AddImplication(
@@ -467,7 +469,7 @@ def set_constraints(
         )
         model.Add(
             students_at_each_school[school1] >= enrollment_lower_bound
-        ).OnlyEnforceIf(leniency["enrollment_cap"].Not())
+        ).OnlyEnforceIf(leniency_taken["enrollment_cap"].Not())
 
     for school1 in matches:
         for school2 in matches[school1]:
@@ -479,7 +481,7 @@ def set_constraints(
             # everything. Oh, python...
             model.Add(matches[school1][school2] == False).OnlyEnforceIf(
                 school2 not in permissible_matches[school1]
-            ).OnlyEnforceIf(leniency["permissible_match"].Not())
+            ).OnlyEnforceIf(leniency_taken["permissible_match"].Not())
 
             # --- No Grade Overlap Constraint ---
             # If two schools are merged, they cannot serve the same grade levels.
@@ -493,7 +495,7 @@ def set_constraints(
                         + grades_interval_binary[school2][i]
                         <= 1
                     ).OnlyEnforceIf(matches[school1][school2]).OnlyEnforceIf(
-                        leniency["permissible_match"].Not()
+                        leniency_taken["grade_overlap"].Not()
                     )
 
     for school1 in matches:
@@ -522,9 +524,7 @@ def set_constraints(
 
             num_grades_represented.append(num_grades_s2)
 
-        model.Add(
-            sum(num_grades_represented) == len(constants.GRADE_TO_INDEX)
-        ).OnlyEnforceIf(leniency["grade_completeness"].Not())
+        model.Add(sum(num_grades_represented) == len(constants.GRADE_TO_INDEX))
 
     for school1 in matches:
         # --- Feeder Pattern Capacity Constraints ---
@@ -583,7 +583,7 @@ def set_constraints(
                     (1 + config.school_increase_threshold) * school_capacities[school2]
                 )
             ).OnlyEnforceIf(matched_and_s2_higher_grade).OnlyEnforceIf(
-                leniency["feeder_cap"].Not()
+                leniency_taken["feeder_cap"].Not()
             )
 
             # The enrollment floor constraint also applies to the feeder school.
@@ -604,10 +604,10 @@ def set_constraints(
                 constants.SCALING[0] * students_at_each_school[school1]
                 >= feeder_school_enrollment_lower_bound
             ).OnlyEnforceIf(matched_and_s2_higher_grade).OnlyEnforceIf(
-                leniency["feeder_cap"].Not()
+                leniency_taken["feeder_cap"].Not()
             )
 
-    return leniency
+    return leniency_taken
 
 
 def calculate_dissimilarity(
