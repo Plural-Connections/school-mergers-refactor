@@ -1,38 +1,40 @@
 VARIABLE_LIST = None
 
 
-def format_domain(domain):
+def domain(domain):
     # domain is a list of integers: [min1, max1, min2, max2, ...]
     mins = domain[::2]
     maxs = domain[1::2]
     return " U ".join(f"[{min}, {max}]" for min, max in zip(mins, maxs))
 
 
-def get_literal(literal):
-    if literal < 0:
-        return "!" + VARIABLE_LIST[abs(literal) - 1].name
+def boolean(literal_index):
+    if literal_index < 0:
+        return "!" + VARIABLE_LIST[abs(literal_index) - 1].name
     else:
-        return VARIABLE_LIST[literal - 1].name
+        return VARIABLE_LIST[literal_index - 1].name
 
 
-def get_variable(variable):
-    if variable < 0:
-        return "-" + VARIABLE_LIST[abs(variable) - 1].name
+def variable(variable_index):
+    if variable_index < 0:
+        return "-" + VARIABLE_LIST[abs(variable_index) - 1].name
     else:
-        return VARIABLE_LIST[variable - 1].name
+        return VARIABLE_LIST[variable_index - 1].name
 
 
-def format_linexpr(proto):
+def linexpr(proto):
     expr = ""
     for coeff, var in zip(proto.coeffs, proto.vars):
-        if coeff < 0 and var < 0:
-            expr += f" + {-coeff}*{get_variable(-var)}"
+        if abs(coeff) == 1:
+            expr += f" + {str(coeff)[:-1]}{variable(var)}"
+        elif coeff < 0 and var < 0:
+            expr += f" + {-coeff}*{variable(-var)}"
         elif coeff == 0:
             pass
         elif coeff < 0 or var < 0:
-            expr += f" - {abs(coeff)}*{get_variable(abs(var))}"
+            expr += f" - {abs(coeff)}*{variable(abs(var))}"
         else:
-            expr += f" + {coeff}*{get_variable(var)}"
+            expr += f" + {coeff}*{variable(var)}"
     return expr[3:]
 
 
@@ -42,9 +44,7 @@ def format_constraint(constraint, vars):
 
     result = []
     if len(constraint.enforcement_literal) > 0:
-        enforcement = [
-            get_literal(literal) for literal in constraint.enforcement_literal
-        ]
+        enforcement = [boolean(literal) for literal in constraint.enforcement_literal]
 
         result.append("enforcement: " + " && ".join(enforcement))
 
@@ -53,20 +53,23 @@ def format_constraint(constraint, vars):
 
     match constraint_name:
         case "linear":
-            result.append(format_linexpr(actual))
-            result.append("is in " + format_domain(actual.domain))
+            if len(actual.domain) == 2 and actual.domain[0] == actual.domain[1]:
+                result.append(f"{linexpr(actual)} = {actual.domain[0]}")
+
+            else:
+                result.append(f"{linexpr(actual)} in {domain(actual.domain)}")
 
         case "interval":
-            result.append("start: " + format_linexpr(actual.start))
-            result.append("end: " + format_linexpr(actual.start))
-            result.append("size: " + format_linexpr(actual.start))
+            result.append("start: " + linexpr(actual.start))
+            result.append("end: " + linexpr(actual.start))
+            result.append("size: " + linexpr(actual.start))
 
         case "int_div" | "int_mod" | "int_prod":
             ops = {"int_div": " / ", "int_mod": " % ", "int_prod": " * "}
             op = ops[constraint_name]
-            result.append("target: " + format_linexpr(actual.target))
             result.append(
-                "is equal to: " + op.join(format_linexpr(expr) for expr in actual.exprs)
+                f"{linexpr(actual.target)} = "
+                f"{op.join(linexpr(expr) for expr in actual.exprs)}"
             )
 
         case _:
