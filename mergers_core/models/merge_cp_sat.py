@@ -650,7 +650,7 @@ def calculate_dissimilarity(
 
     dissimilarity_terms = []
     for school in matches:
-        # --- Calculate Student Counts for the New School config.Configuration ---
+        # --- Calculate student counts for each category. ---
         # Sum the number of A and B students that will be assigned to the
         # building of 'school'.
         total_a_students_at_school = []
@@ -842,8 +842,8 @@ def setup_population_metric(
 ) -> cp_model.IntVar | None:
     """Returns a LinearExpr that represents the population consistency index.
 
-    This index is the average distance from the mean population for each
-    school's population.
+    This index is the average distance from the mean school utilization for each
+    school's utilization. Utilization is defined as population / capacity.
 
     Args:
         model: The CP-SAT model instance.
