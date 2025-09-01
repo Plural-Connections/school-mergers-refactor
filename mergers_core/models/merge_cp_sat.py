@@ -411,6 +411,18 @@ def set_constraints(
         for school in matches
     }
 
+    leniency = {
+        name: model.NewBoolVar(f"leniency_{name}")
+        # name: 1
+        for name in [
+            "merger_size",
+            "enrollment_cap",
+            "permissible_match",
+            "grade_completeness",
+            "feeder_cap",
+        ]
+    }
+
     # --- Symmetry and transitivity ---
     # Ensures that if A is matched with B, B is matched with A.
     # Also enforces transitivity for 3-way mergers: if A-B and B-C, then A-C.
@@ -436,8 +448,8 @@ def set_constraints(
     for school1 in matches:
         # --- Each school can only be paired, tripled, or left unchanged ---
         num_matches = sum([matches[school1][school2] for school2 in matches])
-        model.Add(num_matches >= 1)
-        model.Add(num_matches <= 3)
+        model.Add(num_matches >= 1).OnlyEnforceIf(leniency["merger_size"].Not())
+        model.Add(num_matches <= 3).OnlyEnforceIf(leniency["merger_size"].Not())
 
     for school1 in matches:
         # --- Enrollment must be within a specified minimum and maximum capacity ---
@@ -454,7 +466,9 @@ def set_constraints(
         enrollment_lower_bound = round(
             (1 - config.school_decrease_threshold) * school_current_population,
         )
-        model.Add(students_at_each_school[school1] >= enrollment_lower_bound)
+        model.Add(
+            students_at_each_school[school1] >= enrollment_lower_bound
+        ).OnlyEnforceIf(leniency["enrollment_cap"].Not())
 
     for school1 in matches:
         for school2 in matches[school1]:
@@ -466,7 +480,7 @@ def set_constraints(
             # everything. Oh, python...
             model.Add(matches[school1][school2] == False).OnlyEnforceIf(
                 school2 not in permissible_matches[school1]
-            )
+            ).OnlyEnforceIf(leniency["permissible_match"].Not())
 
             # --- No Grade Overlap Constraint ---
             # If two schools are merged, they cannot serve the same grade levels.
@@ -479,7 +493,9 @@ def set_constraints(
                         grades_interval_binary[school1][i]
                         + grades_interval_binary[school2][i]
                         <= 1
-                    ).OnlyEnforceIf(matches[school1][school2])
+                    ).OnlyEnforceIf(matches[school1][school2]).OnlyEnforceIf(
+                        leniency["permissible_match"].Not()
+                    )
 
     for school1 in matches:
         # --- Grade Completeness Constraint ---
@@ -487,8 +503,6 @@ def set_constraints(
 
         # Calculate the number of grade levels this school will offer postmerger.
         num_grades_in_school = sum(grades_interval_binary[school1])
-        model.Add(num_grades_in_school >= 0)
-        model.Add(num_grades_in_school <= len(constants.GRADE_TO_INDEX))
         num_grades_represented = [num_grades_in_school]
         for school2 in matches[school1]:
             # Number of grades school2 serves after a merger with school1.
@@ -509,7 +523,9 @@ def set_constraints(
 
             num_grades_represented.append(num_grades_s2)
 
-        model.Add(sum(num_grades_represented) == len(constants.GRADE_TO_INDEX))
+        model.Add(
+            sum(num_grades_represented) == len(constants.GRADE_TO_INDEX)
+        ).OnlyEnforceIf(leniency["grade_completeness"].Not())
 
     for school1 in matches:
         # --- Feeder Pattern Capacity Constraints ---
@@ -567,7 +583,9 @@ def set_constraints(
                 <= round(
                     (1 + config.school_increase_threshold) * school_capacities[school2]
                 )
-            ).OnlyEnforceIf(matched_and_s2_higher_grade)
+            ).OnlyEnforceIf(matched_and_s2_higher_grade).OnlyEnforceIf(
+                leniency["feeder_cap"].Not()
+            )
 
             # The enrollment floor constraint also applies to the feeder school.
             feeder_school_enrollment_lower_bound = int(
@@ -586,7 +604,11 @@ def set_constraints(
             model.Add(
                 constants.SCALING[0] * students_at_each_school[school1]
                 >= feeder_school_enrollment_lower_bound
-            ).OnlyEnforceIf(matched_and_s2_higher_grade)
+            ).OnlyEnforceIf(matched_and_s2_higher_grade).OnlyEnforceIf(
+                leniency["feeder_cap"].Not()
+            )
+
+    return leniency
 
 
 def calculate_dissimilarity(
@@ -912,6 +934,7 @@ def set_objective(
     population_metric: cp_model.IntVar,
     pre_dissimilarity: float,
     pre_population_metric: float,
+    leniencies: dict[str, cp_model.IntVar],
 ) -> None:
     """Sets the multi-objective function for the solver.
 
@@ -924,22 +947,27 @@ def set_objective(
         pre_dissimilarity: The dissimilarity index before optimization.
         pre_population_consistency: The population consistency metric before
             optimization.
+        leniencies: A dictionary of leniency variables.
     """
     if config.minimize:
         optimize_function = model.Minimize
     else:
         optimize_function = model.Maximize
 
+    minimize_leniency = sum(
+        constants.SCALING[0] * leniency for leniency in leniencies.values()
+    )
+
     obj = "⇣" if config.minimize else "⇡"
 
     if config.population_metric_weight == 0:
         print(f"Objective: {obj} dissimilarity ({config.dissimilarity_flavor})")
-        optimize_function(dissimilarity_index)
+        optimize_function(dissimilarity_index + minimize_leniency)
         return
 
     if config.dissimilarity_weight == 0:
         print(f"Objective: {obj} population metric")
-        optimize_function(population_metric)
+        optimize_function(population_metric + minimize_leniency)
         return
 
     # Handle case where a pre-computation is zero to avoid division errors
@@ -964,8 +992,28 @@ def set_objective(
         f" + {ratio.denominator} * population metric"
     )
     optimize_function(
-        ratio.numerator * dissimilarity_index + ratio.denominator * population_metric
+        ratio.numerator * dissimilarity_index
+        + ratio.denominator * population_metric
+        + minimize_leniency
     )
+
+
+class PrintLeniencyCallback(cp_model.CpSolverSolutionCallback):
+    def __init__(self, leniencies: dict[str, cp_model.IntVar]):
+        super().__init__()
+        self._leniencies = leniencies
+
+    def OnSolutionCallback(self) -> bool:
+        if not any(map(self.Value, self._leniencies.values())):
+            return
+
+        leniencies = list(
+            filter(lambda x: self.Value(self._leniencies[x]), self._leniencies)
+        )
+        print(f"leniencies taken: {leniencies}")
+
+        print(f"objective value: {int(self.ObjectiveValue())}")
+        return True
 
 
 def solve_and_output_results(
@@ -1044,7 +1092,7 @@ def solve_and_output_results(
         grades_interval_binary,
     ) = initialize_variables(model=model, df_schools_in_play=df_schools_in_play)
 
-    set_constraints(
+    leniencies = set_constraints(
         model=model,
         config=config,
         school_capacities=school_capacities,
@@ -1053,6 +1101,16 @@ def solve_and_output_results(
         matches=matches,
         grades_interval_binary=grades_interval_binary,
     )
+
+    # temporary:
+    for school in matches:
+        model.Add(sum(matches[school].values()) == 1)
+    for grade in grades_interval_binary.values():
+        for value in grade:
+            model.Add(value == 1)
+
+    for leniency in leniencies.values():
+        model.AddHint(leniency, 0)
 
     dissimilarity_index = calculate_dissimilarity(
         model=model,
@@ -1080,6 +1138,7 @@ def solve_and_output_results(
         population_metric=population_metric,
         pre_dissimilarity=pre_dissimilarity,
         pre_population_metric=pre_population_metric,
+        leniencies=leniencies,
     )
     print("Solving ...")
     solver = cp_model.CpSolver()
@@ -1090,9 +1149,12 @@ def solve_and_output_results(
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
 
-    # solver.parameters.log_search_progress = True
+    solver.parameters.log_search_progress = True
 
-    status = solver.Solve(model)
+    status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(leniencies))
+
+    for idx, var in enumerate(model.Proto().variables):
+        print(f"{idx:4}: {var.name} = [{var.domain[0]}, {var.domain[1]}]")
 
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
