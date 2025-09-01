@@ -1159,6 +1159,14 @@ def solve_and_output_results(
 
     status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
 
+    leniencies_post_solve = {
+        name: solver.Value(leniency) for name, leniency in leniencies.items()
+    }
+    leniencies_taken = dict(filter(lambda x: x[1], leniencies_post_solve.items()))
+    if len(leniencies_taken) > 0:
+        print("Warning: leniencies were taken:")
+        print(list(leniencies_taken))
+
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
         f"{config.dissimilarity_weight},{config.population_metric_weight}_"
