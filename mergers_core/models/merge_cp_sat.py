@@ -183,7 +183,7 @@ def initialize_variables(
     # matches[s1][s2] is true if school s1 and school s2 are merged.
     matches = {
         school: {
-            school_2: model.NewBoolVar(f"{school},{school_2}_matched")
+            school_2: model.NewBoolVar(f"merger_{school}_{school_2}")
             for school_2 in nces_ids
         }
         for school in nces_ids
@@ -201,37 +201,37 @@ def initialize_variables(
     for school in nces_ids:
         # Variables for the start, end, and duration of the grade sequence.
         grades_start[school] = model.NewIntVar(
-            all_grades[0], all_grades[-1], f"{school}_start_grade"
+            all_grades[0], all_grades[-1], f"start_grade_{school}"
         )
         grades_end[school] = model.NewIntVar(
-            all_grades[0], all_grades[-1], f"{school}_end_grade"
+            all_grades[0], all_grades[-1], f"end_grade_{school}"
         )
         grades_duration[school] = model.NewIntVar(
-            0, all_grades[-1], f"{school}_grade_duration"
+            0, all_grades[-1], f"grade_span_{school}"
         )
         # Interval variable representing the continuous block of grades.
         grades_interval[school] = model.NewIntervalVar(
             grades_start[school],
             grades_duration[school],
             grades_end[school],
-            f"{school}_grade_interval",
+            f"grade_interval_{school}",
         )
         # Create a binary variable for each grade to indicate if it's served.
         grades_interval_binary[school] = [
-            model.NewBoolVar(f"{school},{i}") for i in constants.GRADE_TO_INDEX.values()
+            model.NewBoolVar(f"serves_grade_{school}_{i}") for i in constants.GRADE_TO_INDEX.values()
         ]
 
         # Link the interval variables (start, end) to the binary grade indicators.
         # A grade's binary indicator is 1 if and only if the grade falls
         # within the [grades_start, grades_end] range of the school.
         for i in range(0, len(grades_interval_binary[school])):
-            i_less_than = model.NewBoolVar(f"{school},{i}_less")
+            i_less_than = model.NewBoolVar(f"grade_{i}_le_end_{school}")
             model.Add(i <= grades_end[school]).OnlyEnforceIf(i_less_than)
             model.Add(i > grades_end[school]).OnlyEnforceIf(i_less_than.Not())
-            i_greater_than = model.NewBoolVar(f"{school},{i}_greater")
+            i_greater_than = model.NewBoolVar(f"grade_{i}_ge_start_{school}")
             model.Add(i >= grades_start[school]).OnlyEnforceIf(i_greater_than)
             model.Add(i < grades_start[school]).OnlyEnforceIf(i_greater_than.Not())
-            i_in_range = model.NewBoolVar(f"{school},{i}_in_range")
+            i_in_range = model.NewBoolVar(f"grade_{i}_in_range_{school}")
             model.AddMultiplicationEquality(i_in_range, [i_less_than, i_greater_than])
             model.Add(grades_interval_binary[school][i] == 1).OnlyEnforceIf(i_in_range)
             model.Add(grades_interval_binary[school][i] == 0).OnlyEnforceIf(
@@ -308,7 +308,7 @@ def _get_students_at_school(
     # Calculate the number of students school would receive from a merger.
     for school2 in matches[school]:
         transfer_from_school2 = model.NewIntVar(
-            0, constants.MAX_TOTAL_STUDENTS, f"{school}_{school2}_total_students"
+            0, constants.MAX_TOTAL_STUDENTS, f"transfer_{school2}_to_{school}"
         )
         if school != school2:
             # Sum students from s2 for the grades that s will now serve.
@@ -440,7 +440,7 @@ def set_constraints(
             # Transitivity for 3-school merges: A-B and B-C, then A-C
             for school3 in matches:
                 ab_and_bc = model.NewBoolVar(
-                    f"{school1}-{school2}-{school3}_transitivity"
+                    f"trans_{school1}_{school2}_{school3}"
                 )
                 model.AddMultiplicationEquality(
                     ab_and_bc, [matches[school1][school2], matches[school2][school3]]
@@ -514,7 +514,7 @@ def set_constraints(
             num_grades_s2 = model.NewIntVar(
                 0,
                 len(constants.GRADE_TO_INDEX),
-                f"{school1}_{school2}_num_grade_levels",
+                f"num_grades_{school2}_if_merged_with_{school1}",
             )
             if school1 != school2:
                 model.Add(
@@ -536,7 +536,7 @@ def set_constraints(
         # grades than s, then the total number of students assigned to s must not exceed
         # the capacity of s'.
         max_grade_served_s = model.NewIntVar(
-            0, max(constants.GRADE_TO_INDEX.values()), f"{school1}_grade_max"
+            0, max(constants.GRADE_TO_INDEX.values()), f"max_grade_{school1}"
         )
         all_grades_served_s = []
         for grade in constants.GRADE_TO_INDEX.values():
@@ -551,7 +551,7 @@ def set_constraints(
             max_grade_served_s2 = model.NewIntVar(
                 0,
                 max(constants.GRADE_TO_INDEX.values()),
-                f"{school1}_{school2}_grade_max",
+                f"max_grade_{school2}_if_merged_with_{school1}",
             )
             all_grades_served_s2 = []
             for grade in constants.GRADE_TO_INDEX.values():
@@ -561,7 +561,7 @@ def set_constraints(
             model.AddMaxEquality(max_grade_served_s2, all_grades_served_s2)
 
             s2_serving_higher_grades_than_s = model.NewBoolVar(
-                f"{school1}_{school2}_higher_grade"
+                f"higher_grades_{school2}_than_{school1}"
             )
             model.Add(max_grade_served_s2 > max_grade_served_s).OnlyEnforceIf(
                 s2_serving_higher_grades_than_s
@@ -572,7 +572,7 @@ def set_constraints(
 
             # True if s and s2 are matched AND s2 serves higher grades.
             matched_and_s2_higher_grade = model.NewBoolVar(
-                f"{school1}_{school2}_condition"
+                f"merger_and_higher_grades_{school1}_{school2}"
             )
             model.AddMultiplicationEquality(
                 matched_and_s2_higher_grade,
@@ -668,7 +668,7 @@ def calculate_dissimilarity(
             sum_school2_a = model.NewIntVar(
                 0,
                 constants.MAX_TOTAL_STUDENTS,
-                f"sum_s2_group_a_{school},{school_2}",
+                f"grp_a_from_{school_2}_to_{school}",
             )
             model.Add(sum_school2_a == students_at_s2_a).OnlyEnforceIf(
                 matches[school][school_2]
@@ -688,7 +688,7 @@ def calculate_dissimilarity(
             )
 
             sum_school2_b = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"sum_s2_wa_{school},{school_2}"
+                0, constants.MAX_TOTAL_STUDENTS, f"grp_b_from_{school_2}_to_{school}"
             )
             model.Add(sum_school2_b == students_at_s2_b).OnlyEnforceIf(
                 matches[school][school_2]
@@ -701,7 +701,7 @@ def calculate_dissimilarity(
         scaled_total_a_students_at_school = model.NewIntVar(
             0,
             constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-            f"{school}_scaled_total_a",
+            f"scaled_grp_a_at_{school}",
         )
         model.Add(
             scaled_total_a_students_at_school
@@ -712,7 +712,7 @@ def calculate_dissimilarity(
         scaled_total_b_students_at_school = model.NewIntVar(
             0,
             constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-            f"{school}_scaled_total_b",
+            f"scaled_grp_b_at_{school}",
         )
         model.Add(
             scaled_total_b_students_at_school
@@ -721,7 +721,7 @@ def calculate_dissimilarity(
 
         # (A students at school / total A students in district)
         a_ratio_at_school = model.NewIntVar(
-            0, constants.SCALING[0], f"{school}_a_ratio"
+            0, constants.SCALING[0], f"grp_a_ratio_at_{school}"
         )
         model.AddDivisionEquality(
             a_ratio_at_school,
@@ -732,7 +732,7 @@ def calculate_dissimilarity(
 
         # (B students at school / total B students in district)
         b_ratio_at_school = model.NewIntVar(
-            0, constants.SCALING[0], f"{school}_b_ratio"
+            0, constants.SCALING[0], f"grp_b_ratio_at_{school}"
         )
         model.AddDivisionEquality(
             b_ratio_at_school,
@@ -741,7 +741,7 @@ def calculate_dissimilarity(
             + total_across_schools_by_category["num_asian"],
         )
 
-        term = model.NewIntVar(0, constants.SCALING[0], f"{school}_dissimilarity_term")
+        term = model.NewIntVar(0, constants.SCALING[0], f"dissim_term_{school}")
         model.AddAbsEquality(
             term,
             a_ratio_at_school - b_ratio_at_school,
@@ -770,7 +770,7 @@ def _sort_sequence(
         A sorted list of IntVars.
     """
     sorted_vars = [
-        model.NewIntVar(0, max_val, f"{name_prefix}_sorted_{i}")
+        model.NewIntVar(0, max_val, f"sorted_{name_prefix}_{i}")
         for i in range(len(sequence))
     ]
 
@@ -779,7 +779,7 @@ def _sort_sequence(
         model.Add(sorted_vars[i] <= sorted_vars[i + 1])
 
     permutation_indices = [
-        model.NewIntVar(0, len(sequence) - 1, f"{name_prefix}_perm_{i}")
+        model.NewIntVar(0, len(sequence) - 1, f"perm_{name_prefix}_{i}")
         for i in range(len(sequence))
     ]
     model.AddAllDifferent(permutation_indices)
@@ -819,12 +819,12 @@ def _median(
         index = len(sequence) // 2
         return sorted_sequence[index]
 
-    sum_var = model.NewIntVar(0, max_val * 2, f"{name_prefix}_sum")
+    sum_var = model.NewIntVar(0, max_val * 2, f"median_sum_{name_prefix}")
     model.Add(
         sum_var
         == sorted_sequence[len(sequence) // 2 - 1] + sorted_sequence[len(sequence) // 2]
     )
-    median_var = model.NewIntVar(0, max_val, f"{name_prefix}_median")
+    median_var = model.NewIntVar(0, max_val, f"median_{name_prefix}")
     model.AddDivisionEquality(
         median_var,
         sum_var,
@@ -885,7 +885,7 @@ def setup_population_metric(
         school: model.NewIntVar(
             0,
             constants.SCALING[0],
-            f"{school}_percentage",
+            f"utilization_pct_{school}",
         )
         for school in matches
     }
@@ -893,7 +893,7 @@ def setup_population_metric(
         numerator = model.NewIntVar(
             0,
             constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
-            f"{school}_numerator",
+            f"scaled_pop_{school}",
         )
         model.Add(numerator == school_populations[school] * constants.SCALING[0])
         model.AddDivisionEquality(
@@ -904,14 +904,14 @@ def setup_population_metric(
 
     differences = []
     for school in matches:
-        difference = model.NewIntVar(0, constants.SCALING[0], f"{school}_difference")
+        difference = model.NewIntVar(0, constants.SCALING[0], f"util_diff_from_mean_{school}")
         model.AddAbsEquality(difference, percentages[school] - district_utilization)
         differences.append(difference)
 
     sum_differences = model.NewIntVar(
         0,
         len(differences) * constants.SCALING[0],
-        "sum_differences_var",
+        "sum_util_diffs",
     )
     model.Add(sum_differences == sum(differences))
 
@@ -1109,51 +1109,52 @@ def solve_and_output_results(
         grades_interval_binary,
     ) = initialize_variables(model=model, df_schools_in_play=df_schools_in_play)
 
-    leniencies = set_constraints(
-        model=model,
-        config=config,
-        school_capacities=school_capacities,
-        students_per_grade_per_school=students_per_grade_per_school,
-        permissible_matches=permissible_matches,
-        matches=matches,
-        grades_interval_binary=grades_interval_binary,
-    )
     for school in matches:
         for school_2 in matches:
             model.Add(matches[school][school] == (school == school_2))
 
+    leniencies = {}
+    # leniencies = set_constraints(
+    #     model=model,
+    #     config=config,
+    #     school_capacities=school_capacities,
+    #     students_per_grade_per_school=students_per_grade_per_school,
+    #     permissible_matches=permissible_matches,
+    #     matches=matches,
+    #     grades_interval_binary=grades_interval_binary,
+    # )
 
     for leniency in leniencies.values():
         model.AddHint(leniency, 0)
 
-    dissimilarity_index = calculate_dissimilarity(
-        model=model,
-        students_per_grade_per_school=students_per_grade_per_school,
-        total_across_schools_by_category=total_across_schools_by_category,
-        matches=matches,
-        grades_interval_binary=grades_interval_binary,
-        groups_a=groups_a,
-        groups_b=groups_b,
-    )
+    # dissimilarity_index = calculate_dissimilarity(
+    #     model=model,
+    #     students_per_grade_per_school=students_per_grade_per_school,
+    #     total_across_schools_by_category=total_across_schools_by_category,
+    #     matches=matches,
+    #     grades_interval_binary=grades_interval_binary,
+    #     groups_a=groups_a,
+    #     groups_b=groups_b,
+    # )
+    #
+    # population_metric = setup_population_metric(
+    #     model=model,
+    #     config=config,
+    #     matches=matches,
+    #     grades_interval_binary=grades_interval_binary,
+    #     students_per_grade_per_school=students_per_grade_per_school,
+    #     school_capacities=school_capacities,
+    # )
 
-    population_metric = setup_population_metric(
-        model=model,
-        config=config,
-        matches=matches,
-        grades_interval_binary=grades_interval_binary,
-        students_per_grade_per_school=students_per_grade_per_school,
-        school_capacities=school_capacities,
-    )
-
-    set_objective(
-        model=model,
-        config=config,
-        dissimilarity_index=dissimilarity_index,
-        population_metric=population_metric,
-        pre_dissimilarity=pre_dissimilarity,
-        pre_population_metric=pre_population_metric,
-        leniencies=leniencies,
-    )
+    # set_objective(
+    #     model=model,
+    #     config=config,
+    #     dissimilarity_index=dissimilarity_index,
+    #     population_metric=population_metric,
+    #     pre_dissimilarity=pre_dissimilarity,
+    #     pre_population_metric=pre_population_metric,
+    #     leniencies=leniencies,
+    # )
     print("Solving ...")
     solver = cp_model.CpSolver()
 
@@ -1163,7 +1164,7 @@ def solve_and_output_results(
     # Adding parallelism
     solver.parameters.num_search_workers = constants.NUM_SOLVER_THREADS
 
-    solver.parameters.log_search_progress = True
+    # solver.parameters.log_search_progress = True
 
     status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
 
