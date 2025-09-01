@@ -1111,50 +1111,50 @@ def solve_and_output_results(
 
     for school in matches:
         for school_2 in matches:
-            model.Add(matches[school][school] == (school == school_2))
+            model.Add(matches[school][school_2] == (school == school_2))
 
-    leniencies = {}
-    # leniencies = set_constraints(
-    #     model=model,
-    #     config=config,
-    #     school_capacities=school_capacities,
-    #     students_per_grade_per_school=students_per_grade_per_school,
-    #     permissible_matches=permissible_matches,
-    #     matches=matches,
-    #     grades_interval_binary=grades_interval_binary,
-    # )
+    # leniencies = {}
+    leniencies = set_constraints(
+        model=model,
+        config=config,
+        school_capacities=school_capacities,
+        students_per_grade_per_school=students_per_grade_per_school,
+        permissible_matches=permissible_matches,
+        matches=matches,
+        grades_interval_binary=grades_interval_binary,
+    )
 
     for leniency in leniencies.values():
         model.AddHint(leniency, 0)
 
-    # dissimilarity_index = calculate_dissimilarity(
-    #     model=model,
-    #     students_per_grade_per_school=students_per_grade_per_school,
-    #     total_across_schools_by_category=total_across_schools_by_category,
-    #     matches=matches,
-    #     grades_interval_binary=grades_interval_binary,
-    #     groups_a=groups_a,
-    #     groups_b=groups_b,
-    # )
-    #
-    # population_metric = setup_population_metric(
-    #     model=model,
-    #     config=config,
-    #     matches=matches,
-    #     grades_interval_binary=grades_interval_binary,
-    #     students_per_grade_per_school=students_per_grade_per_school,
-    #     school_capacities=school_capacities,
-    # )
+    dissimilarity_index = calculate_dissimilarity(
+        model=model,
+        students_per_grade_per_school=students_per_grade_per_school,
+        total_across_schools_by_category=total_across_schools_by_category,
+        matches=matches,
+        grades_interval_binary=grades_interval_binary,
+        groups_a=groups_a,
+        groups_b=groups_b,
+    )
 
-    # set_objective(
-    #     model=model,
-    #     config=config,
-    #     dissimilarity_index=dissimilarity_index,
-    #     population_metric=population_metric,
-    #     pre_dissimilarity=pre_dissimilarity,
-    #     pre_population_metric=pre_population_metric,
-    #     leniencies=leniencies,
-    # )
+    population_metric = setup_population_metric(
+        model=model,
+        config=config,
+        matches=matches,
+        grades_interval_binary=grades_interval_binary,
+        students_per_grade_per_school=students_per_grade_per_school,
+        school_capacities=school_capacities,
+    )
+
+    set_objective(
+        model=model,
+        config=config,
+        dissimilarity_index=dissimilarity_index,
+        population_metric=None,
+        pre_dissimilarity=pre_dissimilarity,
+        pre_population_metric=pre_population_metric,
+        leniencies=leniencies,
+    )
     print("Solving ...")
     solver = cp_model.CpSolver()
 
@@ -1219,8 +1219,8 @@ if __name__ == "__main__":
     solve_and_output_results(
         config.Config.custom_config(
             district=config.District("MA", "2500001"),
-            dissimilarity_weight=0,
-            population_metric_weight=1,
+            dissimilarity_weight=1,
+            population_metric_weight=0,
             population_metric="average_divergence",
         )
     )
