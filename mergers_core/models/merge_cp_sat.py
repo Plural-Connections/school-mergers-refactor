@@ -415,7 +415,6 @@ def set_constraints(
         name: model.NewBoolVar(f"leniency_{name}")
         # name: 1
         for name in [
-            "merger_size",
             "enrollment_cap",
             "permissible_match",
             "grade_completeness",
@@ -448,8 +447,8 @@ def set_constraints(
     for school1 in matches:
         # --- Each school can only be paired, tripled, or left unchanged ---
         num_matches = sum([matches[school1][school2] for school2 in matches])
-        model.Add(num_matches >= 1).OnlyEnforceIf(leniency["merger_size"].Not())
-        model.Add(num_matches <= 3).OnlyEnforceIf(leniency["merger_size"].Not())
+        model.Add(num_matches >= 1)
+        model.Add(num_matches <= 3)
 
     for school1 in matches:
         # --- Enrollment must be within a specified minimum and maximum capacity ---
