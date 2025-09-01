@@ -35,6 +35,13 @@ def linexpr(proto):
             expr += f" - {abs(coeff)}*{variable(abs(var))}"
         else:
             expr += f" + {coeff}*{variable(var)}"
+
+    if hasattr(proto, "offset") and proto.offset != 0:
+        if proto.offset < 0:
+            expr += f" - {proto.offset}"
+        else:
+            expr += f" + {proto.offset}"
+
     return expr[3:]
 
 
