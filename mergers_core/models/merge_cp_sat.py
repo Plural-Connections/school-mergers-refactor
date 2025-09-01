@@ -430,6 +430,9 @@ def set_constraints(
     # This creates cohesive merged groups.
     for school1 in matches:
         for school2 in matches:
+            if school1 == school2:
+                continue
+
             # Symmetry: If s1 is matched with s2, s2 must be matched with s1.
             model.AddImplication(matches[school1][school2], matches[school2][school1])
 
