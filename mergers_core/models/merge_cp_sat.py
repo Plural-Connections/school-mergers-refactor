@@ -1115,13 +1115,6 @@ def solve_and_output_results(
         grades_interval_binary=grades_interval_binary,
     )
 
-    # temporary:
-    for school in matches:
-        model.Add(sum(matches[school].values()) == 1)
-    for grade in grades_interval_binary.values():
-        for value in grade:
-            model.Add(value == 1)
-
     for leniency in leniencies.values():
         model.AddHint(leniency, 0)
 
