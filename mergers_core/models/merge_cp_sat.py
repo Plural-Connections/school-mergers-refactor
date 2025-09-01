@@ -1159,9 +1159,6 @@ def solve_and_output_results(
 
     status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
 
-    for idx, var in enumerate(model.Proto().variables):
-        print(f"{idx:4}: {var.name} = [{var.domain[0]}, {var.domain[1]}]")
-
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
         f"{config.dissimilarity_weight},{config.population_metric_weight}_"
