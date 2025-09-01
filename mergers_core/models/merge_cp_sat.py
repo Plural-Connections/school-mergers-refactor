@@ -1113,7 +1113,6 @@ def solve_and_output_results(
         for school_2 in matches:
             model.Add(matches[school][school_2] == (school == school_2))
 
-    # leniencies = {}
     leniencies = set_constraints(
         model=model,
         config=config,
