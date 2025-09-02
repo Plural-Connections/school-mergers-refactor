@@ -1,6 +1,6 @@
 from ortools.sat.python import cp_model
 import mergers_core.utils.header as header
-from mergers_core.utils.format_constraint import format_constraint
+from mergers_core.utils.format_constraint import print_model_constraints
 import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import (
     output_solver_solution,
@@ -1109,10 +1109,6 @@ def solve_and_output_results(
         grades_interval_binary,
     ) = initialize_variables(model=model, df_schools_in_play=df_schools_in_play)
 
-    for school in matches:
-        for school_2 in matches:
-            model.Add(matches[school][school_2] == (school == school_2))
-
     leniencies = set_constraints(
         model=model,
         config=config,
@@ -1149,7 +1145,7 @@ def solve_and_output_results(
         model=model,
         config=config,
         dissimilarity_index=dissimilarity_index,
-        population_metric=None,
+        population_metric=population_metric,
         pre_dissimilarity=pre_dissimilarity,
         pre_population_metric=pre_population_metric,
         leniencies=leniencies,
@@ -1175,10 +1171,7 @@ def solve_and_output_results(
         print("Warning: leniencies were taken:")
         print(list(leniencies_taken))
 
-    for idx, constraint in enumerate(model.Proto().constraints):
-        print(
-            f"constraint {idx}: {format_constraint(constraint, model.Proto().variables)}"
-        )
+    print_model_constraints(model)
 
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
@@ -1215,12 +1208,12 @@ def solve_and_output_results(
 
 
 if __name__ == "__main__":
-    solve_and_output_results(
-        config.Config.custom_config(
-            district=config.District("MA", "2500001"),
-            dissimilarity_weight=1,
-            population_metric_weight=0,
-            population_metric="average_divergence",
-        )
-    )
-    # solve_and_output_results(config.Config("data/sweep_configs/configs.csv"))
+    # solve_and_output_results(
+    #     config.Config.custom_config(
+    #         district=config.District("MA", "2500001"),
+    #         dissimilarity_weight=1,
+    #         population_metric_weight=0,
+    #         population_metric="average_divergence",
+    #     )
+    # )
+    solve_and_output_results(config.Config("data/sweep_configs/configs.csv"))
