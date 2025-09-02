@@ -52,7 +52,7 @@ def _load_district_list(
 # its value in possible_configs[key].
 class Config:
     possible_configs = {
-        "district": list(_load_district_list("data/all_schools.csv", 5)),
+        "district": list(_load_district_list("data/top_200_districts.csv")),
         "school_increase_threshold": [0.1],
         "school_decrease_threshold": [1.0],
         "dissimilarity_weight": [0, 1],
