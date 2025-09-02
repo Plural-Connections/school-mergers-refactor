@@ -26,13 +26,11 @@ class Colors:
     @functools.cache
     def __getattr__(self, name):
         if name in self.__colorscheme:
-            return (
-                lambda text: colored.fore_rgb(*self.__colorscheme[name])
-                + str(text)
-                + colored.style("reset")
+            return functools.partial(
+                colored.stylize, formatting=colored.fore_rgb(*self.__colorscheme[name])
             )
         if name in vars(colored.Fore):
-            return lambda text: colored.fg(name) + str(text) + colored.style("reset")
+            return functools.partial(colored.stylize, formatting=colored.fg(name))
         else:
             raise AttributeError(f"no color '{name}'")
 
@@ -45,7 +43,12 @@ def domain(domain_proto):
     mins = domain_proto[::2]
     maxs = domain_proto[1::2]
     return f" {c.operator('U')} ".join(
-        f"[{c.constant(min)}, {c.constant(max)}]" for min, max in zip(mins, maxs)
+        c.punctuation("[")
+        + c.constant(min)
+        + c.punctuation(", ")
+        + c.constant(max)
+        + c.punctuation("]")
+        for min, max in zip(mins, maxs)
     )
 
 
@@ -126,9 +129,16 @@ def format_constraint(constraint, vars):
                 result = linexpr(actual) + c.operator(" in ") + domain(actual.domain)
 
         case "interval":
-            result = c.keyword("start: ") + linexpr(actual.start)
-            result += c.keyword("end: ") + linexpr(actual.end)
-            result += c.keyword("size: ") + linexpr(actual.size)
+            result = (
+                c.keyword("interval: ")
+                + c.punctuation("<")
+                + linexpr(actual.start)
+                + c.punctuation(" ; ")
+                + linexpr(actual.size)
+                + c.punctuation(" ; ")
+                + linexpr(actual.end)
+                + c.punctuation(">")
+            )
 
         case "int_div" | "int_mod" | "int_prod":
             ops = {
