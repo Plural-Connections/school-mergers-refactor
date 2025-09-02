@@ -6,22 +6,28 @@ VARIABLE_LIST = None
 
 class Colors:
     __colorscheme = {
-        "variable": "cornflower_blue",
-        "function": "gold_3b",
-        "assignment": "medium_purple_2b",
-        "subtract": "salmon_1",
-        "negation": "salmon_1",
-        "punctuation": "pale_green_1b",
-        "constant": "grey_82",
-        "operator": "steel_blue_1a",
-        "keyword": "light_slate_blue",
+        "comment": "727169",
+        "variable": "7aa89f",
+        "function": "7e9cd8",
+        "punctuation": "9cabca",
+        "constant": "ffa066",
+        "operator": "ff5d62",
+        "keyword": "957fb8",
     }
+
+    for name in __colorscheme:
+        hexcode = __colorscheme[name]
+        __colorscheme[name] = (
+            int(hexcode[:2], 16),
+            int(hexcode[2:4], 16),
+            int(hexcode[4:], 16),
+        )
 
     @functools.cache
     def __getattr__(self, name):
         if name in self.__colorscheme:
             return (
-                lambda text: colored.fg(self.__colorscheme[name])
+                lambda text: colored.fore_rgb(*self.__colorscheme[name])
                 + str(text)
                 + colored.style("reset")
             )
@@ -45,7 +51,7 @@ def domain(domain_proto):
 
 def variable(variable_index, negation_symbol="-"):
     if variable_index < 0:
-        return c.negation(negation_symbol) + c.variable(
+        return c.operator(negation_symbol) + c.variable(
             VARIABLE_LIST[abs(variable_index) - 1].name
         )
     else:
@@ -92,10 +98,10 @@ def linexpr(proto):
     if first_sign == "+":
         result = first_term
     else:
-        result = f"{c.subtract('-')}{first_term}"
+        result = f"{c.operator('-')}{first_term}"
 
     for sign, term in terms[1:]:
-        op = c.operator(" + ") if sign == "+" else c.subtract(" - ")
+        op = c.operator(" + ") if sign == "+" else c.operator(" - ")
         result += op + term
 
     return result
@@ -113,7 +119,7 @@ def format_constraint(constraint, vars):
         case "linear":
             if len(actual.domain) == 2 and actual.domain[0] == actual.domain[1]:
                 result = (
-                    linexpr(actual) + c.assignment(" = ") + c.constant(actual.domain[0])
+                    linexpr(actual) + c.operator(" = ") + c.constant(actual.domain[0])
                 )
 
             else:
@@ -133,14 +139,14 @@ def format_constraint(constraint, vars):
             op = ops[constraint_name]
             result = (
                 linexpr(actual.target)
-                + c.assignment(" = ")
+                + c.operator(" = ")
                 + op.join(linexpr(expr) for expr in actual.exprs)
             )
 
         case "lin_max":
             result = (
                 linexpr(actual.target)
-                + c.assignment(" = ")
+                + c.operator(" = ")
                 + c.function("max")
                 + c.punctuation("(")
                 + c.punctuation(", ").join(linexpr(expr) for expr in actual.exprs)
@@ -161,7 +167,7 @@ def format_constraint(constraint, vars):
 
     if len(constraint.enforcement_literal) > 0:
         enforcement = [boolean(literal) for literal in constraint.enforcement_literal]
-        result += c.keyword(" iff ") + f" {c.operator('&&')} ".join(enforcement)
+        result += c.keyword(" if ") + f" {c.operator('&&')} ".join(enforcement)
 
     return result
 
@@ -170,7 +176,7 @@ def print_model_constraints(model):
     variable = model.Proto().variables
     for idx, constraint in enumerate(model.Proto().constraints):
         print(
-            f"{c.constant(f'constraint {idx} '
-                          f'({constraint.WhichOneof('constraint')}):')} "
+            f"{c.comment(f'constraint {idx} '
+                         f'({constraint.WhichOneof('constraint')}):')} "
             f"{format_constraint(constraint, variable)}"
         )
