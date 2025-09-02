@@ -20,29 +20,18 @@ if [[ -z $1 ]]; then
     exit 1
 fi
 
-batchname=$1
-shift
-
-if [[ -z $1 ]]; then
-    batch_dirs=(data/sweep_configs/*/configs.csv)
-else
-    batch_dirs=$@
-fi
-
-full_file=data/sweep_configs/merged_$batchname
-rm -f $full_file && touch $full_file
-cat "${batch_dirs[@]}" > $full_file
+full_file=data/sweep_configs/configs.csv
 
 lines_left=$(wc -l < $full_file)
 jobs_run=0
 while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
-    send_out_batch $SLURM_MAX_TASKS $full_file $batchname
+    send_out_batch $SLURM_MAX_TASKS $full_file
     jobs_run=$(( $jobs_run + $SLURM_MAX_TASKS ))
     lines_left=$(( $lines_left - $SLURM_MAX_TASKS ))
 done
 
 if [[ $lines_left -gt 0 ]]; then
-    send_out_batch $lines_left $full_file $batchname
+    send_out_batch $lines_left $full_file
 fi
 
 echo make sure to remove $full_file when you\'re done!
