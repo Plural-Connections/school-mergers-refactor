@@ -423,6 +423,8 @@ def set_constraints(
             "feeder_cap",
         ]
     }
+
+    # Permit no leniency in production. Remove for debugging.
     for leniency in leniency_taken.values():
         model.Add(leniency == 0)
 
@@ -1161,7 +1163,9 @@ def solve_and_output_results(
 
     # solver.parameters.log_search_progress = True
 
-    status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
+    # Uncomment for leniency debugging.
+    # status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
+    status = solver.Solve(model)
 
     leniencies_post_solve = {
         name: solver.Value(leniency) for name, leniency in leniencies.items()
