@@ -4,7 +4,7 @@ __pychache__/
 venv*
 dashboard/data/*
 data
-data.zip
+*.zip
 logs/
 GEMINI.md
 mergers_core/stats.csv
