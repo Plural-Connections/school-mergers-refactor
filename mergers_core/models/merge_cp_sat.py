@@ -1171,7 +1171,7 @@ def solve_and_output_results(
         print("Warning: leniencies were taken:")
         print(list(leniencies_taken))
 
-    print_model_constraints(model)
+    # print_model_constraints(model)
 
     this_result_dirname = (
         f"{config.school_decrease_threshold}_"
