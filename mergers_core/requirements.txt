@@ -13,3 +13,4 @@ black
 ortools
 orjson
 tqdm
+colored
