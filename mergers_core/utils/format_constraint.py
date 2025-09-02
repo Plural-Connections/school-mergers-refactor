@@ -38,7 +38,7 @@ def linexpr(proto):
 
     if hasattr(proto, "offset") and proto.offset != 0:
         if proto.offset < 0:
-            expr += f" - {proto.offset}"
+            expr += f" - {-proto.offset}"
         else:
             expr += f" + {proto.offset}"
 
