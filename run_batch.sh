@@ -20,5 +20,5 @@ python <<EOF
 import mergers_core.models.config as config
 from mergers_core.models.merge_cp_sat import solve_and_output_results
 
-solve_and_output_results(config.Config($filename, entry_index=$index))
+solve_and_output_results(config.Config("$filename", entry_index=$index))
 EOF
