@@ -97,6 +97,8 @@ class Config:
             if k not in self.possible_configs:
                 print(f"warning: '{k}' is not a config key", file=sys.stderr)
                 result.pop(k)
+            if len(self.possible_configs[k]) == 1:
+                result.pop(k)
         return result
 
 
