@@ -19,7 +19,6 @@ dropped_count = duplicated_mask.sum()
 if dropped_count > 0:
     print(f"dropped {dropped_count} duplicates(s):")
     dropped_keys = df[duplicated_mask][columns_to_deduplicate].drop_duplicates()
-    print("Dropped keys:")
     print(dropped_keys)
 else:
     print("no duplicates")
