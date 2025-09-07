@@ -17,14 +17,10 @@ def write_pkl(output_file: os.PathLike, output_obj) -> None:
         pickle.dump(output_obj, f)
 
 
-def read_json(input_file: os.PathLike) -> dict:
-    with open(input_file, "r") as f:
-        return json.loads(f.read())
 
 
-def write_json(output_file: os.PathLike, output_dict: dict, indent=4):
-    with open(output_file, "w") as f:
-        f.write(json.dumps(output_dict, indent=indent))
+
+
 
 
 def read_obj(input_file: os.PathLike):

@@ -1,4 +1,3 @@
-import mergers_core.utils.header as header
 import mergers_core.models.constants as constants
 import geopandas as gpd
 import pandas as pd
@@ -6,6 +5,7 @@ import numpy as np
 import glob
 import os
 from collections import Counter
+import json
 
 
 def compute_dissimilarity_index(df_dist):
@@ -409,12 +409,13 @@ def estimate_dissim_with_optouts(
         #     break
         district_id = df_choice["district_id"][i]
         print(district_id)
-        school_enrollments = header.read_json(
+        with open(
             glob.glob(
                 os.path.join(post_merger_enrollments_file.format(batch, district_id)),
                 recursive=True,
             )[0]
-        )
+        ) as f:
+            school_enrollments = json.load(f)
         curr_choice = df_choice[df_choice["district_id"] == district_id].iloc[0]
         num_non_white_per_school = Counter()
         schools = list(school_enrollments["num_total"].keys())

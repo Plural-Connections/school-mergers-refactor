@@ -1,4 +1,4 @@
-import mergers_core.utils.header as header
+import json
 import geopandas as gpd
 import us
 import pandas as pd
@@ -257,7 +257,9 @@ def output_neighboring_districts(
         ]
         for i in range(0, len(df_shapes))
     }
-    header.write_json(output_file_district_centroids, district_centroids)
+
+    with open(output_file_district_centroids, "w") as f:
+        json.dump(district_centroids, f)
 
 
 """
@@ -278,14 +280,18 @@ def output_updated_district_centroids(
 ):
     df = pd.read_csv(input_file, dtype={"LEAID": str})
     df["LEAID"] = df["LEAID"].str.rjust(7, "0")
-    curr_centroids = header.read_json(curr_centroids_file)
+    with open(curr_centroids_file) as f:
+        curr_centroids = json.load(f)
+
     district_centroids = {}
     for i in range(0, len(df)):
         if not df["LEAID"][i] in curr_centroids:
             district_centroids[df["LEAID"][i]] = [df["LAT"][i], df["LON"][i]]
         else:
             district_centroids[df["LEAID"][i]] = curr_centroids[df["LEAID"][i]]
-    header.write_json(output_file, district_centroids)
+
+    with open(output_file, "w") as f:
+        json.dump(district_centroids, f)
 
 
 def output_allowed_mergers(
@@ -334,7 +340,8 @@ def output_allowed_mergers(
             )
 
     district_neighbors = defaultdict(list)
-    curr = header.read_json(neighboring_districts_file)
+    with open(neighboring_districts_file, "r") as f:
+        curr = json.load(f)
     df_schools = pd.read_csv(schools_file, dtype={"NCESSCH": str})
     for d in curr:
         district_neighbors[d] = curr[d]
@@ -387,13 +394,10 @@ def output_allowed_mergers(
             )
         curr_path = os.path.join(output_dir.format(state))
         Path(curr_path).mkdir(parents=True, exist_ok=True)
-        header.write_json(
-            os.path.join(curr_path, output_file_within), allowable_within_district
-        )
-        header.write_json(
-            os.path.join(curr_path, output_file_between),
-            allowable_between_within_district,
-        )
+        with open(os.path.join(curr_path, output_file_within), "w") as f:
+            json.dump(allowable_within_district, f, indent=4)
+        with open(os.path.join(curr_path, output_file_between), "w") as f:
+            json.dump(allowable_between_within_district, f, indent=4)
 
 
 def output_districts_all_closed_enrollment_elementary(

@@ -1,5 +1,4 @@
 from ortools.sat.python import cp_model
-import mergers_core.utils.header as header
 from mergers_core.utils.format_constraint import print_model_constraints
 import mergers_core.models.constants as constants
 from mergers_core.models.model_utils import (
@@ -92,7 +91,8 @@ def load_and_process_data(
             config.district.state,
             "between_within_district_allowed_mergers.json",
         )
-        permissible_matches = header.read_json(merger_file)
+        with open(merger_file) as f:
+            permissible_matches = json.load(f)
         districts_involved = {
             school[:7]
             for school in unique_schools
@@ -106,7 +106,8 @@ def load_and_process_data(
             config.district.state,
             "within_district_allowed_mergers.json",
         )
-        permissible_matches = header.read_json(merger_file)
+        with open(merger_file) as f:
+            permissible_matches = json.load(f)
         districts_involved = {config.district.id}
 
     # Load and merge capacity data
@@ -1208,7 +1209,8 @@ def solve_and_output_results(
             df_r.to_csv(s3_bucket + output_dir, index=False)
         else:
             Path(output_dir).mkdir(parents=True, exist_ok=True)
-            header.write_json(os.path.join(output_dir, "output.json"), result)
+            with open(os.path.join(output_dir, "output.json"), "w") as f:
+                json.dump(result, f, indent=4)
 
 
 if __name__ == "__main__":

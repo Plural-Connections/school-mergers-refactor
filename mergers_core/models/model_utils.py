@@ -1,4 +1,3 @@
-import mergers_core.utils.header as header
 import sys
 import traceback
 import mergers_core.models.constants as constants
@@ -462,7 +461,8 @@ def output_analytics(
         print(f"ERROR!!!! {e}")
         traceback.print_exc()
         errors = {"error_message": str(e)}
-        header.write_json(os.path.join(output_dir, "errors.json"), errors)
+        with open(os.path.join(output_dir, "errors.json"), "w") as f:
+            json.dump(errors, f, indent=4)
         return
 
     present_stat = (
