@@ -20,14 +20,12 @@ if __name__ == "__main__":
     year = "2122"
     states = [
         s.split("/")[0]
-        for s in os.listdir(os.path.join("data", "attendance_boundaries", "2122"))
+        for s in os.listdir(f"data/attendance_boundaries/2122")
     ]
     for s in states:
         state_fips = us.states.lookup(s).fips
 
-        output_dir = os.path.join(
-            DATA_DIR, "data", "census_block_shapefiles_2020", f"{year}-{s}"
-        )
+        output_dir = f"{DATA_DIR}/data/census_block_shapefiles_2020/{year}-{s}"
 
         print("Processing {}...".format(s))
 
@@ -78,7 +76,7 @@ if __name__ == "__main__":
         df_asgn_orig["leaid"] = df_asgn_orig["ncessch"].str[:7]
 
         for district in districts:
-            fname = os.path.join(output_dir, f"{year}-{s}-{district}.geodata.csv")
+            fname = f"{output_dir}/{year}-{s}-{district}.geodata.csv"
             if os.path.exists(fname):
                 print(fname)
                 continue

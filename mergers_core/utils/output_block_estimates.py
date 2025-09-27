@@ -71,9 +71,7 @@ def allocate_students_to_blocks(curr_school, curr_blocks, all_cat_keys):
 def load_and_prep_block_racial_demos(
     block_demos_all_file,
     block_demos_over_18_file,
-    census_block_mapping_file=os.path.join(
-        "data", "census_block_covariates", "census_block_mapping_2020_2010.csv"
-    ),
+    census_block_mapping_file=f"data/census_block_covariates/census_block_mapping_2020_2010.csv",
 ):
     print("\tLoad mapping file ...")
     # Map a given 2020 block to its highest-weighted block from 2010

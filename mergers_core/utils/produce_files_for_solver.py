@@ -145,30 +145,28 @@ def copy_blocks_to_elementary(
         "derived_data",
         "2122",
     ),
-    output_dir=os.path.join("data", "attendance_boundaries", "2122"),
+    output_dir=f"data/attendance_boundaries/2122",
 ):
     for state in os.listdir(input_dir):
         print(state)
-        Path(os.path.join(output_dir, state)).mkdir(parents=True, exist_ok=True)
+        Path(f"{output_dir}/{state}").mkdir(parents=True, exist_ok=True)
         shutil.copy(
-            os.path.join(input_dir, state, "blocks_to_elementary.csv"),
-            os.path.join(output_dir, state, "blocks_to_elementary.csv"),
+            f"{input_dir}/{state}/blocks_to_elementary.csv",
+            f"{output_dir}/{state}/blocks_to_elementary.csv",
         )
 
 
 def output_school_enrollments_by_race_grade(
-    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
-    capacities_file=os.path.join("data", "school_data", "21_22_school_capacities.csv"),
-    output_file=os.path.join(
-        "data", "school_data", "21_22_school_counts_by_grade_and_race.csv"
-    ),
+    input_dir=f"data/attendance_boundaries/2122",
+    capacities_file=f"data/school_data/21_22_school_capacities.csv",
+    output_file=f"data/school_data/21_22_school_counts_by_grade_and_race.csv"
 ):
     # pd.set_option("display.max_columns", None)
     df_caps = pd.read_csv(capacities_file, dtype={"NCESSCH": str})[
         ["NCESSCH", "total_students_2021-2022"]
     ]
     df_enrollment = pd.read_csv(
-        os.path.join("data/school_data/ccd/2021-2022/", CCD_FILES["2021-2022"][1]),
+        f"data/school_data/ccd/2021-2022/{CCD_FILES['2021-2022'][1]}",
         dtype={"NCESSCH": str},
     )
     df_enrollment_cat = df_enrollment[
@@ -233,18 +231,9 @@ def output_school_enrollments_by_race_grade(
 
 
 def output_neighboring_districts(
-    district_shapefile=os.path.join(
-        "data",
-        "school_district_2021_boundaries",
-        "shapes",
-        "schooldistrict_sy2021_tl21.shp",
-    ),
-    output_file=os.path.join(
-        "data", "school_district_2021_boundaries", "district_neighbors.json"
-    ),
-    output_file_district_centroids=os.path.join(
-        "data", "school_district_2021_boundaries", "district_centroids.json"
-    ),
+    district_shapefile=f"data/school_district_2021_boundaries/shapes/schooldistrict_sy2021_tl21.shp",
+    output_file=f"data/school_district_2021_boundaries/district_neighbors.json",
+    output_file_district_centroids=f"data/school_district_2021_boundaries/district_centroids.json",
 ):
     print("Loading district shapes ...")
     df_shapes = gpd.read_file(district_shapefile)
@@ -268,15 +257,9 @@ def output_neighboring_districts(
 
 
 def output_updated_district_centroids(
-    input_file=os.path.join(
-        "data", "school_district_2021_boundaries", "EDGE_GEOCODE_PUBLICLEA_2122.csv"
-    ),
-    curr_centroids_file=os.path.join(
-        "data", "school_district_2021_boundaries", "district_centroids.json"
-    ),
-    output_file=os.path.join(
-        "data", "school_district_2021_boundaries", "updated_district_centroids.json"
-    ),
+    input_file=f"data/school_district_2021_boundaries/EDGE_GEOCODE_PUBLICLEA_2122.csv",
+    curr_centroids_file=f"data/school_district_2021_boundaries/district_centroids.json",
+    output_file=f"data/school_district_2021_boundaries/updated_district_centroids.json",
 ):
     df = pd.read_csv(input_file, dtype={"LEAID": str})
     df["LEAID"] = df["LEAID"].str.rjust(7, "0")
@@ -295,10 +278,8 @@ def output_updated_district_centroids(
 
 
 def output_allowed_mergers(
-    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
-    schools_file=os.path.join(
-        "data", "school_data", "21_22_school_counts_by_grade_and_race.csv"
-    ),
+    input_dir=f"data/attendance_boundaries/2122",
+    schools_file=f"data/school_data/21_22_school_counts_by_grade_and_race.csv",
     census_block_shapefiles=os.path.join(
         os.path.expanduser("~"),
         "OneDrive - Northeastern University",
@@ -309,9 +290,7 @@ def output_allowed_mergers(
         "tl_2021_{}_tabblock20",
         "tl_2021_{}_tabblock20.shp",
     ),
-    neighboring_districts_file=os.path.join(
-        "data", "school_district_2021_boundaries", "district_neighbors.json"
-    ),
+    neighboring_districts_file=f"data/school_district_2021_boundaries/district_neighbors.json",
     output_dir=os.path.join("data", "solver_files", "2122", "{}"),
     output_file_within="within_district_allowed_mergers.json",
     output_file_between="between_within_district_allowed_mergers.json",
@@ -362,7 +341,7 @@ def output_allowed_mergers(
             dtype={"GEOID20": str},
         )[["GEOID20", "geometry"]]
         df_state = pd.read_csv(
-            os.path.join(input_dir, state, "blocks_to_elementary.csv"),
+            f"{input_dir}/{state}/blocks_to_elementary.csv",
             dtype={"ncessch": str, "leaid": str, "GEOID20": str},
         ).drop(columns=["geometry"])
         df_state = df_state[
@@ -402,16 +381,14 @@ def output_allowed_mergers(
 
 def output_districts_all_closed_enrollment_elementary(
     input_dir=os.path.join("data", "attendance_boundaries", "2122"),
-    output_file=os.path.join(
-        "data", "school_data", "entirely_elem_closed_enrollment_districts.csv"
-    ),
+    output_file=f"data/school_data/entirely_elem_closed_enrollment_districts.csv"
 ):
 
     all_states = os.listdir(input_dir)
     all_data = {"district_id": []}
     for state in all_states:
         df_state = pd.read_csv(
-            os.path.join(input_dir, state, "blocks_to_elementary.csv"),
+            f"{input_dir}/{state}/blocks_to_elementary.csv",
             dtype={"ncessch": str, "leaid": str, "GEOID20": str},
         ).drop(columns=["geometry"])
         all_dists = list(set(df_state["leaid"].tolist()))
@@ -429,17 +406,15 @@ def output_districts_all_closed_enrollment_elementary(
 
 
 def output_allowed_schools(
-    schools_file=os.path.join(
-        "data", "school_data", "21_22_school_counts_by_grade_and_race.csv"
-    ),
-    input_dir=os.path.join("data", "attendance_boundaries", "2122"),
+    schools_file=f"data/school_data/21_22_school_counts_by_grade_and_race.csv",
+    input_dir=f"data/attendance_boundaries/2122",
     output_dir=os.path.join("data", "solver_files", "2122", "{}"),
 ):
     df_schools = pd.read_csv(schools_file, dtype={"NCESSCH": str})
     for state in os.listdir(input_dir):
         curr_state = us.states.lookup(state)
         df_blocks = pd.read_csv(
-            os.path.join(input_dir, state, "blocks_to_elementary.csv"),
+            f"{input_dir}/{state}/blocks_to_elementary.csv",
             dtype={"leaid": str, "ncessch": str},
         )
         df_blocks = df_blocks[df_blocks["openEnroll"] == "N"].reset_index(drop=True)
@@ -452,20 +427,14 @@ def output_allowed_schools(
         ].reset_index(drop=True)
         curr_dir = output_dir.format(state)
         Path(curr_dir).mkdir(parents=True, exist_ok=True)
-        df_curr.to_csv(os.path.join(curr_dir, "school_enrollments.csv"), index=False)
+        df_curr.to_csv(f"{curr_dir}/school_enrollments.csv", index=False)
 
 
 def output_districts_to_process(
-    input_file=os.path.join(
-        "data", "school_data", "21_22_school_counts_by_grade_and_race.csv"
-    ),
-    membership_file=os.path.join(
-        "data", "school_data", "ccd", "2021-2022", "ccd_sch_029_2122_w_1a_071722.csv"
-    ),
-    output_file_districts=os.path.join("data", "school_data", "all_districts.csv"),
-    output_file_schools=os.path.join(
-        "data", "school_data", "all_schools_with_names.csv"
-    ),
+    input_file=f"data/school_data/21_22_school_counts_by_grade_and_race.csv",
+    membership_file=f"data/school_data/ccd/2021-2022/ccd_sch_029_2122_w_1a_071722.csv",
+    output_file_districts=f"data/school_data/all_districts.csv",
+    output_file_schools=f"data/school_data/all_schools_with_names.csv",
 ):
     df = pd.read_csv(input_file, dtype={"NCESSCH": str})
     df["district_id"] = df["NCESSCH"].str[:7]
