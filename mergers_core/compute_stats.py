@@ -16,15 +16,17 @@ def compute_stats(df):
         (df["dissimilarity_weight"] == 1) & (df["population_metric_weight"] == 1)
     ]
 
-    final_df = pd.DataFrame(
-        np.zeros((3, 6), dtype=np.float64),
+    results = pd.DataFrame(
+        np.zeros((3, 8), dtype=np.float64),
         columns=[
             "m %Δdissim",
             "a %Δdissim",
             "m %Δpop (aΔ)",
             "a %Δpop (aΔ)",
-            "m %Δpop (mΔ)",
-            "a %Δpop (mΔ)",
+            "prem dissim",
+            "postm dissim",
+            "prem pop (aΔ)",
+            "postm pop (aΔ)",
         ],
     )
     for stat_index, row in enumerate([dissim_rows, pop_rows, both_rows]):
@@ -40,22 +42,18 @@ def compute_stats(df):
             post_pop_average_divergence - pre_pop_average_divergence
         ) / pre_pop_average_divergence
 
-        pre_pop_median_divergence = np.array(row["pre_population_median_divergence"])
-        post_pop_median_divergence = np.array(row["post_population_median_divergence"])
-        Δpop_median_divergence = (
-            post_pop_median_divergence - pre_pop_median_divergence
-        ) / pre_pop_median_divergence
-
-        final_df.loc[stat_index] = [
+        results.loc[stat_index] = [
             np.median(Δdissim) * 100,
             np.mean(Δdissim) * 100,
             np.median(Δpop_average_divergence) * 100,
             np.mean(Δpop_average_divergence) * 100,
-            np.median(Δpop_median_divergence) * 100,
-            np.mean(Δpop_median_divergence) * 100,
+            np.median(pre_dissim),
+            np.median(post_dissim),
+            np.median(pre_pop_average_divergence),
+            np.median(post_pop_average_divergence),
         ]
-    final_df.index = ["dissim", "pop", "both"]
-    return final_df
+    results.index = ["dissim", "pop", "both"]
+    return results
 
 
 print("m = median; a = average; SDT = school decrease threshold")
