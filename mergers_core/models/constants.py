@@ -1,7 +1,7 @@
 # Solver constants
 HOURS_TO_SECONDS = 60 * 60
-MAX_SOLVER_TIME = 5.5 * HOURS_TO_SECONDS
-NUM_SOLVER_THREADS = 4
+MAX_SOLVER_TIME = 6 * HOURS_TO_SECONDS
+NUM_SOLVER_THREADS = 6
 
 # To scale variables so they satisfy cp-sat's integer requirements
 SCALING = (100000, 5)
