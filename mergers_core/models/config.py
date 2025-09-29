@@ -117,6 +117,6 @@ def generate_all_configs(min_schools: typing.Optional[int] = 4):
     ]
     print(
         f"Generated {len(configs)} configs for "
-        f"{len(Config.possible_configs["district"])} schools."
+        f"{len(Config.possible_configs["district"])} districts."
     )
     configs.to_csv("data/sweep_configs/configs.csv", index=False)
