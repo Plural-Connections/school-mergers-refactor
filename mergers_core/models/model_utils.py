@@ -471,16 +471,16 @@ def output_analytics(
     )
 
     if print_to_stdout:
-        print(f"dissim{' ' * 14}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
+        print(f"dissim{' ' * 13}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
         print(
-            f"dissim{' ' * 12}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}"
+            f"dissim{' ' * 11}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}"
         )
 
         for metric in pre_population_metrics.keys():
             stats = present_stat(
                 pre_population_metrics[metric], post_population_metrics[metric]
             )
-            print(f"pop{(20 - len(metric)) * ' '}{metric}: {stats}")
+            print(f"pop{(19 - len(metric)) * ' '}{metric}: {stats}")
 
         print()
 
