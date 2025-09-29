@@ -58,5 +58,5 @@ def compute_stats(df):
 
 print("m = median; a = average; SDT = school decrease threshold")
 
-df = pd.read_csv("../data/results/results.csv")
+df = pd.read_csv("data/results/results.csv")
 print(compute_stats(df))
