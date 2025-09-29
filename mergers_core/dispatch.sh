@@ -15,11 +15,6 @@ send_out_batch() {
 
 trap __cleanup INT HUP TERM
 
-if [[ -z $1 ]]; then
-    echo You must pass a batch name. I\'m not smart enough to make my own!
-    exit 1
-fi
-
 full_file=data/sweep_configs/configs.csv
 
 lines_left=$(wc -l < $full_file)
