@@ -110,10 +110,8 @@ def generate_all_configs(min_schools: typing.Optional[int] = 4):
     )
     # must optimize for one metric
     configs = configs[
-        ~(
-            (configs["dissimilarity_weight"] == 0)
-            & (configs["population_metric_weight"] == 0)
-        )
+        (configs["dissimilarity_weight"] == 1)
+        | (configs["population_metric_weight"] == 1)
     ]
     print(
         f"Generated {len(configs)} configs for "
