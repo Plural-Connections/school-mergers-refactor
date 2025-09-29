@@ -977,30 +977,19 @@ def set_objective(
         optimize_function(population_metric + minimize_leniency)
         return
 
-    # Handle case where a pre-computation is zero to avoid division errors
-    if pre_population_metric == 0 or pre_dissimilarity == 0:
-        starting_ratio = Fraction(1, 1)
-    else:
-        starting_ratio = Fraction(pre_dissimilarity / pre_population_metric)
-
-    # This ratio balances the weights provided by the user with the initial
-    # values of the metrics themselves, preventing one metric from dominating
-    # the objective function simply due to its scale.
-    ratio = Fraction(
-        int(config.dissimilarity_weight * constants.SCALING[0]),
-        int(config.population_metric_weight * constants.SCALING[0]),
-    )
+    starting_ratio = Fraction(pre_dissimilarity / pre_population_metric)
+    ratio = Fraction(config.dissimilarity_weight / config.population_metric_weight)
     ratio = ratio * starting_ratio
     ratio = ratio.limit_denominator(1000)
 
     print(
         f"Objective: {obj}"
-        f" {ratio.numerator} * dissimilarity ({config.dissimilarity_flavor})"
-        f" + {ratio.denominator} * population metric"
+        f" {ratio.denominator} * dissimilarity ({config.dissimilarity_flavor})"
+        f" + {ratio.numerator} * population metric"
     )
     optimize_function(
-        ratio.numerator * dissimilarity_index
-        + ratio.denominator * population_metric
+        ratio.denominator * dissimilarity_index
+        + ratio.numerator * population_metric
         + minimize_leniency
     )
 
