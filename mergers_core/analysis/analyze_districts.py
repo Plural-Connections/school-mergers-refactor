@@ -1,4 +1,4 @@
-import mergers_core.models.constants as constants
+import models.constants as constants
 import geopandas as gpd
 import pandas as pd
 import numpy as np

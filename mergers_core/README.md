@@ -9,9 +9,9 @@ Contact Nabeel Gillani (`n.gillani` at northeastern dot edu) or Madison Landry
 
 When running this code, it's a good idea to have a venv active:
 ```sh
-$ python -m venv .venv  # (in the project's root directory) only run this once
+$ python -m venv .venv  # you only run this once
+$ pip install -r requirements.txt  # also only run this once
 $ source .venv/bin/activate  # run this on every new shell to reactivate the venv (fish users use activate.fish instead of activate)
-$ pip install -r mergers_core/requirements.txt  # also only run this once
 ```
 To deactivate, run `deactivate` anywhere.
 
@@ -30,7 +30,7 @@ Running the code on a Slurm cluster is handled by `dispatch.sh <batch> [<configs
    * Estimating impacts on segregation via dissimilarity score
    * Generating analytics CSVs after solving
 * `simulation_sweeps.py` — Organize simulations into batches (for Slurm)
-   * To generate, run `python -c 'import mergers_core.models.simulation_sweeps as s; s.generate_year_state_sweep_configs()'`
+   * To generate, run `python -c 'import models.config as c; c.generate_all_configs()'`
 
 ## `./utils/`
 
@@ -64,5 +64,5 @@ The files under this folder are those necessary for the solver and/or generated 
 * `school_data/` — Miscellaneous school data files
 * `school_district_2021_boundaries/` — Shape files and centroid/adjacency calculations for analysis and the solver
 * `solver_files/` — Compiled data used by `merge_cp_sat.py`
-* `sweep_configs/` — Chunk configurations from/for `mergers_core/simulation_sweeps.py`
+* `sweep_configs/` — Chunk configurations from/for `simulation_sweeps.py`
 * `travel_times_files/` — Travel times matrices used by `model_utils.py`

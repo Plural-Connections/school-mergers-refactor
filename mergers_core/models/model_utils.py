@@ -1,6 +1,6 @@
 import sys
 import traceback
-import mergers_core.models.constants as constants
+import models.constants as constants
 import pandas as pd
 import numpy as np
 from collections import Counter, defaultdict
@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import glob
 import shutil
-import mergers_core.models.config as config
+import models.config as config
 import orjson
 
 DF_BLOCKS = None

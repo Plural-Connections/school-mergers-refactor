@@ -1,7 +1,7 @@
 from ortools.sat.python import cp_model
-from mergers_core.utils.format_constraint import print_model_constraints
-import mergers_core.models.constants as constants
-from mergers_core.models.model_utils import (
+from utils.format_constraint import print_model_constraints
+import models.constants as constants
+from models.model_utils import (
     output_solver_solution,
     compute_dissimilarity_metrics,
     compute_population_metrics,
@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 import os
 from fractions import Fraction
-import mergers_core.models.config as config
+import models.config as config
 import json
 
 

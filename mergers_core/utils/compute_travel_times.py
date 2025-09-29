@@ -1,4 +1,4 @@
-from mergers_core.utils.distances_and_times import (
+from utils.distances_and_times import (
     get_distance_for_coord_pair,
     get_travel_time_for_coord_pair,
 )
