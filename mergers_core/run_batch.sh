@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1 --ntasks=1 --ntasks-per-node=1  # Singleton jobs
 #SBATCH --cpus-per-task=4  # Same as in constants.py
-#SBATCH --time=6:00:00
+#SBATCH --time=7:00:00
 #SBATCH --output logs/output_%j.txt --error logs/error_%j.txt
 #SBATCH --mem=16gb
 #SBATCH --partition=short  # Use the short partition
