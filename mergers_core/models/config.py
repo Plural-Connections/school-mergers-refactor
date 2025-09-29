@@ -21,7 +21,7 @@ class District(namedtuple("District", ["state", "id"])):
 
 def _load_district_list(
     filename: str,  # a csv file with a 'district' column
-    school_count_lower_bound: typing.Optional[int] = None,  # inclusive
+    bounds: typing.Optional[slice] = None,
     district_count: typing.Optional[int] = None,
 ):
 
@@ -39,8 +39,8 @@ def _load_district_list(
         )
         df = df.join(schools_per_district).sort_values(by="num_schools")
 
-    if school_count_lower_bound:
-        df = df[df["num_schools"] >= school_count_lower_bound]
+    if bounds:
+        df = df[df["num_schools"].isin(range(*bounds.indices(1000)))]
 
     if district_count:
         df = df.head(district_count)
@@ -52,7 +52,9 @@ def _load_district_list(
 # its value in possible_configs[key].
 class Config:
     possible_configs = {
-        "district": list(_load_district_list("data/top_200_districts.csv")),
+        "district": list(
+            _load_district_list("data/all_schools.csv", bounds=slice(6, 9))
+        ),
         "school_increase_threshold": [0.1],
         "school_decrease_threshold": [1.0],
         "dissimilarity_weight": [0, 1],
