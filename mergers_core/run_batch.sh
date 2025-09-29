@@ -17,8 +17,8 @@ source venv313/bin/activate
 index=$(( $SLURM_ARRAY_TASK_ID + $1 )) ; shift
 filename=$1 ; shift
 python <<EOF
-import mergers_core.models.config as config
-from mergers_core.models.merge_cp_sat import solve_and_output_results
+import models.config as config
+from odels.merge_cp_sat import solve_and_output_results
 
 print("task id: $SLURM_ARRAY_TASK_ID; index = $index; filename = $filename")
 solve_and_output_results(config.Config("$filename", entry_index=$index))
