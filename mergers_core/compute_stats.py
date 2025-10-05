@@ -24,9 +24,9 @@ def compute_stats(df):
             "m %Δpop (aΔ)",
             "a %Δpop (aΔ)",
             "prem dissim",
-            "postm dissim",
+            "prea dissim",
             "prem pop (aΔ)",
-            "postm pop (aΔ)",
+            "prea pop (aΔ)",
         ],
     )
     for stat_index, row in enumerate([dissim_rows, pop_rows, both_rows]):
@@ -34,13 +34,9 @@ def compute_stats(df):
         post_dissim = np.array(row["post_dissim_bh_wa"])
         Δdissim = (post_dissim - pre_dissim) / pre_dissim
 
-        pre_pop_average_divergence = np.array(row["pre_population_average_divergence"])
-        post_pop_average_divergence = np.array(
-            row["post_population_average_divergence"]
-        )
-        Δpop_average_divergence = (
-            post_pop_average_divergence - pre_pop_average_divergence
-        ) / pre_pop_average_divergence
+        pre_pop_aΔ = np.array(row["pre_population_average_divergence"])
+        post_pop_aΔ = np.array(row["post_population_average_divergence"])
+        Δpop_average_divergence = (post_pop_aΔ - pre_pop_aΔ) / pre_pop_aΔ
 
         results.loc[stat_index] = [
             np.median(Δdissim) * 100,
@@ -48,9 +44,9 @@ def compute_stats(df):
             np.median(Δpop_average_divergence) * 100,
             np.mean(Δpop_average_divergence) * 100,
             np.median(pre_dissim),
-            np.median(post_dissim),
-            np.median(pre_pop_average_divergence),
-            np.median(post_pop_average_divergence),
+            np.mean(pre_dissim),
+            np.median(pre_pop_aΔ),
+            np.mean(pre_pop_aΔ),
         ]
     results.index = ["dissim", "pop", "both"]
     return results
