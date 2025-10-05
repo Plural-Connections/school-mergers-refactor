@@ -1205,7 +1205,7 @@ def solve_and_output_results(
 if __name__ == "__main__":
     # solve_and_output_results(
     #     config.Config.custom_config(
-    #         district=config.District("MA", "2500001"),
+    #         district=config.District("HI", "1500030"),
     #         dissimilarity_weight=1,
     #         population_metric_weight=0,
     #         population_metric="average_divergence",
