@@ -7,7 +7,7 @@ __cleanup() {
 }
 
 send_out_batch() {
-    array_end=$1; shift
+    array_end=$(($1 - 1)); shift
     command="sbatch --job-name=${2} --array=0-$array_end run_batch.sh $jobs_run $@"
     echo $command
     $command
@@ -17,7 +17,7 @@ trap __cleanup INT HUP TERM
 
 full_file=data/sweep_configs/configs.csv
 
-lines_left=$(wc -l < $full_file)
+lines_left=$(($(wc -l < $full_file) - 1))
 jobs_run=0
 while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
     send_out_batch $SLURM_MAX_TASKS $full_file
