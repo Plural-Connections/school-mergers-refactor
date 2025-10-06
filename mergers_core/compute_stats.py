@@ -6,6 +6,7 @@ POPULATION_METRIC = "median_divergence"
 
 
 def compute_stats(df):
+    df = df.sort_values(by="district").reset_index(drop=True)
     dissim_rows = df[
         (df["dissimilarity_weight"] == 1) & (df["population_metric_weight"] == 0)
     ]
@@ -15,6 +16,30 @@ def compute_stats(df):
     both_rows = df[
         (df["dissimilarity_weight"] == 1) & (df["population_metric_weight"] == 1)
     ]
+
+    print(f"{dissim_rows.shape=}, {pop_rows.shape=}, {both_rows.shape=}")
+    relevant_columns = [
+        "district",
+        "pre_dissim_bh_wa",
+        "dissimilarity_weight",
+        "population_metric_weight",
+    ]
+    print(df[relevant_columns][38:])
+    print(dissim_rows[relevant_columns][13:])
+    print(pop_rows[relevant_columns][13:])
+    print(both_rows[relevant_columns][13:])
+    print()
+
+    mask = dissim_rows["pre_dissim_bh_wa"].reset_index(drop=True) != pop_rows[
+        "pre_dissim_bh_wa"
+    ].reset_index(drop=True)
+    print(mask[12:181])
+    print(mask[13:180].all())
+    print(mask[:13].any() or mask[180:].any())
+    mask.index = dissim_rows.index
+    # print(dissim_rows[mask]["pre_dissim_bh_wa"])
+    mask.index = pop_rows.index
+    # print(pop_rows[mask]["pre_dissim_bh_wa"])
 
     results = pd.DataFrame(
         np.zeros((3, 8), dtype=np.float64),
@@ -51,8 +76,6 @@ def compute_stats(df):
     results.index = ["dissim", "pop", "both"]
     return results
 
-
-print("m = median; a = average; SDT = school decrease threshold")
 
 df = pd.read_csv("data/results/results.csv")
 print(compute_stats(df))
