@@ -27,7 +27,6 @@ This code repo operates on a mass of CSV and shapes files which are available he
 * `mergers_core/data/school_data/` — Miscellaneous school data files
 * `mergers_core/data/school_district_2021_boundaries/` — Shape files and centroid/adjacency calculations for analysis and the solver
 * `mergers_core/data/solver_files/` — Compiled data used by the solver
-* `mergers_core/data/sweep_configs/` — Chunk configurations from/for `mergers_core/simulation_sweeps.py`
 * `mergers_core/data/travel_times_files/` — Travel times matrices used by the solver
 
 </details>

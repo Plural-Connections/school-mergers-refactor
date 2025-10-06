@@ -1211,4 +1211,4 @@ if __name__ == "__main__":
     #         population_metric="average_divergence",
     #     )
     # )
-    solve_and_output_results(config.Config("data/sweep_configs/configs.csv"))
+    solve_and_output_results(config.Config("data/configs.csv"))

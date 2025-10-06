@@ -15,7 +15,7 @@ send_out_batch() {
 
 trap __cleanup INT HUP TERM
 
-full_file=data/sweep_configs/configs.csv
+full_file=data/configs.csv
 
 lines_left=$(($(wc -l < $full_file) - 1))
 jobs_run=0

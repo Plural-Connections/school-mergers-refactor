@@ -103,7 +103,6 @@ class Config:
 
 
 def generate_all_configs(min_schools: typing.Optional[int] = 4):
-    os.makedirs("data/sweep_configs", exist_ok=True)
     configs = pd.DataFrame(
         itertools.product(*Config.possible_configs.values()),
         columns=Config.possible_configs.keys(),
@@ -117,4 +116,4 @@ def generate_all_configs(min_schools: typing.Optional[int] = 4):
         f"Generated {len(configs)} configs for "
         f"{len(Config.possible_configs["district"])} districts."
     )
-    configs.to_csv("data/sweep_configs/configs.csv", index=False)
+    configs.to_csv("data/configs.csv", index=False)
