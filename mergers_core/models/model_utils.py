@@ -615,8 +615,8 @@ def _wrapper(args):
     output_analytics(*args, print_to_stdout=False)
 
 
-def _prepare_job(solution):
-    _, _, _, state, id, run_dir = solution.split("/")
+def prepare_job(solution):
+    _, _, state, id, run_dir = solution.split("/")
     directory = Path(solution)
     district = config.District(state=state, id=id)
     # parse run_dir for as much as we can
@@ -722,14 +722,14 @@ def _prepare_job(solution):
 
 
 def produce_post_solver_files_parallel(solutions_dir):
-    assert len(solutions_dir.split("/")) == 3
+    assert len(solutions_dir.split("/")) == 2
 
     from tqdm.contrib.concurrent import process_map
 
     solutions = glob.glob(solutions_dir + "/*/*/*")
 
     all_jobs = process_map(
-        _prepare_job,
+        prepare_job,
         solutions,
         chunksize=1,
         desc="generate",
@@ -817,5 +817,8 @@ def compare_batch_totals(
 
 
 if __name__ == "__main__":
-    produce_post_solver_files_parallel("data/results/top-200")
-    # consolidate_results_files()
+    if len(sys.argv) == 1:
+        print("reproducing all solver files")
+        # produce_post_solver_files_parallel("data/results")
+    else:
+        print(prepare_job(sys.argv[1]))
