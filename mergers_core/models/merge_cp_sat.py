@@ -992,10 +992,7 @@ def set_objective(
         f"Pre dissimilarity: {pre_dissimilarity:0.4f}; "
         f"pre population metric: {pre_population_metric:0.4f}"
     )
-    print(
-        f"Balance: {pre_dissimilarity * ratio.denominator:0.4f}"
-        f":{pre_population_metric * ratio.numerator:0.4f}"
-    )
+
     optimize_function(
         ratio.denominator * dissimilarity_index
         + ratio.numerator * population_metric
