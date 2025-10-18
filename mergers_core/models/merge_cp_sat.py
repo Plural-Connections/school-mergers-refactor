@@ -14,6 +14,7 @@ import os
 from fractions import Fraction
 import models.config as config
 import json
+import sys
 
 
 def _load_and_filter_nces_schools(
@@ -980,12 +981,20 @@ def set_objective(
     starting_ratio = Fraction(pre_dissimilarity / pre_population_metric)
     ratio = Fraction(config.dissimilarity_weight / config.population_metric_weight)
     ratio = ratio * starting_ratio
-    ratio = ratio.limit_denominator(1000)
+    ratio = ratio.limit_denominator(10000)
 
     print(
         f"Objective: {obj}"
         f" {ratio.denominator} * dissimilarity ({config.dissimilarity_flavor})"
         f" + {ratio.numerator} * population metric"
+    )
+    print(
+        f"Pre dissimilarity: {pre_dissimilarity:0.4f}; "
+        f"pre population metric: {pre_population_metric:0.4f}"
+    )
+    print(
+        f"Balance: {pre_dissimilarity * ratio.denominator:0.4f}"
+        f":{pre_population_metric * ratio.numerator:0.4f}"
     )
     optimize_function(
         ratio.denominator * dissimilarity_index
@@ -1203,12 +1212,7 @@ def solve_and_output_results(
 
 
 if __name__ == "__main__":
-    # solve_and_output_results(
-    #     config.Config.custom_config(
-    #         district=config.District("HI", "1500030"),
-    #         dissimilarity_weight=1,
-    #         population_metric_weight=0,
-    #         population_metric="average_divergence",
-    #     )
-    # )
-    solve_and_output_results(config.Config("data/configs.csv"))
+    kwargs = {"dissimilarity_weight": 1, "population_metric_weight": 1}
+    if len(sys.argv) == 2:
+        kwargs["district"] = config.District.from_string(sys.argv[1])
+    solve_and_output_results(config.Config.custom_config(**kwargs))
