@@ -297,11 +297,9 @@ def _get_students_at_school(
     # Calculate the base number of students this school will serve from its
     # original student body based on its new grade assignments.
     students_at_school = sum(
-        [
-            students_per_grade_per_school[school]["num_total"][grade]
-            * grades_interval_binary[school][grade]
-            for grade in constants.GRADE_TO_INDEX.values()
-        ]
+        students_per_grade_per_school[school]["num_total"][grade]
+        * grades_interval_binary[school][grade]
+        for grade in constants.GRADE_TO_INDEX.values()
     )
     model.Add(students_at_school >= 0)
     model.Add(students_at_school <= constants.MAX_TOTAL_STUDENTS)
@@ -318,11 +316,9 @@ def _get_students_at_school(
             model.Add(
                 transfer_from_school2
                 == sum(
-                    [
-                        students_per_grade_per_school[school2]["num_total"][i]
-                        * grades_interval_binary[school][i]
-                        for i in constants.GRADE_TO_INDEX.values()
-                    ]
+                    students_per_grade_per_school[school2]["num_total"][i]
+                    * grades_interval_binary[school][i]
+                    for i in constants.GRADE_TO_INDEX.values()
                 )
             ).OnlyEnforceIf(matches[school][school2])
             model.Add(transfer_from_school2 == 0).OnlyEnforceIf(
