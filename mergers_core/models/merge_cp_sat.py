@@ -1094,18 +1094,12 @@ def solve_and_output_results(
         pre_dissimilarity = pre_dissim_bh_wa
         groups_a = ["black", "hispanic"]
         groups_b = ["white", "asian"]
-    else:
+    elif config.dissimilarity_flavor == "wnw":
         pre_dissimilarity = pre_dissim_wnw
-        groups_a = [
-            "asian",
-            "black",
-            "hispanic",
-            "native",
-            "not_specified",
-            "pacific_islander",
-            "two_or_more",
-        ]
+        groups_a = ["white_not"]
         groups_b = ["white"]
+    else:
+        assert False
 
     pre_population_metric = pre_population_metrics[config.population_metric]
 
