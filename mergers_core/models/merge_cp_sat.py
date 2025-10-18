@@ -729,8 +729,7 @@ def calculate_dissimilarity(
         model.AddDivisionEquality(
             a_ratio_at_school,
             scaled_total_a_students_at_school,
-            total_across_schools_by_category["num_black"]
-            + total_across_schools_by_category["num_hispanic"],
+            sum(total_across_schools_by_category[x] for x in groups_a),
         )
 
         # (B students at school / total B students in district)
@@ -740,8 +739,7 @@ def calculate_dissimilarity(
         model.AddDivisionEquality(
             b_ratio_at_school,
             scaled_total_b_students_at_school,
-            total_across_schools_by_category["num_white"]
-            + total_across_schools_by_category["num_asian"],
+            sum(total_across_schools_by_category[x] for x in groups_b),
         )
 
         term = model.NewIntVar(0, constants.SCALING[0], f"dissim_term_{school}")
