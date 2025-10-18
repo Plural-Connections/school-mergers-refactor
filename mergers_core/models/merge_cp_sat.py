@@ -1,3 +1,4 @@
+import typing
 from ortools.sat.python import cp_model
 from utils.format_constraint import print_model_constraints
 import models.constants as constants
@@ -265,6 +266,7 @@ def _get_students_at_school(
     grades_interval_binary: dict[str, list[cp_model.IntVar]],
     school: str,
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
+    groups: typing.Optional[list[str]],
 ) -> list[cp_model.IntVar]:
     """Calculates the number of students that will be assigned to a school building.
 
@@ -288,16 +290,20 @@ def _get_students_at_school(
         students_per_grade_per_school: A nested dictionary
             containing the number of students for each grade and racial
             category within each school.
+        groups: The groups to restrict calculations to. If null, use "num_total"
 
     Returns:
         A list of CP-SAT integer variables representing the different
         groups of students that will make up the new population of the school
         building. The sum of this list would represent the total enrollment.
     """
+
+    groups = groups or ["num_total"]
+
     # Calculate the base number of students this school will serve from its
     # original student body based on its new grade assignments.
     students_at_school = sum(
-        students_per_grade_per_school[school]["num_total"][grade]
+        sum(students_per_grade_per_school[school][group][grade] for group in groups)
         * grades_interval_binary[school][grade]
         for grade in constants.GRADE_TO_INDEX.values()
     )
@@ -311,23 +317,26 @@ def _get_students_at_school(
         transfer_from_school2 = model.NewIntVar(
             0, constants.MAX_TOTAL_STUDENTS, f"transfer_{school2}_to_{school}"
         )
-        if school != school2:
-            # Sum students from s2 for the grades that s will now serve.
-            model.Add(
-                transfer_from_school2
-                == sum(
-                    students_per_grade_per_school[school2]["num_total"][i]
-                    * grades_interval_binary[school][i]
-                    for i in constants.GRADE_TO_INDEX.values()
-                )
-            ).OnlyEnforceIf(matches[school][school2])
-            model.Add(transfer_from_school2 == 0).OnlyEnforceIf(
-                matches[school][school2].Not()
-            )
-        else:
+        if school == school2:
             model.Add(
                 transfer_from_school2 == 0
             )  # No students transfer if it's the same school.
+            continue
+
+        # Sum students from s2 for the grades that s will now serve.
+        model.Add(
+            transfer_from_school2
+            == sum(
+                sum(
+                    students_per_grade_per_school[school2][group][i] for group in groups
+                )
+                * grades_interval_binary[school][i]
+                for i in constants.GRADE_TO_INDEX.values()
+            )
+        ).OnlyEnforceIf(matches[school][school2])
+        model.Add(transfer_from_school2 == 0).OnlyEnforceIf(
+            matches[school][school2].Not()
+        )
 
         results.append(transfer_from_school2)
 
