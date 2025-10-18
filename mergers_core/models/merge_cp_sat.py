@@ -144,9 +144,32 @@ def load_and_process_data(
 
         # Group by school and create the nested dictionary
         for ncessch, row in df_schools_in_play.iterrows():
-            students_per_grade_per_school[row["NCESSCH"]][race] = (
-                row[grade_columns].astype(int).tolist()
-            )
+            students_per_grade_per_school[row["NCESSCH"]][race] = row[
+                grade_columns
+            ].astype(int)
+            # to_listing is done next
+
+    for race in constants.RACE_KEYS.values():
+        if race == "num_total":
+            continue
+
+        total_across_schools_by_category[race + "_not"] = (
+            total_across_schools_by_category["num_total"]
+            - total_across_schools_by_category[race]
+        )
+
+        for school in students_per_grade_per_school:
+            students_per_grade_per_school[school][race + "_not"] = (
+                np.array(students_per_grade_per_school[school]["num_total"])
+                - np.array(students_per_grade_per_school[school][race])
+            ).tolist()
+            students_per_grade_per_school[school][race] = students_per_grade_per_school[
+                school
+            ][race].to_list()
+    for school in students_per_grade_per_school:
+        students_per_grade_per_school[school]["num_total"] = (
+            students_per_grade_per_school[school]["num_total"].to_list()
+        )
 
     return (
         school_capacities,
