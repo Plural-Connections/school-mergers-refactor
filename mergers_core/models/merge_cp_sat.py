@@ -266,7 +266,7 @@ def _get_students_at_school(
     grades_interval_binary: dict[str, list[cp_model.IntVar]],
     school: str,
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
-    groups: typing.Optional[list[str]],
+    groups: typing.Optional[list[str]] = ["num_total"],
 ) -> list[cp_model.IntVar]:
     """Calculates the number of students that will be assigned to a school building.
 
@@ -295,8 +295,6 @@ def _get_students_at_school(
     Returns:
         The total enrollment at the school.
     """
-
-    groups = groups or ["num_total"]
 
     # Calculate the base number of students this school will serve from its
     # original student body based on its new grade assignments.
