@@ -655,53 +655,7 @@ def calculate_dissimilarity(
 
     dissimilarity_terms = []
     for school in matches:
-        # --- Calculate student counts for each category. ---
-        # Sum the number of A and B students that will be assigned to the
-        # building of 'school'.
-        total_a_students_at_school = []
-        for school_2 in matches[school]:
-            students_at_s2_a = sum(
-                sum(
-                    students_per_grade_per_school[school_2][group][i]
-                    for group in groups_a
-                )
-                * grades_interval_binary[school][i]
-                for i in constants.GRADE_TO_INDEX.values()
-            )
-
-            sum_school2_a = model.NewIntVar(
-                0,
-                constants.MAX_TOTAL_STUDENTS,
-                f"grp_a_from_{school_2}_to_{school}",
-            )
-            model.Add(sum_school2_a == students_at_s2_a).OnlyEnforceIf(
-                matches[school][school_2]
-            )
-            model.Add(sum_school2_a == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            total_a_students_at_school.append(sum_school2_a)
-
-        total_b_students_at_school = []
-        for school_2 in matches[school]:
-            students_at_s2_b = sum(
-                sum(
-                    students_per_grade_per_school[school_2][group][i]
-                    for group in groups_b
-                )
-                * grades_interval_binary[school][i]
-                for i in constants.GRADE_TO_INDEX.values()
-            )
-
-            sum_school2_b = model.NewIntVar(
-                0, constants.MAX_TOTAL_STUDENTS, f"grp_b_from_{school_2}_to_{school}"
-            )
-            model.Add(sum_school2_b == students_at_s2_b).OnlyEnforceIf(
-                matches[school][school_2]
-            )
-            model.Add(sum_school2_b == 0).OnlyEnforceIf(matches[school][school_2].Not())
-            total_b_students_at_school.append(sum_school2_b)
-
         # --- Calculate Dissimilarity Index Term for the School ---
-        # Scaled total A students at the school.
         scaled_total_a_students_at_school = model.NewIntVar(
             0,
             constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
@@ -709,10 +663,17 @@ def calculate_dissimilarity(
         )
         model.Add(
             scaled_total_a_students_at_school
-            == constants.SCALING[0] * sum(total_a_students_at_school)
+            == constants.SCALING[0]
+            * _get_students_at_school(
+                model,
+                matches,
+                grades_interval_binary,
+                school,
+                students_per_grade_per_school,
+                groups_a,
+            )
         )
 
-        # Scaled total B students at the school.
         scaled_total_b_students_at_school = model.NewIntVar(
             0,
             constants.SCALING[0] * constants.MAX_TOTAL_STUDENTS,
@@ -720,7 +681,15 @@ def calculate_dissimilarity(
         )
         model.Add(
             scaled_total_b_students_at_school
-            == constants.SCALING[0] * sum(total_b_students_at_school)
+            == constants.SCALING[0]
+            * _get_students_at_school(
+                model,
+                matches,
+                grades_interval_binary,
+                school,
+                students_per_grade_per_school,
+                groups_b,
+            )
         )
 
         # (A students at school / total A students in district)
