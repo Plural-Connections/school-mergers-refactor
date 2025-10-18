@@ -1,9 +1,9 @@
-import os
 import sys
 import typing
 import pandas as pd
 import itertools
 from collections import namedtuple
+import random
 
 
 class District(namedtuple("District", ["state", "id"])):
@@ -87,7 +87,9 @@ class Config:
     @classmethod
     def custom_config(cls, **kwargs):
         config = cls.__new__(cls)
-        config.__dict__.update({k: v[0] for k, v in cls.possible_configs.items()})
+        config.__dict__.update(
+            {k: random.choice(v) for k, v in cls.possible_configs.items()}
+        )
         config.__dict__.update(kwargs)
         return config
 
