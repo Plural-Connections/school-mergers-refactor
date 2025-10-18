@@ -293,9 +293,7 @@ def _get_students_at_school(
         groups: The groups to restrict calculations to. If null, use "num_total"
 
     Returns:
-        A list of CP-SAT integer variables representing the different
-        groups of students that will make up the new population of the school
-        building. The sum of this list would represent the total enrollment.
+        The total enrollment at the school.
     """
 
     groups = groups or ["num_total"]
@@ -340,7 +338,7 @@ def _get_students_at_school(
 
         results.append(transfer_from_school2)
 
-    return results
+    return sum(results)
 
 
 def set_constraints(
@@ -408,14 +406,12 @@ def set_constraints(
     """
 
     students_at_each_school = {
-        school: sum(
-            _get_students_at_school(
-                model,
-                matches,
-                grades_interval_binary,
-                school,
-                students_per_grade_per_school,
-            )
+        school: _get_students_at_school(
+            model,
+            matches,
+            grades_interval_binary,
+            school,
+            students_per_grade_per_school,
         )
         for school in matches
     }
@@ -875,14 +871,12 @@ def setup_population_metric(
     )
 
     school_populations = {
-        school: sum(
-            _get_students_at_school(
-                model,
-                matches,
-                grades_interval_binary,
-                school,
-                students_per_grade_per_school,
-            )
+        school: _get_students_at_school(
+            model,
+            matches,
+            grades_interval_binary,
+            school,
+            students_per_grade_per_school,
         )
         for school in matches
     }
