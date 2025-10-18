@@ -976,8 +976,8 @@ def set_objective(
         f" + {ratio.numerator} * population metric"
     )
     print(
-        f"Pre dissimilarity: {pre_dissimilarity:0.4f}; "
-        f"pre population metric: {pre_population_metric:0.4f}"
+        f"Pre dissimilarity: {pre_dissimilarity:0.5f}; "
+        f"pre population metric: {pre_population_metric:0.5f}"
     )
 
     optimize_function(
