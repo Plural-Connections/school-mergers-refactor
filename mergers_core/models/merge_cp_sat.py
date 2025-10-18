@@ -639,6 +639,9 @@ def set_constraints(
     return leniency_taken
 
 
+DTERMS = []
+
+
 def calculate_dissimilarity(
     model: cp_model.CpModel,
     students_per_grade_per_school: dict[str, dict[str, list[int]]],
@@ -674,6 +677,7 @@ def calculate_dissimilarity(
     for idx in range(len(groups_b)):
         groups_b[idx] = "num_" + groups_b[idx]
 
+    global DTERMS
     dissimilarity_terms = []
     for school in matches:
         # --- Calculate Dissimilarity Index Term for the School ---
@@ -740,6 +744,7 @@ def calculate_dissimilarity(
         )
         dissimilarity_terms.append(term)
 
+    DTERMS = dissimilarity_terms
     return sum(dissimilarity_terms)
 
 
@@ -921,6 +926,9 @@ def setup_population_metric(
     }[config.population_metric]
 
 
+DISSIMWEIGHT = POPULATIONWEIGHT = 0
+
+
 def set_objective(
     *,
     model: cp_model.CpModel,
@@ -970,6 +978,10 @@ def set_objective(
     ratio = ratio * starting_ratio
     ratio = ratio.limit_denominator(10000)
 
+    global DISSIMWEIGHT, POPULATIONWEIGHT
+    DISSIMWEIGHT = ratio.denominator
+    POPULATIONWEIGHT = ratio.numerator
+
     print(
         f"Objective: {obj}"
         f" {ratio.denominator} * dissimilarity ({config.dissimilarity_flavor})"
@@ -993,9 +1005,20 @@ class PrintLeniencyCallback(cp_model.CpSolverSolutionCallback):
         self.leniencies = _locals["leniencies"]
         self.matches = _locals["matches"]
         self.grades = _locals["grades_interval_binary"]
+        self.dissimilarity_index = _locals["dissimilarity_index"]
+        self.population_metric = _locals["population_metric"]
 
     def OnSolutionCallback(self) -> bool:
         if not any(map(self.Value, self.leniencies.values())):
+            print(f"current objective: {int(self.ObjectiveValue())}")
+            dindex = self.Value(self.dissimilarity_index)
+            pmetric = self.Value(self.population_metric)
+            print(f"dissim: {dindex}; pop: {pmetric}")
+            dindex *= DISSIMWEIGHT
+            pmetric *= POPULATIONWEIGHT
+            print(f"dissim: {dindex}; pop: {pmetric}")
+
+            print(list(map(self.Value, DTERMS)))
             return
 
         leniencies = list(
@@ -1146,9 +1169,9 @@ def solve_and_output_results(
 
     # solver.parameters.log_search_progress = True
 
-    # Uncomment for leniency debugging.
-    # status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
-    status = solver.Solve(model)
+    # Replace for leniency debugging.
+    status = solver.SolveWithSolutionCallback(model, PrintLeniencyCallback(locals()))
+    # status = solver.Solve(model)
 
     leniencies_post_solve = {
         name: solver.Value(leniency) for name, leniency in leniencies.items()
