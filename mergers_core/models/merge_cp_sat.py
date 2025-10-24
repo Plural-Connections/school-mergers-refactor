@@ -918,8 +918,6 @@ def setup_population_metric(
         )
 
     return {
-        # Dividing by the number of schools to get the actual average won't change the
-        # optimization results.
         "average_divergence": sum_differences,
         "median_divergence": median_divergence,
     }[config.population_metric]
