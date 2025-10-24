@@ -125,7 +125,7 @@ def load_and_process_data(
         how="left",
     )
     school_capacities = (
-        pd.Series(df_capacities.student_capacity.values, index=df_capacities.NCESSCH)
+        df_schools_in_play.set_index("NCESSCH")["student_capacity"]
         .astype(int)
         .to_dict()
     )
