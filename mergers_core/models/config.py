@@ -119,3 +119,7 @@ def generate_all_configs(min_schools: typing.Optional[int] = 4):
         f"{len(Config.possible_configs["district"])} districts."
     )
     configs.to_csv("data/configs.csv", index=False)
+
+
+if __name__ == "__main__":
+    generate_all_configs()

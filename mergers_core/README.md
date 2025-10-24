@@ -30,7 +30,7 @@ Running the code on a Slurm cluster is handled by `dispatch.sh <batch> [<configs
    * Estimating impacts on segregation via dissimilarity score
    * Generating analytics CSVs after solving
 * `simulation_sweeps.py` — Organize simulations into batches (for Slurm)
-   * To generate, run `python -c 'import models.config as c; c.generate_all_configs()'`
+   * To generate, run `python -m models.config`
 
 ## `./utils/`
 
