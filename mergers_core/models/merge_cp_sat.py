@@ -855,14 +855,13 @@ def setup_population_metric(
     Returns:
         A LinearExpr that represents the population consistency index.
     """
+    total_students = sum(
+        value
+        for school in students_per_grade_per_school.values()
+        for value in school["num_total"]
+    )
     district_utilization = int(
-        sum(
-            value
-            for school in students_per_grade_per_school.values()
-            for value in school["num_total"]
-        )
-        / sum(school_capacities.values())
-        * constants.SCALING[0]
+        total_students / sum(school_capacities.values()) * constants.SCALING[0]
     )
 
     school_populations = {
