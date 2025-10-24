@@ -309,10 +309,9 @@ def compute_population_metrics(df_schools_in_play, num_per_cat_per_school):
         school_capacities.values()
     )
     differences = [np.abs(p - district_utilization) for p in percentages.values()]
-    average_divergence = np.mean(differences)
 
     return {
-        "average_divergence": average_divergence,
+        "average_divergence": np.mean(differences),
         "median_divergence": np.median(differences),
     }
 
