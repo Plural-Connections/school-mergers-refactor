@@ -934,6 +934,7 @@ def set_objective(
     population_metric: cp_model.IntVar,
     pre_dissimilarity: float,
     pre_population_metric: float,
+    num_schools: int,
     leniencies: dict[str, cp_model.IntVar],
 ) -> None:
     """Sets the multi-objective function for the solver.
@@ -970,7 +971,11 @@ def set_objective(
         optimize_function(population_metric + minimize_leniency)
         return
 
-    starting_ratio = Fraction(pre_dissimilarity / pre_population_metric)
+    # Pre dissimilarity is doubled to account for a halving in model_utils.py that was
+    # omitted from this function
+    starting_ratio = Fraction(
+        (pre_dissimilarity * 2) / (pre_population_metric * num_schools)
+    )
     ratio = Fraction(config.dissimilarity_weight / config.population_metric_weight)
     ratio = ratio * starting_ratio
     ratio = ratio.limit_denominator(10000)
@@ -1147,6 +1152,7 @@ def solve_and_output_results(
         population_metric=population_metric,
         pre_dissimilarity=pre_dissimilarity,
         pre_population_metric=pre_population_metric,
+        num_schools=len(matches),
         leniencies=leniencies,
     )
     print("Solving ...")
