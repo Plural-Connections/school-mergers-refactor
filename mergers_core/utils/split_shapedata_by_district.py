@@ -20,7 +20,7 @@ if __name__ == "__main__":
     year = "2122"
     states = [
         s.split("/")[0]
-        for s in os.listdir(f"data/attendance_boundaries/2122")
+        for s in os.listdir("data/attendance_boundaries/2122")
     ]
     for s in states:
         state_fips = us.states.lookup(s).fips

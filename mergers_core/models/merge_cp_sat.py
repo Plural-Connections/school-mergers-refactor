@@ -1,6 +1,5 @@
 import typing
 from ortools.sat.python import cp_model
-from utils.format_constraint import print_model_constraints
 import models.constants as constants
 from models.model_utils import (
     output_solver_solution,

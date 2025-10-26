@@ -89,7 +89,7 @@ def produce_dists_data_file(
         df_curr = df_schools[df_schools["district_id"] == dist].reset_index(drop=True)
         try:
             curr = compute_dissimilarity_index(df_curr)
-        except Exception as e:
+        except Exception:
             curr = float("nan")
         dissim_indices["district_id"].append(dist)
         dissim_indices["white_nonwhite_dissim"].append(curr)

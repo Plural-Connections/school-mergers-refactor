@@ -1,5 +1,4 @@
 from utils.distances_and_times import (
-    get_distance_for_coord_pair,
     get_travel_time_for_coord_pair,
 )
 import us
@@ -41,7 +40,7 @@ def compute_travel_time_matrices(
             for i in range(0, len(curr_blocks)):
                 block_lat = curr_blocks["block_centroid_lat"][i]
                 block_long = curr_blocks["block_centroid_long"][i]
-                if not s2 in travel_times[curr_blocks["GEOID20"][i]]:
+                if s2 not in travel_times[curr_blocks["GEOID20"][i]]:
                     # travel_times[curr_blocks["GEOID20"][i]][
                     #     s2
                     # ] = get_distance_for_coord_pair(

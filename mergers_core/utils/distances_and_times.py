@@ -1,7 +1,6 @@
 import haversine as hs
 import openrouteservice
 import numpy as np
-from sklearn.impute import SimpleImputer
 
 # coords = ((-71.0854323,42.3664655),(-71.1267582,42.3417178))
 client = openrouteservice.Client(base_url="http://localhost:8080/ors/")
