@@ -29,7 +29,7 @@ def _calculate_status_quo_driving_times(df_schools_in_play, category_columns):
                 if driving_time and not np.isnan(driving_time):
                     status_quo_total_driving_times_per_cat[
                         f"all_status_quo_time_{col}"
-                    ] += driving_time * block[col]
+                    ] += (driving_time * block[col])
     return status_quo_total_driving_times_per_cat
 
 
@@ -190,9 +190,9 @@ def _calculate_student_distributions(school_clusters, df_grades, df_schools_in_p
                         num_per_cat_per_school[race][school] += school_2_enrollments[
                             f"{race}_{grade}"
                         ]
-                        num_per_school_per_grade_per_cat[school][race][grade] += (
-                            school_2_enrollments[f"{race}_{grade}"]
-                        )
+                        num_per_school_per_grade_per_cat[school][race][
+                            grade
+                        ] += school_2_enrollments[f"{race}_{grade}"]
     return num_per_cat_per_school, num_per_school_per_grade_per_cat
 
 
@@ -338,9 +338,9 @@ def _count_switching_students(school_cluster_lists, df_grades, df_schools_in_pla
                         f"{race}_{grade}"
                     ]
                     if not school_grades[grade]:
-                        num_students_switching[f"{race}_switched"] += (
-                            school_enrollments[f"{race}_{grade}"]
-                        )
+                        num_students_switching[
+                            f"{race}_switched"
+                        ] += school_enrollments[f"{race}_{grade}"]
                         num_students_switching_per_school[school][
                             f"{race}_switched"
                         ] += school_enrollments[f"{race}_{grade}"]
@@ -727,28 +727,6 @@ def prepare_job(solution):
     )
 
 
-def produce_post_solver_files_parallel(solutions_dir):
-    assert len(solutions_dir.split("/")) == 2
-
-    from tqdm.contrib.concurrent import process_map
-
-    solutions = glob.glob(solutions_dir + "/*/*/*")
-
-    all_jobs = process_map(
-        prepare_job,
-        solutions,
-        chunksize=1,
-        desc="generate",
-    )
-
-    process_map(
-        _wrapper,
-        all_jobs,
-        chunksize=1,
-        desc="run",
-    )
-
-
 def consolidate_results_files(
     batch="min_elem_4_interdistrict_bottom_sensitivity",
     batch_dir="data/results/{}",
@@ -822,8 +800,20 @@ def compare_batch_totals(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        print("reproducing all solver files")
-        # produce_post_solver_files_parallel("data/results")
-    else:
-        print(prepare_job(sys.argv[1]))
+    print(f"reproducing solver outputs for: {sys.argv[1:]}")
+
+    from tqdm.contrib.concurrent import process_map
+
+    all_jobs = process_map(
+        prepare_job,
+        sum(glob.glob(path) for path in sys.argv[1:]),
+        chunksize=1,
+        desc="generate",
+    )
+
+    process_map(
+        _wrapper,
+        all_jobs,
+        chunksize=1,
+        desc="run",
+    )

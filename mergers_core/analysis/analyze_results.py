@@ -177,10 +177,7 @@ def viz_assignments(
 
         geo_j = folium.GeoJson(
             data=geo_shape,
-            style_function=lambda x,
-            fillColor=fill_color,
-            fillOpacity=fill_opacity,
-            weight=weight: {
+            style_function=lambda x, fillColor=fill_color, fillOpacity=fill_opacity, weight=weight: {
                 "fillOpacity": fillOpacity,
                 "fillColor": fillColor,
                 "weight": weight,
