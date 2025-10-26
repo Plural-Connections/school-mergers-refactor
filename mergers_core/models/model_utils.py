@@ -619,18 +619,18 @@ def prepare_job(solution):
     directory = Path(solution)
     district = config.District(state=state, id=id)
     # parse run_dir for as much as we can
-    decrease_threshold, weights, _, _, _, _ = run_dir.split("_")
-    dissim_weight, pop_weight = weights.split(",")
+    school_decrease_threshold, weights, _, _, _, _ = run_dir.split("_")
+    dissimilarity_weight, population_metric_weight = weights.split(",")
 
-    dissim_weight = int(dissim_weight)
-    pop_weight = int(pop_weight)
-    decrease_threshold = float(decrease_threshold)
+    dissimilarity_weight = int(dissimilarity_weight)
+    population_metric_weight = int(population_metric_weight)
+    school_decrease_threshold = float(school_decrease_threshold)
 
     this_config = config.Config.custom_config(
         district=district,
-        school_decrease_threshold=decrease_threshold,
-        dissimilarity_weight=dissim_weight,
-        population_metric_weight=pop_weight,
+        school_decrease_threshold=school_decrease_threshold,
+        dissimilarity_weight=dissimilarity_weight,
+        population_metric_weight=population_metric_weight,
     )
 
     if (directory / "analytics.csv").exists():
@@ -642,13 +642,20 @@ def prepare_job(solution):
         config_keys = set(config.Config.possible_configs.keys()) & set(
             analytics.columns
         )
-        configuration = analytics.iloc[0][list(config_keys)]
-        if (
-            configuration["district"] != district
-            or configuration["dissimilarity_weight"] != dissim_weight
-            or configuration["population_metric_weight"] != pop_weight
-            or configuration["school_decrease_threshold"] != decrease_threshold
-        ):
+
+        to_check = {
+            key: locals()[key]
+            for key in [
+                "district",
+                "dissimilarity_weight",
+                "population_metric_weight",
+                "school_decrease_threshold",
+            ]
+        }
+        configuration = analytics.iloc[0][list(config_keys)].to_dict()
+        configuration |= {k: v for k, v in to_check.items() if k not in configuration}
+
+        if any(configuration[key] != to_check[key] for key in to_check):
             print(
                 f"warning: {district} run {run_dir}'s analytics.csv disagrees with "
                 f"its run_dir",
@@ -661,20 +668,20 @@ def prepare_job(solution):
             if configuration["district"] != district:
                 print("    district mismatch", file=sys.stderr)
 
-            if configuration["dissimilarity_weight"] != dissim_weight:
+            if configuration["dissimilarity_weight"] != dissimilarity_weight:
                 print("    dissimilarity_weight mismatch", file=sys.stderr)
 
-            if configuration["population_metric_weight"] != pop_weight:
+            if configuration["population_metric_weight"] != population_metric_weight:
                 print("    population_metric_weight mismatch", file=sys.stderr)
 
-            if configuration["school_decrease_threshold"] != decrease_threshold:
+            if configuration["school_decrease_threshold"] != school_decrease_threshold:
                 print("    school_decrease_threshold mismatch", file=sys.stderr)
 
         configuration["district"] = district
-        configuration["dissimilarity_weight"] = dissim_weight
-        configuration["population_metric_weight"] = pop_weight
-        configuration["school_decrease_threshold"] = decrease_threshold
-        this_config = config.Config.custom_config(**configuration.to_dict())
+        configuration["dissimilarity_weight"] = dissimilarity_weight
+        configuration["population_metric_weight"] = population_metric_weight
+        configuration["school_decrease_threshold"] = school_decrease_threshold
+        this_config = config.Config.custom_config(**configuration)
 
     df_mergers_g = pd.read_csv(
         directory / "school_mergers.csv", dtype={"school_cluster": str}
