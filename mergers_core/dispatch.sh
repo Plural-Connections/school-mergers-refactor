@@ -28,7 +28,7 @@ while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
 done
 
 if [[ $lines_left -gt 0 ]]; then
-    send_out_batch $lines_left $full_file
+    send_out_batch $lines_left $full_file $job_desc
 fi
 
 echo make sure to remove $full_file when you\'re done!
