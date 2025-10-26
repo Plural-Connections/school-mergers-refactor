@@ -186,7 +186,8 @@ def print_model_constraints(model):
     variable = model.Proto().variables
     for idx, constraint in enumerate(model.Proto().constraints):
         print(
-            f"{c.comment(f'constraint {idx} '
-                         f'({constraint.WhichOneof('constraint')}):')} "
+            f"{
+                c.comment(f'constraint {idx} ({constraint.WhichOneof('constraint')}):')
+            } "
             f"{format_constraint(constraint, variable)}"
         )

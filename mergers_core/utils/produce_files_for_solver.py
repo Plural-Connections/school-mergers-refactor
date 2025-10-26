@@ -159,7 +159,7 @@ def copy_blocks_to_elementary(
 def output_school_enrollments_by_race_grade(
     input_dir="data/attendance_boundaries/2122",
     capacities_file="data/school_data/21_22_school_capacities.csv",
-    output_file="data/school_data/21_22_school_counts_by_grade_and_race.csv"
+    output_file="data/school_data/21_22_school_counts_by_grade_and_race.csv",
 ):
     # pd.set_option("display.max_columns", None)
     df_caps = pd.read_csv(capacities_file, dtype={"NCESSCH": str})[
@@ -381,9 +381,8 @@ def output_allowed_mergers(
 
 def output_districts_all_closed_enrollment_elementary(
     input_dir=os.path.join("data", "attendance_boundaries", "2122"),
-    output_file="data/school_data/entirely_elem_closed_enrollment_districts.csv"
+    output_file="data/school_data/entirely_elem_closed_enrollment_districts.csv",
 ):
-
     all_states = os.listdir(input_dir)
     all_data = {"district_id": []}
     for state in all_states:

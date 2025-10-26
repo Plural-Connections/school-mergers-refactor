@@ -45,9 +45,9 @@ def block_allocation(curr_school, curr_blocks, r, block_students_by_cat, cat_key
                     ),
                 )
             )
-        block_students_by_cat[curr_blocks["block_id"][i]][
-            cat_keys[r]
-        ] += num_to_allocate
+        block_students_by_cat[curr_blocks["block_id"][i]][cat_keys[r]] += (
+            num_to_allocate
+        )
         num_allocated += num_to_allocate
         num_students_remaining -= num_to_allocate
 

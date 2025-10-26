@@ -350,7 +350,6 @@ def analyze_choice_options_in_districts(
 
 
 def compute_dissim(schools, school_enrollments):
-
     # Now, go through and compute dissim values
     dissim_vals = []
     for s in schools:

@@ -24,7 +24,6 @@ def _load_district_list(
     bounds: typing.Optional[slice] = None,
     district_count: typing.Optional[int] = None,
 ):
-
     df = pd.read_csv(
         filename,
         converters={"district": District.from_string},
@@ -116,7 +115,7 @@ def generate_all_configs(min_schools: typing.Optional[int] = 4):
     ]
     print(
         f"Generated {len(configs)} configs for "
-        f"{len(Config.possible_configs["district"])} districts."
+        f"{len(Config.possible_configs['district'])} districts."
     )
     configs.to_csv("data/configs.csv", index=False)
 

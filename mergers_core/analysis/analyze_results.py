@@ -55,7 +55,6 @@ def viz_assignments(
     school_names_file="data/all_schools_with_names.csv",
     save_file=True,
 ):
-
     df_names = pd.read_csv(school_names_file, dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
     ]
@@ -178,7 +177,10 @@ def viz_assignments(
 
         geo_j = folium.GeoJson(
             data=geo_shape,
-            style_function=lambda x, fillColor=fill_color, fillOpacity=fill_opacity, weight=weight: {
+            style_function=lambda x,
+            fillColor=fill_color,
+            fillOpacity=fill_opacity,
+            weight=weight: {
                 "fillOpacity": fillOpacity,
                 "fillColor": fillColor,
                 "weight": weight,
@@ -198,7 +200,6 @@ def viz_assignments(
     df_orig_mega = df_orig.dissolve(by="ncessch", as_index=False)
     print(len(df_orig_mega))
     for i, r in df_orig_mega.iterrows():
-
         # Adding to orig map
         sim_geo = gpd.GeoSeries(r["geometry"])
         geo_j = sim_geo.to_json()
