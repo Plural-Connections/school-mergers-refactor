@@ -76,6 +76,9 @@ class Config:
         configs = pd.read_csv(
             configs_file, converters={"district": District.from_string}
         )
+        self.__dict__.update(
+            {k: v[0] for k, v in Config.possible_configs.items() if len(v) == 1}
+        )
         if entry_index:
             config = configs.iloc[entry_index].to_dict()
         else:
