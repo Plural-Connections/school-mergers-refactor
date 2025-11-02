@@ -13,22 +13,21 @@ send_out_batch() {
     $command
 }
 
-job_desc=$1 ; shift
-
 trap __cleanup INT HUP TERM
 
-full_file=data/configs.csv
+job_desc=$1 ; shift
+configs_file=$1 ; shift
 
-lines_left=$(($(wc -l < $full_file) - 1))
+lines_left=$(($(wc -l < $configs_file) - 1))
 jobs_run=0
 while [[ $lines_left -gt $SLURM_MAX_TASKS ]]; do
-    send_out_batch $SLURM_MAX_TASKS $full_file $job_desc
+    send_out_batch $SLURM_MAX_TASKS $configs_file $job_desc
     jobs_run=$(( $jobs_run + $SLURM_MAX_TASKS ))
     lines_left=$(( $lines_left - $SLURM_MAX_TASKS ))
 done
 
 if [[ $lines_left -gt 0 ]]; then
-    send_out_batch $lines_left $full_file $job_desc
+    send_out_batch $lines_left $configs_file $job_desc
 fi
 
-echo make sure to remove $full_file when you\'re done!
+echo make sure to remove $configs_file when you\'re done!
