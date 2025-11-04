@@ -1,9 +1,10 @@
+from collections import namedtuple
+import itertools
+import numpy as np
+import pandas as pd
+import random
 import sys
 import typing
-import pandas as pd
-import itertools
-from collections import namedtuple
-import random
 
 
 class District(namedtuple("District", ["state", "id"])):
@@ -79,10 +80,10 @@ class Config:
         self.__dict__.update(
             {k: v[0] for k, v in Config.possible_configs.items() if len(v) == 1}
         )
-        if entry_index:
-            config = configs.iloc[entry_index].to_dict()
-        else:
-            config = configs.sample(1).iloc[0].to_dict()
+
+        if entry_index is None:
+            entry_index = np.random.randint(0, configs.shape[0])
+        config = configs.iloc[entry_index].to_dict()
         self.__dict__.update(config)
 
     # Get a default config and override any elements you'd like.
