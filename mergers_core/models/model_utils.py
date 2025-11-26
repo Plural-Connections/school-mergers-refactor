@@ -523,13 +523,13 @@ def output_analytics(
         ]:  # list was taken from DF_BLOCKS[CUR_STATE]
             travel_time_impacts["status_quo_total_driving_times_per_cat"][
                 "all_status_quo_time_" + race
-            ] = 0
+            ] = "NaN"
             travel_time_impacts["current_total_switcher_driving_times"][
                 "switcher_status_quo_time_" + race
-            ] = 0
+            ] = "NaN"
             travel_time_impacts["new_total_switcher_driving_times"][
                 "switcher_new_time_" + race
-            ] = 0
+            ] = "NaN"
     data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
