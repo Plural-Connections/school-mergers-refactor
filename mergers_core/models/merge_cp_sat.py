@@ -507,9 +507,10 @@ def set_constraints(
 
             # Ignore the linter warning: using `is False` causes shenanigans that break
             # everything. Oh, python...
-            model.Add(matches[school1][school2] == False).OnlyEnforceIf(
-                school2 not in permissible_matches[school1]
-            ).OnlyEnforceIf(leniency_taken["permissible_match"].Not())
+            if school2 not in permissible_matches[school1]:
+                model.Add(matches[school1][school2] == False).OnlyEnforceIf(
+                    leniency_taken["permissible_match"].Not()
+                )
 
             # --- No Grade Overlap Constraint ---
             # If two schools are merged, they cannot serve the same grade levels.
