@@ -420,7 +420,6 @@ def maybe_load_large_files(state):
         DF_BLOCKS = pd.read_csv(
             constants.BLOCKS_FILE.format(state),
             dtype={"ncessch": str, "block_id": str},
-            engine="pyarrow",
         )
         with open(constants.TRAVEL_TIMES_FILE.format(state)) as f:
             TRAVEL_TIMES = orjson.loads(f.read())
