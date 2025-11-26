@@ -464,10 +464,8 @@ def output_analytics(
             json.dump(errors, f, indent=4)
         return
 
-    present_stat = (
-        lambda pre, post: f"{pre:.4f} -> {post:.4f}"
-        f" ({(post - pre) / pre * 100:+06.2f}%)"
-    )
+    def present_stat(pre, post):
+        return f"{pre:.4f} -> {post:.4f} ({(post - pre) / pre * 100:+06.2f}%)"
 
     if print_to_stdout:
         print(f"dissim{' ' * 13}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
