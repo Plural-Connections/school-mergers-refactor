@@ -808,7 +808,7 @@ if __name__ == "__main__":
 
     all_jobs = process_map(
         prepare_job,
-        sum(glob.glob(path) for path in sys.argv[1:]),
+        sys.argv[1:],
         chunksize=1,
         desc="generate",
     )
