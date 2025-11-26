@@ -800,6 +800,10 @@ def compare_batch_totals(
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 2:
+        job = prepare_job(sys.argv[1])
+        output_analytics(*job)
+        exit(0)
     print(f"reproducing solver outputs for: {sys.argv[1:]}")
 
     from tqdm.contrib.concurrent import process_map
