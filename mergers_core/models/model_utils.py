@@ -513,16 +513,23 @@ def output_analytics(
     data_to_output.update(num_students_switching)
     if not travel_time_impacts["new_total_switcher_driving_times"]:
         # use new_total_switcher_driving_times to check whether any have data
-        for race in constants.RACE_KEYS:
-            travel_time_impacts["status_quo_total_driving_times_per_cat"] = {
-                "all_status_quo_time_" + race: 0
-            }
-            travel_time_impacts["current_total_switcher_driving_times"] = {
-                "switcher_status_quo_time_" + race: 0
-            }
-            travel_time_impacts["new_total_switcher_driving_times"] = {
-                "switcher_new_time" + race: 0
-            }
+        for race in [
+            "num_white",
+            "num_black",
+            "num_asian",
+            "num_native",
+            "num_hispanic",
+            "num_total",
+        ]:  # list was taken from DF_BLOCKS[CUR_STATE]
+            travel_time_impacts["status_quo_total_driving_times_per_cat"][
+                "all_status_quo_time_" + race
+            ] = 0
+            travel_time_impacts["current_total_switcher_driving_times"][
+                "switcher_status_quo_time_" + race
+            ] = 0
+            travel_time_impacts["new_total_switcher_driving_times"][
+                "switcher_new_time_" + race
+            ] = 0
     data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
     data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
     data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
@@ -814,7 +821,7 @@ if __name__ == "__main__":
         job = prepare_job(sys.argv[1])
         output_analytics(*job)
         exit(0)
-    print(f"reproducing solver outputs for: {sys.argv[1:]}")
+    print(f"reproducing solver outputs for: {len(sys.argv[1:])} files")
 
     from tqdm.contrib.concurrent import process_map
 
