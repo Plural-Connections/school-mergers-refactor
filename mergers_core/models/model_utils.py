@@ -511,8 +511,8 @@ def output_analytics(
     )
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
-    if not travel_time_impacts["new_total_switcher_driving_times"]:
-        # use new_total_switcher_driving_times to check whether any have data
+    # if travel_time_impacts are empty, populate with NaNs
+    if len(travel_time_impacts["new_total_switcher_driving_times"]) == 0:
         for race in [
             "num_white",
             "num_black",
