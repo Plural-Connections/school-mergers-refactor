@@ -8,7 +8,6 @@ import os
 import random
 from collections import Counter, defaultdict
 import matplotlib.pyplot as plt
-import sys
 import json
 
 
@@ -46,14 +45,14 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 
 def viz_assignments(
-    results_dir="data/results/min_num_elem_schools_4_constrained/",
-    state="PA",
-    district_id="4218990",
+    results_dir="data/results/",
+    state="TX",
+    district_id="4833120",
     district_centroids_file="data/school_district_2021_boundaries/district_centroids.json",
     lat_long_file="data/school_data/nces_21_22_lat_longs.csv",
     orig_boundaries="data/attendance_boundaries/2122/{}/estimated_student_counts_per_block.csv",
     school_names_file="data/all_schools_with_names.csv",
-    save_file=True,
+    save_file=False,
 ):
     df_names = pd.read_csv(school_names_file, dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
@@ -111,7 +110,7 @@ def viz_assignments(
         how="inner",
     )
 
-    blocks_shape_file = "~/OneDrive - Northeastern University/neu/rezoning-schools/data/census_block_shapefiles_2020/tl_2021_{}_tabblock20/tl_2021_{}_tabblock20.shp"
+    blocks_shape_file = "data/census_block_shapefiles_2020/tl_2021_{}_tabblock20/tl_2021_{}_tabblock20.shp"
     state_fips = us.states.lookup(state).fips
     state_blocks = gpd.read_file(blocks_shape_file.format(state_fips, state_fips))
     state_blocks["GEOID20"] = state_blocks["GEOID20"].astype(int)
@@ -177,7 +176,10 @@ def viz_assignments(
 
         geo_j = folium.GeoJson(
             data=geo_shape,
-            style_function=lambda x, fillColor=fill_color, fillOpacity=fill_opacity, weight=weight: {
+            style_function=lambda x,
+            fillColor=fill_color,
+            fillOpacity=fill_opacity,
+            weight=weight: {
                 "fillOpacity": fillOpacity,
                 "fillColor": fillColor,
                 "weight": weight,
@@ -242,13 +244,6 @@ def viz_assignments(
     m_orig.save(os.path.join(results_dir, state, district_id, "original.html"))
     m_race.save(os.path.join(results_dir, state, district_id, "race.html"))
     m_merged.save(os.path.join(results_dir, state, district_id, "mergers.html"))
-
-    # if save_file:
-    #     plt.axis("off")
-    #     plt.savefig(output_file, bbox_inches="tight")
-    #     plt.close()
-    # else:
-    #     plt.show()
 
 
 def compare_to_redistricting(
@@ -381,12 +376,4 @@ def plot_dissimilarity_vs_population_consistency(run_paths):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(
-            "Usage: python analyze_results.py <dissimilarity_flavor> <run_path_1> [run_path_2 ...]"
-        )
-        print("Example: python analyze_results.py /path/to/run1 /path/to/run2")
-        sys.exit(1)
-
-    run_paths = sys.argv[1:]
-    plot_dissimilarity_vs_population_consistency(run_paths)
+    viz_assignments()
