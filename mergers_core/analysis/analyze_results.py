@@ -252,7 +252,7 @@ def compare_to_redistricting(
     output_file="data/misc/redist_mergers_comparison.csv",
 ):
     df_redist = pd.read_csv(redist_results, dtype={"district_id": str})
-    df_redist = df_redist[df_redist["is_contiguous"] == True].reset_index(drop=True)
+    df_redist = df_redist[df_redist["is_contiguous"]].reset_index(drop=True)
 
     # TODO(ng): this is a hack for figuring out approx percent rezoned since
     # it doesn't account for overlaps in certain group populations ...
