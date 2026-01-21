@@ -189,13 +189,13 @@ def viz_assignments(
     m_both_pre = make_map()
     m_both_post = make_map()
 
-    def add_school_markers(curr_map, school_markers):
+    def add_school_markers(map, school_markers):
         for m in school_markers:
             folium.Marker(
                 location=[school_markers[m][0], school_markers[m][1]],
                 icon=folium.Icon(color="blue", icon_color="white", icon="info-sign"),
                 popup=school_markers[m][2],
-            ).add_to(curr_map)
+            ).add_to(map)
 
     add_school_markers(m_orig, school_markers)
     add_school_markers(m_dissim_pre, school_markers)
@@ -210,18 +210,11 @@ def viz_assignments(
     total_capacity_pre = 0
     school_populations_pre = per_cat_per_school["num_total"]
     schools_with_capacity = {s: c for s, c in school_capacities.items() if c and c > 0}
-    if not schools_with_capacity:
-        print("No schools with capacity")
-        return
 
     total_population_pre = sum(
         school_populations_pre.get(s, 0) for s in schools_with_capacity
     )
     total_capacity_pre = sum(schools_with_capacity.values())
-
-    if total_capacity_pre <= 0:
-        print("No schools with capacity")
-        return
 
     district_utilization_pre = total_population_pre / total_capacity_pre
     school_utilizations_pre = {
@@ -244,7 +237,7 @@ def viz_assignments(
     else:
         df_orig_mega["pop_opacity"] = 0
 
-    def add_shape_to_map(curr_map, geo_shape, fill_color, fill_opacity, weight):
+    def add_shape_to_map(map, geo_shape, fill_color, fill_opacity, weight):
         if np.isnan(fill_opacity):
             fill_opacity = 0.2
             fill_color = "gray"
@@ -257,7 +250,7 @@ def viz_assignments(
                 "weight": weight,
             },
         )
-        geo_j.add_to(curr_map)
+        geo_j.add_to(map)
 
     def dissim_pre(ncessch_idx):
         return 1 - (
@@ -266,9 +259,7 @@ def viz_assignments(
         )
 
     for i, r in df_orig_mega.iterrows():
-        # Adding to orig map
-        sim_geo = gpd.GeoSeries(r["geometry"])
-        geo_j = sim_geo.to_json()
+        geo_j = gpd.GeoSeries(r["geometry"]).to_json()
 
         color = colors[df_orig_mega["ncessch"][i]]
         add_shape_to_map(m_orig, geo_j, color, 0.5, ".5")
@@ -305,18 +296,10 @@ def viz_assignments(
         c: cap for c, cap in cluster_capacities.items() if cap and cap > 0
     }
 
-    if not clusters_with_capacity:
-        print("No clusters with capacity")
-        return
-
     total_population_post = sum(
         cluster_populations_post.get(c, 0) for c in clusters_with_capacity
     )
     total_capacity_post = sum(clusters_with_capacity.values())
-
-    if total_capacity_post <= 0:
-        print("No clusters with capacity")
-        return
 
     district_utilization_post = total_population_post / total_capacity_post
     cluster_utilizations_post = {
@@ -346,9 +329,7 @@ def viz_assignments(
         )
 
     for i, r in df_merged_mega.iterrows():
-        # Adding to post-merger dissimilarity map
-        sim_geo = gpd.GeoSeries(r["geometry"])
-        geo_j = sim_geo.to_json()
+        geo_j = gpd.GeoSeries(r["geometry"]).to_json()
 
         color = colors[school_clusters[df_merged_mega["ncessch"][i]][0]]
         add_shape_to_map(m_merged, geo_j, color, 0.5, ".5")
