@@ -68,9 +68,7 @@ def viz_assignments(
         )[0],
         dtype={"NCESSCH": str},
     )
-    school_capacities = df_schools_in_play.set_index("NCESSCH")[
-        "student_capacity"
-    ].to_dict()
+    school_capacities = df_schools_in_play.set_index("NCESSCH")["student_capacity"]
 
     school_clusters = {}
     for idx, row in df_mergers.iterrows():
@@ -168,10 +166,7 @@ def viz_assignments(
 
     # Compute percentage white per school
     school_demographics = df_orig.groupby("ncessch")[["num_white", "num_total"]].sum()
-    per_cat_per_school = {
-        "num_white": school_demographics["num_white"].to_dict(),
-        "num_total": school_demographics["num_total"].to_dict(),
-    }
+    df_orig_mega = df_orig.dissolve(by="ncessch", as_index=False)
 
     def make_map():
         return folium.Map(
@@ -204,39 +199,6 @@ def viz_assignments(
     add_school_markers(m_pop_post, school_markers)
     add_school_markers(m_merged, school_markers)
 
-    df_orig_mega = df_orig.dissolve(by="ncessch", as_index=False)
-
-    # Pre-merger population map calculations
-    total_capacity_pre = 0
-    school_populations_pre = per_cat_per_school["num_total"]
-    schools_with_capacity = {s: c for s, c in school_capacities.items() if c and c > 0}
-
-    total_population_pre = sum(
-        school_populations_pre.get(s, 0) for s in schools_with_capacity
-    )
-    total_capacity_pre = sum(schools_with_capacity.values())
-
-    district_utilization_pre = total_population_pre / total_capacity_pre
-    school_utilizations_pre = {
-        s: school_populations_pre.get(s, 0) / schools_with_capacity[s]
-        for s in schools_with_capacity
-    }
-    school_divergences_pre = {
-        s: np.abs(u - district_utilization_pre)
-        for s, u in school_utilizations_pre.items()
-    }
-    max_divergence_pre = (
-        max(school_divergences_pre.values()) if school_divergences_pre else 0
-    )
-
-    df_orig_mega["divergence"] = (
-        df_orig_mega["ncessch"].map(school_divergences_pre).fillna(0)
-    )
-    if max_divergence_pre > 0:
-        df_orig_mega["pop_opacity"] = df_orig_mega["divergence"] / max_divergence_pre
-    else:
-        df_orig_mega["pop_opacity"] = 0
-
     def add_shape_to_map(map, geo_shape, fill_color, fill_opacity, weight):
         if np.isnan(fill_opacity):
             fill_opacity = 0.2
@@ -252,10 +214,23 @@ def viz_assignments(
         )
         geo_j.add_to(map)
 
+    # compute pre-pop opacities
+    total_population_pre = school_demographics["num_total"].sum()
+    total_capacity_pre = school_capacities.sum()
+
+    district_utilization_pre = total_population_pre / total_capacity_pre
+    school_utilizations_pre = school_demographics["num_total"] / school_capacities
+    school_divergences_pre = np.abs(school_utilizations_pre - district_utilization_pre)
+    max_divergence_pre = school_divergences_pre.max()
+
+    df_orig_mega["pop_opacity"] = school_divergences_pre.fillna(0) / max_divergence_pre
+
+    # compute pre-dissim opacities
+
     def dissim_pre(ncessch_idx):
         return 1 - (
-            per_cat_per_school["num_white"][df_orig_mega["ncessch"][ncessch_idx]]
-            / per_cat_per_school["num_total"][df_orig_mega["ncessch"][ncessch_idx]]
+            school_demographics["num_white"][df_orig_mega["ncessch"][ncessch_idx]]
+            / school_demographics["num_total"][df_orig_mega["ncessch"][ncessch_idx]]
         )
 
     for i, r in df_orig_mega.iterrows():
