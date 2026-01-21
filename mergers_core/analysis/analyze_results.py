@@ -226,12 +226,17 @@ def viz_assignments(
     df_orig_mega["pop_opacity"] = school_divergences_pre.fillna(0) / max_divergence_pre
 
     # compute pre-dissim opacities
+    total_white = school_demographics["num_white"].sum()
+    percent_white_per_school = school_demographics["num_white"] / total_white
+    total_nonwhite = school_demographics["num_total"].sum() - total_white
+    percent_nonwhite_per_school = (
+        school_demographics["num_total"] - school_demographics["num_white"]
+    ) / total_nonwhite
 
-    def dissim_pre(ncessch_idx):
-        return 1 - (
-            school_demographics["num_white"][df_orig_mega["ncessch"][ncessch_idx]]
-            / school_demographics["num_total"][df_orig_mega["ncessch"][ncessch_idx]]
-        )
+    dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
+    max_dissim = dissim_per_school.max()
+
+    df_orig_mega["dissim_opacity"] = dissim_per_school.fillna(0) / max_dissim
 
     for i, r in df_orig_mega.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
@@ -239,8 +244,8 @@ def viz_assignments(
         color = colors[df_orig_mega["ncessch"][i]]
         add_shape_to_map(m_orig, geo_j, color, 0.5, ".5")
 
-        add_shape_to_map(m_dissim_pre, geo_j, "blue", dissim_pre(i), ".5")
-        add_shape_to_map(m_both_pre, geo_j, "blue", dissim_pre(i), ".5")
+        add_shape_to_map(m_dissim_pre, geo_j, "blue", r["dissim_opacity"], ".5")
+        add_shape_to_map(m_both_pre, geo_j, "blue", r["dissim_opacity"], ".5")
         add_shape_to_map(m_pop_pre, geo_j, "red", r["pop_opacity"], ".5")
         add_shape_to_map(m_both_pre, geo_j, "red", r["pop_opacity"], ".5")
 
