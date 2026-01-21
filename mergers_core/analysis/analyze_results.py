@@ -3,7 +3,6 @@ import folium
 import us
 import pandas as pd
 import numpy as np
-import glob
 import os
 import random
 import matplotlib.pyplot as plt
@@ -46,26 +45,23 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 
 def viz_assignments(
-    district: District,
+    # of the format data/results/{district.state}/{district.id}/{run}
+    dir: str,
     save_file=False,
 ):
-    results_dir = f"data/results/{district.state}/{district.id}/"
+    _, _, state, district_id, run = dir.split("/")
+    district = District(state=state, id=district_id)
+
     df_names = pd.read_csv("data/all_schools_with_names.csv", dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
     ]
     df_mergers = pd.read_csv(
-        glob.glob(
-            os.path.join(results_dir, "**/" + "school_mergers.csv"),
-            recursive=True,
-        )[0],
+        f"{dir}/school_mergers.csv",
         dtype={"school_cluster": str},
     )
 
     df_schools_in_play = pd.read_csv(
-        glob.glob(
-            os.path.join(results_dir, "**/" + "schools_in_play.csv"),
-            recursive=True,
-        )[0],
+        f"{dir}/schools_in_play.csv",
         dtype={"NCESSCH": str},
     )
     school_capacities = df_schools_in_play.set_index("NCESSCH")["student_capacity"]
@@ -85,7 +81,6 @@ def viz_assignments(
         columns={"schools_list": "ncessch"}
     )
 
-    # TODO: remedy this warning (better log output)
     df_lat_long = pd.read_csv(
         "data/school_data/nces_21_22_lat_longs.csv",
         dtype={"nces_id": str},
@@ -95,6 +90,7 @@ def viz_assignments(
     )
     with open("data/school_district_2021_boundaries/district_centroids.json") as f:
         district_centroids = json.load(f)
+
     df_asgn_orig = (
         pd.read_csv(
             f"data/attendance_boundaries/2122/{district.state}"
@@ -104,20 +100,17 @@ def viz_assignments(
         .drop_duplicates(subset=["block_id"])
         .rename(columns={"block_id": "GEOID20"})
     )
-    df_asgn_orig = pd.merge(
-        df_asgn_orig, df_names, left_on="ncessch", right_on="NCESSCH", how="left"
-    )
-    df_asgn_orig["percent_white"] = (
-        df_asgn_orig["num_white"] / df_asgn_orig["num_total"]
-    )
     df_asgn_orig["district_id"] = df_asgn_orig["ncessch"].str[:7]
-
     df_asgn_orig = df_asgn_orig[df_asgn_orig["district_id"] == district.id].reset_index(
         drop=True
     )
 
-    df_asgn_orig = pd.merge(
-        df_asgn_orig,
+    df_asgn_orig = df_asgn_orig.merge(
+        df_names,
+        left_on="ncessch",
+        right_on="NCESSCH",
+        how="left",
+    ).merge(
         df_lat_long,
         left_on="ncessch",
         right_on="nces_id",
@@ -140,33 +133,26 @@ def viz_assignments(
     )
     state_blocks["GEOID20"] = state_blocks["GEOID20"].astype(int)
 
-    df_orig = gpd.GeoDataFrame(
-        pd.merge(
-            df_asgn_orig,
-            state_blocks,
-            on="GEOID20",
-            how="inner",
+    df_pre = (
+        gpd.GeoDataFrame(
+            pd.merge(
+                df_asgn_orig,
+                state_blocks,
+                on="GEOID20",
+                how="inner",
+            )
         )
+        .to_crs(epsg=4326)
+        .dissolve(by="ncessch")
     )
 
-    df_orig = df_orig.to_crs(epsg=4326)
+    school_markers = df_pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
 
-    all_schools_nces = set(df_orig["ncessch"].tolist())
+    def gen_color(nces_id):
+        random.seed(int(nces_id))
+        return f'#{"%06x" % random.randint(0, 0xFFFFFF)}'
 
-    school_markers = {}
-    for nces in all_schools_nces:
-        curr = df_orig[df_orig["ncessch"] == nces].iloc[0]
-        school_markers[nces] = [curr["zoned_lat"], curr["zoned_long"], curr["SCH_NAME"]]
-
-    # Generate colors
-    colors = {}
-    for nces in all_schools_nces:
-        random.seed(int(nces))
-        colors[nces] = "#" + "%06x" % random.randint(0, 0xFFFFFF)
-
-    # Compute percentage white per school
-    school_demographics = df_orig.groupby("ncessch")[["num_white", "num_total"]].sum()
-    df_orig_mega = df_orig.dissolve(by="ncessch", as_index=False)
+    df_pre["color"] = df_pre.index.map(gen_color)
 
     def make_map():
         return folium.Map(
@@ -175,29 +161,29 @@ def viz_assignments(
             tiles="CartoDB positron",
         )
 
-    m_orig = make_map()
-    m_merged = make_map()
-    m_dissim_pre = make_map()
-    m_dissim_post = make_map()
-    m_pop_pre = make_map()
-    m_pop_post = make_map()
-    m_both_pre = make_map()
-    m_both_post = make_map()
+    pre_map = make_map()
+    post_map = make_map()
+    dissim_pre_map = make_map()
+    dissim_post_map = make_map()
+    pop_pre_map = make_map()
+    pop_post_map = make_map()
+    both_pre_map = make_map()
+    both_post_map = make_map()
 
     def add_school_markers(map, school_markers):
-        for m in school_markers:
+        for _, r in school_markers.iterrows():
             folium.Marker(
-                location=[school_markers[m][0], school_markers[m][1]],
+                location=[r["zoned_lat"], r["zoned_long"]],
                 icon=folium.Icon(color="blue", icon_color="white", icon="info-sign"),
-                popup=school_markers[m][2],
+                popup=r["SCH_NAME"],
             ).add_to(map)
 
-    add_school_markers(m_orig, school_markers)
-    add_school_markers(m_dissim_pre, school_markers)
-    add_school_markers(m_dissim_post, school_markers)
-    add_school_markers(m_pop_pre, school_markers)
-    add_school_markers(m_pop_post, school_markers)
-    add_school_markers(m_merged, school_markers)
+    add_school_markers(pre_map, school_markers)
+    add_school_markers(dissim_pre_map, school_markers)
+    add_school_markers(dissim_post_map, school_markers)
+    add_school_markers(pop_pre_map, school_markers)
+    add_school_markers(pop_post_map, school_markers)
+    add_school_markers(post_map, school_markers)
 
     def add_shape_to_map(map, geo_shape, fill_color, fill_opacity, weight):
         if np.isnan(fill_opacity):
@@ -215,81 +201,77 @@ def viz_assignments(
         geo_j.add_to(map)
 
     # compute pre-pop opacities
-    total_population = school_demographics["num_total"].sum()
+    total_population = df_pre["num_total"].sum()
     total_capacity = school_capacities.sum()
     district_utilization = total_population / total_capacity
-    utilizations = school_demographics["num_total"] / school_capacities
+    utilizations = df_pre["num_total"] / school_capacities
     divergences = np.abs(utilizations - district_utilization)
-    df_orig_mega["pop_opacity"] = divergences / divergences.max()
+    df_pre["pop_opacity"] = divergences / divergences.max()
 
     # compute pre-dissim opacities
-    total_white = school_demographics["num_white"].sum()
-    percent_white_per_school = school_demographics["num_white"] / total_white
-    total_nonwhite = school_demographics["num_total"].sum() - total_white
+    total_white = df_pre["num_white"].sum()
+    percent_white_per_school = df_pre["num_white"] / total_white
+    total_nonwhite = df_pre["num_total"].sum() - total_white
     percent_nonwhite_per_school = (
-        school_demographics["num_total"] - school_demographics["num_white"]
+        df_pre["num_total"] - df_pre["num_white"]
     ) / total_nonwhite
 
     dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
-    df_orig_mega["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
+    df_pre["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
 
-    for i, r in df_orig_mega.iterrows():
+    for i, r in df_pre.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
 
-        color = colors[df_orig_mega["ncessch"][i]]
-        add_shape_to_map(m_orig, geo_j, color, 0.5, ".5")
+        add_shape_to_map(pre_map, geo_j, r["color"], 0.5, ".5")
 
-        add_shape_to_map(m_dissim_pre, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(m_both_pre, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(m_pop_pre, geo_j, "red", r["pop_opacity"], ".5")
-        add_shape_to_map(m_both_pre, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(dissim_pre_map, geo_j, "blue", r["dissim_opacity"], ".5")
+        add_shape_to_map(both_pre_map, geo_j, "blue", r["dissim_opacity"], ".5")
+        add_shape_to_map(pop_pre_map, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(both_pre_map, geo_j, "red", r["pop_opacity"], ".5")
 
-    df_merged = gpd.GeoDataFrame(pd.merge(df_orig, df_cluster_assgn, on="ncessch"))
-    df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
-
-    # Compute percentage white per merged school
-    cluster_demographics = df_merged.groupby("cluster_id")[
-        ["num_white", "num_total"]
-    ].sum()
+    df_post = (
+        gpd.GeoDataFrame(df_pre.merge(df_cluster_assgn, on="ncessch"))
+        .dissolve("cluster_id")
+        .set_index("ncessch")
+    )
 
     # compute post-pop opacities
-    total_population = cluster_demographics["num_total"].sum()
+    total_population = df_post["num_total"].sum()
     total_capacity = school_capacities.sum()
     district_utilization = total_population / total_capacity
-    utilizations = cluster_demographics["num_total"] / school_capacities
+    utilizations = df_post["num_total"] / school_capacities
     divergences = np.abs(utilizations - district_utilization)
-    df_merged_mega["pop_opacity"] = divergences / divergences.max()
+    df_post["pop_opacity"] = divergences / divergences.max()
 
     # compute post-dissim opacities
-    total_white = cluster_demographics["num_white"].sum()
-    percent_white_per_school = cluster_demographics["num_white"] / total_white
-    total_nonwhite = cluster_demographics["num_total"].sum() - total_white
+    total_white = df_post["num_white"].sum()
+    percent_white_per_school = df_post["num_white"] / total_white
+    total_nonwhite = df_post["num_total"].sum() - total_white
     percent_nonwhite_per_school = (
-        cluster_demographics["num_total"] - cluster_demographics["num_white"]
+        df_post["num_total"] - df_post["num_white"]
     ) / total_nonwhite
 
     dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
-    df_merged_mega["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
+    df_post["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
 
-    for i, r in df_merged_mega.iterrows():
+    for i, r in df_post.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
 
-        color = colors[school_clusters[df_merged_mega["ncessch"][i]][0]]
-        add_shape_to_map(m_merged, geo_j, color, 0.5, ".5")
+        add_shape_to_map(post_map, geo_j, r["color"], 0.5, ".5")
 
-        add_shape_to_map(m_dissim_post, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(m_both_post, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
-        add_shape_to_map(m_both_post, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(dissim_post_map, geo_j, "blue", r["dissim_opacity"], ".5")
+        add_shape_to_map(both_post_map, geo_j, "blue", r["dissim_opacity"], ".5")
+        add_shape_to_map(pop_post_map, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(both_post_map, geo_j, "red", r["pop_opacity"], ".5")
 
-    m_orig.save(f"{results_dir}/orig.html")
-    m_merged.save(f"{results_dir}/merged.html")
-    m_dissim_pre.save(f"{results_dir}/dissim_pre.html")
-    m_dissim_post.save(f"{results_dir}/dissim_post.html")
-    m_pop_pre.save(f"{results_dir}/pop_pre.html")
-    m_pop_post.save(f"{results_dir}/pop_post.html")
-    m_both_pre.save(f"{results_dir}/both_pre.html")
-    m_both_post.save(f"{results_dir}/both_post.html")
+    pre_map.save(f"{dir}/pre.html")
+    post_map.save(f"{dir}/post.html")
+    dissim_pre_map.save(f"{dir}/dissim_pre.html")
+    dissim_post_map.save(f"{dir}/dissim_post.html")
+    pop_pre_map.save(f"{dir}/pop_pre.html")
+    pop_post_map.save(f"{dir}/pop_post.html")
+    both_pre_map.save(f"{dir}/both_pre.html")
+    both_post_map.save(f"{dir}/both_post.html")
 
 
 def compare_to_redistricting(
@@ -422,4 +404,4 @@ def plot_dissimilarity_vs_population_consistency(run_paths):
 
 
 if __name__ == "__main__":
-    viz_assignments(District.from_string(sys.argv[1]))
+    viz_assignments(sys.argv[1].strip("/"))
