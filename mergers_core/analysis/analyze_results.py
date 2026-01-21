@@ -105,6 +105,10 @@ def viz_assignments(
     df_asgn_orig = df_asgn_orig[df_asgn_orig["district_id"] == district.id].reset_index(
         drop=True
     )
+    df_demographics = (
+        df_asgn_orig[["ncessch", "num_white", "num_total"]].groupby("ncessch").sum()
+    )
+    df_asgn_orig.drop(columns=["num_white", "num_total"], inplace=True)
 
     df_asgn_orig = df_asgn_orig.merge(
         df_names,
@@ -145,6 +149,12 @@ def viz_assignments(
         )
         .to_crs(epsg=4326)
         .dissolve(by="ncessch")
+        .merge(
+            df_demographics,
+            left_on="ncessch",
+            right_index=True,
+            how="inner",
+        )
     )
 
     school_markers = df_pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
@@ -238,7 +248,6 @@ def viz_assignments(
 
     # compute post-pop opacities
     total_population = df_post["num_total"].sum()
-    total_capacity = school_capacities.sum()
     district_utilization = total_population / total_capacity
     utilizations = df_post["num_total"] / school_capacities
     divergences = np.abs(utilizations - district_utilization)
