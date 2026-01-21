@@ -55,6 +55,7 @@ def viz_assignments(
     df_names = pd.read_csv("data/all_schools_with_names.csv", dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
     ]
+
     df_mergers = pd.read_csv(
         f"{dir}/school_mergers.csv",
         dtype={"school_cluster": str},
