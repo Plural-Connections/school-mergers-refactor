@@ -173,53 +173,21 @@ def viz_assignments(
         "num_total": school_demographics["num_total"].to_dict(),
     }
 
-    m_orig = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
+    def make_map():
+        return folium.Map(
+            location=district_centroids[district.id],
+            zoom_start=12,
+            tiles="CartoDB positron",
+        )
 
-    m_dissim_pre = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
-
-    m_dissim_post = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
-
-    m_merged = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
-
-    m_pop_pre = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
-
-    m_pop_post = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
-
-    m_both_pre = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
-
-    m_both_post = folium.Map(
-        location=district_centroids[district.id],
-        zoom_start=12,
-        tiles="CartoDB positron",
-    )
+    m_orig = make_map()
+    m_merged = make_map()
+    m_dissim_pre = make_map()
+    m_dissim_post = make_map()
+    m_pop_pre = make_map()
+    m_pop_post = make_map()
+    m_both_pre = make_map()
+    m_both_post = make_map()
 
     def add_school_markers(curr_map, school_markers):
         for m in school_markers:
