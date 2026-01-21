@@ -97,6 +97,7 @@ def viz_assignments(
         columns={"schools_list": "ncessch"}
     )
 
+    # TODO: remedy this warning (better log output)
     df_lat_long = pd.read_csv(
         "data/school_data/nces_21_22_lat_longs.csv", dtype={"nces_id": str}
     )[["nces_id", "lat", "long"]].rename(
@@ -161,7 +162,6 @@ def viz_assignments(
     df_orig = df_orig.to_crs(epsg=4326)
 
     all_schools_nces = set(df_orig["ncessch"].tolist())
-    print("Num schools: ", len(all_schools_nces))
 
     school_markers = {}
     for nces in all_schools_nces:
