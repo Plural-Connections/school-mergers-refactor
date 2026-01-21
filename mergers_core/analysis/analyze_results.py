@@ -218,6 +218,7 @@ def viz_assignments(
     utilizations = df_pre["num_total"] / school_capacities
     divergences = np.abs(utilizations - district_utilization)
     df_pre["pop_opacity"] = divergences / divergences.max()
+    df_pre["pop_opacity"] = np.sqrt(df_pre["pop_opacity"])
 
     # compute pre-dissim opacities
     total_white = df_pre["num_white"].sum()
@@ -229,6 +230,7 @@ def viz_assignments(
 
     dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
     df_pre["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
+    df_pre["dissim_opacity"] = np.sqrt(df_pre["dissim_opacity"])
 
     for i, r in df_pre.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
@@ -252,6 +254,7 @@ def viz_assignments(
     utilizations = df_post["num_total"] / school_capacities
     divergences = np.abs(utilizations - district_utilization)
     df_post["pop_opacity"] = divergences / divergences.max()
+    df_post["pop_opacity"] = np.sqrt(df_post["pop_opacity"])
 
     # compute post-dissim opacities
     total_white = df_post["num_white"].sum()
@@ -263,6 +266,7 @@ def viz_assignments(
 
     dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
     df_post["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
+    df_post["dissim_opacity"] = np.sqrt(df_post["dissim_opacity"])
 
     for i, r in df_post.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
