@@ -301,7 +301,9 @@ def viz_assignments(
         # Adding to orig map
         sim_geo = gpd.GeoSeries(r["geometry"])
         geo_j = sim_geo.to_json()
-        add_shape_to_map(m_orig, geo_j, colors[df_orig_mega["ncessch"][i]], 0.5, ".5")
+
+        color = colors[df_orig_mega["ncessch"][i]]
+        add_shape_to_map(m_orig, geo_j, color, 0.5, ".5")
 
         add_shape_to_map(m_dissim_pre, geo_j, "blue", dissim_pre(i), ".5")
         add_shape_to_map(m_both_pre, geo_j, "blue", dissim_pre(i), ".5")
@@ -379,15 +381,11 @@ def viz_assignments(
         # Adding to post-merger dissimilarity map
         sim_geo = gpd.GeoSeries(r["geometry"])
         geo_j = sim_geo.to_json()
-        cluster_id = r["cluster_id"]
-        add_shape_to_map(
-            m_merged,
-            geo_j,
-            colors[school_clusters[df_merged_mega["ncessch"][i]][0]],
-            0.5,
-            ".5",
-        )
 
+        color = colors[school_clusters[df_merged_mega["ncessch"][i]][0]]
+        add_shape_to_map(m_merged, geo_j, color, 0.5, ".5")
+
+        cluster_id = r["cluster_id"]
         add_shape_to_map(m_dissim_post, geo_j, "blue", dissim_post(cluster_id), ".5")
         add_shape_to_map(m_both_post, geo_j, "blue", dissim_post(cluster_id), ".5")
         add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
