@@ -103,7 +103,6 @@ def viz_assignments(
     df_asgn_orig["percent_white"] = (
         df_asgn_orig["num_white"] / df_asgn_orig["num_total"]
     )
-    df_asgn_orig["percent_white"] = df_asgn_orig["percent_white"]
     df_asgn_orig["district_id"] = df_asgn_orig["ncessch"].str[:7]
 
     df_asgn_orig = df_asgn_orig[df_asgn_orig["district_id"] == district.id].reset_index(
