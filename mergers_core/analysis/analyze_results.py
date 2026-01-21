@@ -6,7 +6,6 @@ import numpy as np
 import glob
 import os
 import random
-from collections import Counter, defaultdict
 import matplotlib.pyplot as plt
 import json
 import sys
@@ -67,19 +66,20 @@ def viz_assignments(
         dtype={"school_cluster": str},
     )
 
-    school_cluster_lists = df_mergers["school_cluster"].tolist()
     school_clusters = {}
-    cluster_assignments = {"ncessch": [], "cluster_id": []}
-    cluster_id = 0
-    for c in school_cluster_lists:
-        schools = c.split(", ")
-        for s in schools:
-            cluster_assignments["ncessch"].append(s)
-            cluster_assignments["cluster_id"].append(cluster_id)
-            school_clusters[s] = schools
-        cluster_id += 1
+    for idx, row in df_mergers.iterrows():
+        schools_in_cluster = row["school_cluster"].split(", ")
+        for s in schools_in_cluster:
+            school_clusters[s] = schools_in_cluster
 
-    df_cluster_assgn = pd.DataFrame(data=cluster_assignments)
+    df_mergers_temp = df_mergers.copy()
+    df_mergers_temp["cluster_id"] = df_mergers_temp.index
+    df_mergers_temp["schools_list"] = df_mergers_temp["school_cluster"].str.split(", ")
+
+    df_cluster_assgn = df_mergers_temp.explode("schools_list")
+    df_cluster_assgn = df_cluster_assgn[["schools_list", "cluster_id"]].rename(
+        columns={"schools_list": "ncessch"}
+    )
 
     df_lat_long = pd.read_csv(
         "data/school_data/nces_21_22_lat_longs.csv", dtype={"nces_id": str}
