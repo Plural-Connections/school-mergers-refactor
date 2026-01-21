@@ -248,35 +248,39 @@ def viz_assignments(
     total_capacity_pre = 0
     school_populations_pre = per_cat_per_school["num_total"]
     schools_with_capacity = {s: c for s, c in school_capacities.items() if c and c > 0}
-    if schools_with_capacity:
-        total_population_pre = sum(
-            school_populations_pre.get(s, 0) for s in schools_with_capacity
-        )
-        total_capacity_pre = sum(schools_with_capacity.values())
+    if not schools_with_capacity:
+        print("No schools with capacity")
+        return
 
-        if total_capacity_pre > 0:
-            district_utilization_pre = total_population_pre / total_capacity_pre
-            school_utilizations_pre = {
-                s: school_populations_pre.get(s, 0) / schools_with_capacity[s]
-                for s in schools_with_capacity
-            }
-            school_divergences_pre = {
-                s: np.abs(u - district_utilization_pre)
-                for s, u in school_utilizations_pre.items()
-            }
-            max_divergence_pre = (
-                max(school_divergences_pre.values()) if school_divergences_pre else 0
-            )
+    total_population_pre = sum(
+        school_populations_pre.get(s, 0) for s in schools_with_capacity
+    )
+    total_capacity_pre = sum(schools_with_capacity.values())
 
-            df_orig_mega["divergence"] = (
-                df_orig_mega["ncessch"].map(school_divergences_pre).fillna(0)
-            )
-            if max_divergence_pre > 0:
-                df_orig_mega["pop_opacity"] = (
-                    df_orig_mega["divergence"] / max_divergence_pre
-                )
-            else:
-                df_orig_mega["pop_opacity"] = 0
+    if total_capacity_pre <= 0:
+        print("No schools with capacity")
+        return
+
+    district_utilization_pre = total_population_pre / total_capacity_pre
+    school_utilizations_pre = {
+        s: school_populations_pre.get(s, 0) / schools_with_capacity[s]
+        for s in schools_with_capacity
+    }
+    school_divergences_pre = {
+        s: np.abs(u - district_utilization_pre)
+        for s, u in school_utilizations_pre.items()
+    }
+    max_divergence_pre = (
+        max(school_divergences_pre.values()) if school_divergences_pre else 0
+    )
+
+    df_orig_mega["divergence"] = (
+        df_orig_mega["ncessch"].map(school_divergences_pre).fillna(0)
+    )
+    if max_divergence_pre > 0:
+        df_orig_mega["pop_opacity"] = df_orig_mega["divergence"] / max_divergence_pre
+    else:
+        df_orig_mega["pop_opacity"] = 0
 
     for i, r in df_orig_mega.iterrows():
         # Adding to orig map
@@ -284,18 +288,16 @@ def viz_assignments(
         geo_j = sim_geo.to_json()
         add_shape_to_map(m_orig, geo_j, colors[df_orig_mega["ncessch"][i]], 0.5, ".5")
 
-        if total_capacity_pre > 0:
-            add_shape_to_map(
-                m_pop_pre,
-                geo_j,
-                "red",
-                r["pop_opacity"],
-                ".5",
-            )
+        add_shape_to_map(
+            m_pop_pre,
+            geo_j,
+            "red",
+            r["pop_opacity"],
+            ".5",
+        )
 
     add_school_markers(m_orig, school_markers)
-    if total_capacity_pre > 0:
-        add_school_markers(m_pop_pre, school_markers)
+    add_school_markers(m_pop_pre, school_markers)
 
     for i, r in df_orig_mega.iterrows():
         # Adding to pre-merger dissimilarity map
@@ -342,40 +344,39 @@ def viz_assignments(
         c: cap for c, cap in cluster_capacities.items() if cap and cap > 0
     }
 
-    if clusters_with_capacity:
-        total_population_post = sum(
-            cluster_populations_post.get(c, 0) for c in clusters_with_capacity
-        )
-        total_capacity_post = sum(clusters_with_capacity.values())
+    if not clusters_with_capacity:
+        print("No clusters with capacity")
+        return
 
-        if total_capacity_post > 0:
-            district_utilization_post = total_population_post / total_capacity_post
-            cluster_utilizations_post = {
-                c: cluster_populations_post.get(c, 0) / clusters_with_capacity[c]
-                for c in clusters_with_capacity
-            }
-            cluster_divergences_post = {
-                c: np.abs(u - district_utilization_post)
-                for c, u in cluster_utilizations_post.items()
-            }
-            max_divergence_post = (
-                max(cluster_divergences_post.values())
-                if cluster_divergences_post
-                else 0
-            )
+    total_population_post = sum(
+        cluster_populations_post.get(c, 0) for c in clusters_with_capacity
+    )
+    total_capacity_post = sum(clusters_with_capacity.values())
+
+    if total_capacity_post <= 0:
+        print("No clusters with capacity")
+        return
+
+    district_utilization_post = total_population_post / total_capacity_post
+    cluster_utilizations_post = {
+        c: cluster_populations_post.get(c, 0) / clusters_with_capacity[c]
+        for c in clusters_with_capacity
+    }
+    cluster_divergences_post = {
+        c: np.abs(u - district_utilization_post)
+        for c, u in cluster_utilizations_post.items()
+    }
+    if not cluster_divergences_post:
+        print("No cluster divergences")
+        return
+    max_divergence_post = max(cluster_divergences_post.values())
 
     df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
 
-    if total_capacity_post > 0:
-        df_merged_mega["divergence"] = (
-            df_merged_mega["cluster_id"].map(cluster_divergences_post).fillna(0)
-        )
-        if max_divergence_post > 0:
-            df_merged_mega["pop_opacity"] = (
-                df_merged_mega["divergence"] / max_divergence_post
-            )
-        else:
-            df_merged_mega["pop_opacity"] = 0
+    df_merged_mega["divergence"] = (
+        df_merged_mega["cluster_id"].map(cluster_divergences_post).fillna(0)
+    )
+    df_merged_mega["pop_opacity"] = df_merged_mega["divergence"] / max_divergence_post
 
     for i, r in df_merged_mega.iterrows():
         # Adding to post-merger dissimilarity map
@@ -393,8 +394,7 @@ def viz_assignments(
             ),
             ".5",
         )
-        if total_capacity_post > 0:
-            add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
 
     add_school_markers(m_dissim_post, school_markers)
     if total_capacity_post > 0:
@@ -419,10 +419,8 @@ def viz_assignments(
     m_dissim_pre.save(f"{results_dir}/{district.state}/{district.id}/dissim_pre.html")
     m_dissim_post.save(f"{results_dir}/{district.state}/{district.id}/dissim_post.html")
     m_merged.save(f"{results_dir}/{district.state}/{district.id}/merged.html")
-    if total_capacity_pre > 0:
-        m_pop_pre.save(f"{results_dir}/{district.state}/{district.id}/pop_pre.html")
-    if total_capacity_post > 0:
-        m_pop_post.save(f"{results_dir}/{district.state}/{district.id}/pop_post.html")
+    m_pop_pre.save(f"{results_dir}/{district.state}/{district.id}/pop_pre.html")
+    m_pop_post.save(f"{results_dir}/{district.state}/{district.id}/pop_post.html")
 
 
 def compare_to_redistricting(
