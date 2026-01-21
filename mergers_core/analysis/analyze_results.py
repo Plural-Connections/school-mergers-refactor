@@ -9,6 +9,8 @@ import random
 from collections import Counter, defaultdict
 import matplotlib.pyplot as plt
 import json
+import sys
+from models.config import District
 
 
 def quick_analysis(
@@ -45,9 +47,8 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 
 def viz_assignments(
+    district: District,
     results_dir="data/results/",
-    state="TX",
-    district_id="4833120",
     save_file=False,
 ):
     df_names = pd.read_csv("data/all_schools_with_names.csv", dtype={"NCESSCH": str})[
@@ -55,7 +56,12 @@ def viz_assignments(
     ]
     df_mergers = pd.read_csv(
         glob.glob(
-            os.path.join(results_dir, state, district_id, "**/" + "school_mergers.csv"),
+            os.path.join(
+                results_dir,
+                district.state,
+                district.id,
+                "**/" + "school_mergers.csv",
+            ),
             recursive=True,
         )[0],
         dtype={"school_cluster": str},
@@ -84,7 +90,7 @@ def viz_assignments(
         district_centroids = json.load(f)
     df_asgn_orig = (
         pd.read_csv(
-            f"data/attendance_boundaries/2122/{state}"
+            f"data/attendance_boundaries/2122/{district.state}"
             f"/estimated_student_counts_per_block.csv",
             dtype={"ncessch": str},
         )
@@ -100,7 +106,7 @@ def viz_assignments(
     df_asgn_orig["percent_white"] = df_asgn_orig["percent_white"]
     df_asgn_orig["district_id"] = df_asgn_orig["ncessch"].str[:7]
 
-    df_asgn_orig = df_asgn_orig[df_asgn_orig["district_id"] == district_id].reset_index(
+    df_asgn_orig = df_asgn_orig[df_asgn_orig["district_id"] == district.id].reset_index(
         drop=True
     )
 
@@ -112,7 +118,7 @@ def viz_assignments(
         how="inner",
     )
 
-    state_fips = us.states.lookup(state).fips
+    state_fips = us.states.lookup(district.state).fips
     state_blocks = gpd.read_file(
         f"data/census_block_shapefiles_2020/tl_2021_{state_fips}"
         f"_tabblock20/tl_2021_{state_fips}_tabblock20.shp"
@@ -156,19 +162,19 @@ def viz_assignments(
         )
 
     m_orig = folium.Map(
-        location=district_centroids[district_id],
+        location=district_centroids[district.id],
         zoom_start=12,
         tiles="CartoDB positron",
     )
 
     m_race = folium.Map(
-        location=district_centroids[district_id],
+        location=district_centroids[district.id],
         zoom_start=12,
         tiles="CartoDB positron",
     )
 
     m_merged = folium.Map(
-        location=district_centroids[district_id],
+        location=district_centroids[district.id],
         zoom_start=12,
         tiles="CartoDB positron",
     )
@@ -245,9 +251,9 @@ def viz_assignments(
         )
     add_school_markers(m_merged, school_markers)
 
-    m_orig.save(os.path.join(results_dir, state, district_id, "original.html"))
-    m_race.save(os.path.join(results_dir, state, district_id, "race.html"))
-    m_merged.save(os.path.join(results_dir, state, district_id, "mergers.html"))
+    m_orig.save(f"{results_dir}/{district.state}/{district.id}/orig.html")
+    m_race.save(f"{results_dir}/{district.state}/{district.id}/race.html")
+    m_merged.save(f"{results_dir}/{district.state}/{district.id}/merged.html")
 
 
 def compare_to_redistricting(
@@ -380,4 +386,4 @@ def plot_dissimilarity_vs_population_consistency(run_paths):
 
 
 if __name__ == "__main__":
-    viz_assignments()
+    viz_assignments(District.from_string(sys.argv[1]))
