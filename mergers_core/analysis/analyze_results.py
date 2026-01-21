@@ -151,15 +151,11 @@ def viz_assignments(
         colors[nces] = "#" + "%06x" % random.randint(0, 0xFFFFFF)
 
     # Compute percentage white per school
-    per_cat_per_school = defaultdict(Counter)
-    for nces in all_schools_nces:
-        df_curr = df_orig[df_orig["ncessch"] == nces]
-        per_cat_per_school["num_white"][nces] += np.nansum(
-            df_curr["num_white"].tolist()
-        )
-        per_cat_per_school["num_total"][nces] += np.nansum(
-            df_curr["num_total"].tolist()
-        )
+    school_demographics = df_orig.groupby("ncessch")[["num_white", "num_total"]].sum()
+    per_cat_per_school = {
+        "num_white": school_demographics["num_white"].to_dict(),
+        "num_total": school_demographics["num_total"].to_dict(),
+    }
 
     m_orig = folium.Map(
         location=district_centroids[district.id],
@@ -240,15 +236,13 @@ def viz_assignments(
     df_merged = gpd.GeoDataFrame(pd.merge(df_orig, df_cluster_assgn, on="ncessch"))
 
     # Compute percentage white per merged school
-    per_cat_per_cluster = defaultdict(Counter)
-    for cluster in df_merged["cluster_id"].unique():
-        df_curr = df_merged[df_merged["cluster_id"] == cluster]
-        per_cat_per_cluster["num_white"][cluster] += np.nansum(
-            df_curr["num_white"].tolist()
-        )
-        per_cat_per_cluster["num_total"][cluster] += np.nansum(
-            df_curr["num_total"].tolist()
-        )
+    cluster_demographics = df_merged.groupby("cluster_id")[
+        ["num_white", "num_total"]
+    ].sum()
+    per_cat_per_cluster = {
+        "num_white": cluster_demographics["num_white"].to_dict(),
+        "num_total": cluster_demographics["num_total"].to_dict(),
+    }
 
     df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
 
