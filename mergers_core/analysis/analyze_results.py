@@ -250,63 +250,40 @@ def viz_assignments(
         add_shape_to_map(m_both_pre, geo_j, "red", r["pop_opacity"], ".5")
 
     df_merged = gpd.GeoDataFrame(pd.merge(df_orig, df_cluster_assgn, on="ncessch"))
+    df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
 
     # Compute percentage white per merged school
     cluster_demographics = df_merged.groupby("cluster_id")[
         ["num_white", "num_total"]
     ].sum()
-    per_cat_per_cluster = {
-        "num_white": cluster_demographics["num_white"].to_dict(),
-        "num_total": cluster_demographics["num_total"].to_dict(),
-    }
 
-    # Post-merger population map calculations
-    total_capacity_post = 0
-    cluster_capacities = {}
-    for _, row in df_mergers_temp.iterrows():
-        cluster_id = row["cluster_id"]
-        schools_in_cluster = row["school_cluster"].split(", ")
-        cluster_capacity = 0
-        for school in schools_in_cluster:
-            cluster_capacity += school_capacities.get(school, 0)
-        cluster_capacities[cluster_id] = cluster_capacity
-
-    cluster_populations_post = per_cat_per_cluster["num_total"]
-    clusters_with_capacity = {
-        c: cap for c, cap in cluster_capacities.items() if cap and cap > 0
-    }
-
-    total_population_post = sum(
-        cluster_populations_post.get(c, 0) for c in clusters_with_capacity
-    )
-    total_capacity_post = sum(clusters_with_capacity.values())
+    # compute post-pop opacities
+    total_population_post = cluster_demographics["num_total"].sum()
+    total_capacity_post = school_capacities.sum()
 
     district_utilization_post = total_population_post / total_capacity_post
-    cluster_utilizations_post = {
-        c: cluster_populations_post.get(c, 0) / clusters_with_capacity[c]
-        for c in clusters_with_capacity
-    }
-    cluster_divergences_post = {
-        c: np.abs(u - district_utilization_post)
-        for c, u in cluster_utilizations_post.items()
-    }
-    if not cluster_divergences_post:
-        print("No cluster divergences")
-        return
-    max_divergence_post = max(cluster_divergences_post.values())
-
-    df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
-
-    df_merged_mega["divergence"] = (
-        df_merged_mega["cluster_id"].map(cluster_divergences_post).fillna(0)
+    school_utilizations_post = cluster_demographics["num_total"] / school_capacities
+    school_divergences_post = np.abs(
+        school_utilizations_post - district_utilization_post
     )
-    df_merged_mega["pop_opacity"] = df_merged_mega["divergence"] / max_divergence_post
+    max_divergence_post = school_divergences_post.max()
 
-    def dissim_post(cluster_id):
-        return 1 - (
-            per_cat_per_cluster["num_white"][cluster_id]
-            / per_cat_per_cluster["num_total"][cluster_id]
-        )
+    df_merged_mega["pop_opacity"] = (
+        school_divergences_post.fillna(0) / max_divergence_post
+    )
+
+    # compute post-dissim opacities
+    total_white = cluster_demographics["num_white"].sum()
+    percent_white_per_school = cluster_demographics["num_white"] / total_white
+    total_nonwhite = cluster_demographics["num_total"].sum() - total_white
+    percent_nonwhite_per_school = (
+        cluster_demographics["num_total"] - cluster_demographics["num_white"]
+    ) / total_nonwhite
+
+    dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
+    max_dissim = dissim_per_school.max()
+
+    df_merged_mega["dissim_opacity"] = dissim_per_school.fillna(0) / max_dissim
 
     for i, r in df_merged_mega.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
@@ -314,9 +291,8 @@ def viz_assignments(
         color = colors[school_clusters[df_merged_mega["ncessch"][i]][0]]
         add_shape_to_map(m_merged, geo_j, color, 0.5, ".5")
 
-        cluster_id = r["cluster_id"]
-        add_shape_to_map(m_dissim_post, geo_j, "blue", dissim_post(cluster_id), ".5")
-        add_shape_to_map(m_both_post, geo_j, "blue", dissim_post(cluster_id), ".5")
+        add_shape_to_map(m_dissim_post, geo_j, "blue", r["dissim_opacity"], ".5")
+        add_shape_to_map(m_both_post, geo_j, "blue", r["dissim_opacity"], ".5")
         add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
         add_shape_to_map(m_both_post, geo_j, "red", r["pop_opacity"], ".5")
 
