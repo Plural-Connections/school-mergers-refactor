@@ -167,7 +167,7 @@ def viz_assignments(
         tiles="CartoDB positron",
     )
 
-    m_race = folium.Map(
+    m_dissim_pre = folium.Map(
         location=district_centroids[district.id],
         zoom_start=12,
         tiles="CartoDB positron",
@@ -214,11 +214,11 @@ def viz_assignments(
     add_school_markers(m_orig, school_markers)
 
     for i, r in df_orig_mega.iterrows():
-        # Adding to race map
+        # Adding to pre-merger dissimilarity map
         sim_geo = gpd.GeoSeries(r["geometry"])
         geo_j = sim_geo.to_json()
         add_shape_to_map(
-            m_race,
+            m_dissim_pre,
             geo_j,
             "blue",
             1
@@ -229,7 +229,7 @@ def viz_assignments(
             ".5",
         )
 
-    add_school_markers(m_race, school_markers)
+    add_school_markers(m_dissim_pre, school_markers)
 
     df_merged = gpd.GeoDataFrame(pd.merge(df_orig, df_cluster_assgn, on="ncessch"))
     df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
@@ -249,7 +249,7 @@ def viz_assignments(
     add_school_markers(m_merged, school_markers)
 
     m_orig.save(f"{results_dir}/{district.state}/{district.id}/orig.html")
-    m_race.save(f"{results_dir}/{district.state}/{district.id}/race.html")
+    m_dissim_pre.save(f"{results_dir}/{district.state}/{district.id}/dissim_pre.html")
     m_merged.save(f"{results_dir}/{district.state}/{district.id}/merged.html")
 
 
