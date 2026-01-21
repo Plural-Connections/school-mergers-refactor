@@ -173,6 +173,12 @@ def viz_assignments(
         tiles="CartoDB positron",
     )
 
+    m_dissim_post = folium.Map(
+        location=district_centroids[district.id],
+        zoom_start=12,
+        tiles="CartoDB positron",
+    )
+
     m_merged = folium.Map(
         location=district_centroids[district.id],
         zoom_start=12,
@@ -232,7 +238,39 @@ def viz_assignments(
     add_school_markers(m_dissim_pre, school_markers)
 
     df_merged = gpd.GeoDataFrame(pd.merge(df_orig, df_cluster_assgn, on="ncessch"))
+
+    # Compute percentage white per merged school
+    per_cat_per_cluster = defaultdict(Counter)
+    for cluster in df_merged["cluster_id"].unique():
+        df_curr = df_merged[df_merged["cluster_id"] == cluster]
+        per_cat_per_cluster["num_white"][cluster] += np.nansum(
+            df_curr["num_white"].tolist()
+        )
+        per_cat_per_cluster["num_total"][cluster] += np.nansum(
+            df_curr["num_total"].tolist()
+        )
+
     df_merged_mega = df_merged.dissolve(by="cluster_id", as_index=False)
+
+    for i, r in df_merged_mega.iterrows():
+        # Adding to post-merger dissimilarity map
+        sim_geo = gpd.GeoSeries(r["geometry"])
+        geo_j = sim_geo.to_json()
+        cluster_id = r["cluster_id"]
+        add_shape_to_map(
+            m_dissim_post,
+            geo_j,
+            "blue",
+            1
+            - (
+                per_cat_per_cluster["num_white"][cluster_id]
+                / per_cat_per_cluster["num_total"][cluster_id]
+            ),
+            ".5",
+        )
+
+    add_school_markers(m_dissim_post, school_markers)
+
     print("Mega num rows: ", len(df_merged_mega))
     print("Mega fields: ", df_merged_mega.keys())
     for i, r in df_merged_mega.iterrows():
@@ -250,6 +288,7 @@ def viz_assignments(
 
     m_orig.save(f"{results_dir}/{district.state}/{district.id}/orig.html")
     m_dissim_pre.save(f"{results_dir}/{district.state}/{district.id}/dissim_pre.html")
+    m_dissim_post.save(f"{results_dir}/{district.state}/{district.id}/dissim_post.html")
     m_merged.save(f"{results_dir}/{district.state}/{district.id}/merged.html")
 
 
