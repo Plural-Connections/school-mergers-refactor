@@ -118,9 +118,18 @@ def viz_assignments(
     )
 
     state_fips = us.states.lookup(district.state).fips
+
+    # Find the district's bounding box to filter the census blocks shapefile on read.
+    all_districts_gdf = gpd.read_file(
+        "data/school_district_2021_boundaries/shapes/schooldistrict_sy2021_tl21.shp"
+    )
+    district_shape = all_districts_gdf[all_districts_gdf["GEOID"] == district.id]
+    district_bbox = tuple(district_shape.total_bounds)
+
     state_blocks = gpd.read_file(
         f"data/census_block_shapefiles_2020/tl_2021_{state_fips}"
-        f"_tabblock20/tl_2021_{state_fips}_tabblock20.shp"
+        f"_tabblock20/tl_2021_{state_fips}_tabblock20.shp",
+        bbox=district_bbox,
     )
     state_blocks["GEOID20"] = state_blocks["GEOID20"].astype(int)
 
