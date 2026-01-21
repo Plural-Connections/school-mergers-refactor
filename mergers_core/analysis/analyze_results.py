@@ -47,20 +47,15 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 def viz_assignments(
     district: District,
-    results_dir="data/results/",
     save_file=False,
 ):
+    results_dir = f"data/results/{district.state}/{district.id}/"
     df_names = pd.read_csv("data/all_schools_with_names.csv", dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
     ]
     df_mergers = pd.read_csv(
         glob.glob(
-            os.path.join(
-                results_dir,
-                district.state,
-                district.id,
-                "**/" + "school_mergers.csv",
-            ),
+            os.path.join(results_dir, "**/" + "school_mergers.csv"),
             recursive=True,
         )[0],
         dtype={"school_cluster": str},
@@ -68,12 +63,7 @@ def viz_assignments(
 
     df_schools_in_play = pd.read_csv(
         glob.glob(
-            os.path.join(
-                results_dir,
-                district.state,
-                district.id,
-                "**/" + "schools_in_play.csv",
-            ),
+            os.path.join(results_dir, "**/" + "schools_in_play.csv"),
             recursive=True,
         )[0],
         dtype={"NCESSCH": str},
@@ -403,12 +393,14 @@ def viz_assignments(
         add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
         add_shape_to_map(m_both_post, geo_j, "red", r["pop_opacity"], ".5")
 
-    m_orig.save(f"{results_dir}/{district.state}/{district.id}/orig.html")
-    m_dissim_pre.save(f"{results_dir}/{district.state}/{district.id}/dissim_pre.html")
-    m_dissim_post.save(f"{results_dir}/{district.state}/{district.id}/dissim_post.html")
-    m_merged.save(f"{results_dir}/{district.state}/{district.id}/merged.html")
-    m_pop_pre.save(f"{results_dir}/{district.state}/{district.id}/pop_pre.html")
-    m_pop_post.save(f"{results_dir}/{district.state}/{district.id}/pop_post.html")
+    m_orig.save(f"{results_dir}/orig.html")
+    m_merged.save(f"{results_dir}/merged.html")
+    m_dissim_pre.save(f"{results_dir}/dissim_pre.html")
+    m_dissim_post.save(f"{results_dir}/dissim_post.html")
+    m_pop_pre.save(f"{results_dir}/pop_pre.html")
+    m_pop_post.save(f"{results_dir}/pop_post.html")
+    m_both_pre.save(f"{results_dir}/both_pre.html")
+    m_both_post.save(f"{results_dir}/both_post.html")
 
 
 def compare_to_redistricting(
