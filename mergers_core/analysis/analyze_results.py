@@ -48,13 +48,9 @@ def viz_assignments(
     results_dir="data/results/",
     state="TX",
     district_id="4833120",
-    district_centroids_file="data/school_district_2021_boundaries/district_centroids.json",
-    lat_long_file="data/school_data/nces_21_22_lat_longs.csv",
-    orig_boundaries="data/attendance_boundaries/2122/{}/estimated_student_counts_per_block.csv",
-    school_names_file="data/all_schools_with_names.csv",
     save_file=False,
 ):
-    df_names = pd.read_csv(school_names_file, dtype={"NCESSCH": str})[
+    df_names = pd.read_csv("data/all_schools_with_names.csv", dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
     ]
     df_mergers = pd.read_csv(
@@ -79,13 +75,19 @@ def viz_assignments(
 
     df_cluster_assgn = pd.DataFrame(data=cluster_assignments)
 
-    df_lat_long = pd.read_csv(lat_long_file, dtype={"nces_id": str})[
-        ["nces_id", "lat", "long"]
-    ].rename(columns={"lat": "zoned_lat", "long": "zoned_long"})
-    with open(district_centroids_file) as f:
+    df_lat_long = pd.read_csv(
+        "data/school_data/nces_21_22_lat_longs.csv", dtype={"nces_id": str}
+    )[["nces_id", "lat", "long"]].rename(
+        columns={"lat": "zoned_lat", "long": "zoned_long"}
+    )
+    with open("data/school_district_2021_boundaries/district_centroids.json") as f:
         district_centroids = json.load(f)
     df_asgn_orig = (
-        pd.read_csv(orig_boundaries.format(state), dtype={"ncessch": str})
+        pd.read_csv(
+            f"data/attendance_boundaries/2122/{state}"
+            f"/estimated_student_counts_per_block.csv",
+            dtype={"ncessch": str},
+        )
         .drop_duplicates(subset=["block_id"])
         .rename(columns={"block_id": "GEOID20"})
     )
@@ -110,9 +112,11 @@ def viz_assignments(
         how="inner",
     )
 
-    blocks_shape_file = "data/census_block_shapefiles_2020/tl_2021_{}_tabblock20/tl_2021_{}_tabblock20.shp"
     state_fips = us.states.lookup(state).fips
-    state_blocks = gpd.read_file(blocks_shape_file.format(state_fips, state_fips))
+    state_blocks = gpd.read_file(
+        f"data/census_block_shapefiles_2020/tl_2021_{state_fips}"
+        f"_tabblock20/tl_2021_{state_fips}_tabblock20.shp"
+    )
     state_blocks["GEOID20"] = state_blocks["GEOID20"].astype(int)
 
     df_orig = gpd.GeoDataFrame(
