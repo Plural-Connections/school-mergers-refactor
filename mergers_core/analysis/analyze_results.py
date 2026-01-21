@@ -215,15 +215,12 @@ def viz_assignments(
         geo_j.add_to(map)
 
     # compute pre-pop opacities
-    total_population_pre = school_demographics["num_total"].sum()
-    total_capacity_pre = school_capacities.sum()
-
-    district_utilization_pre = total_population_pre / total_capacity_pre
-    school_utilizations_pre = school_demographics["num_total"] / school_capacities
-    school_divergences_pre = np.abs(school_utilizations_pre - district_utilization_pre)
-    max_divergence_pre = school_divergences_pre.max()
-
-    df_orig_mega["pop_opacity"] = school_divergences_pre.fillna(0) / max_divergence_pre
+    total_population = school_demographics["num_total"].sum()
+    total_capacity = school_capacities.sum()
+    district_utilization = total_population / total_capacity
+    utilizations = school_demographics["num_total"] / school_capacities
+    divergences = np.abs(utilizations - district_utilization)
+    df_orig_mega["pop_opacity"] = divergences / divergences.max()
 
     # compute pre-dissim opacities
     total_white = school_demographics["num_white"].sum()
@@ -234,9 +231,7 @@ def viz_assignments(
     ) / total_nonwhite
 
     dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
-    max_dissim = dissim_per_school.max()
-
-    df_orig_mega["dissim_opacity"] = dissim_per_school.fillna(0) / max_dissim
+    df_orig_mega["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
 
     for i, r in df_orig_mega.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
@@ -258,19 +253,12 @@ def viz_assignments(
     ].sum()
 
     # compute post-pop opacities
-    total_population_post = cluster_demographics["num_total"].sum()
-    total_capacity_post = school_capacities.sum()
-
-    district_utilization_post = total_population_post / total_capacity_post
-    school_utilizations_post = cluster_demographics["num_total"] / school_capacities
-    school_divergences_post = np.abs(
-        school_utilizations_post - district_utilization_post
-    )
-    max_divergence_post = school_divergences_post.max()
-
-    df_merged_mega["pop_opacity"] = (
-        school_divergences_post.fillna(0) / max_divergence_post
-    )
+    total_population = cluster_demographics["num_total"].sum()
+    total_capacity = school_capacities.sum()
+    district_utilization = total_population / total_capacity
+    utilizations = cluster_demographics["num_total"] / school_capacities
+    divergences = np.abs(utilizations - district_utilization)
+    df_merged_mega["pop_opacity"] = divergences / divergences.max()
 
     # compute post-dissim opacities
     total_white = cluster_demographics["num_white"].sum()
@@ -281,9 +269,7 @@ def viz_assignments(
     ) / total_nonwhite
 
     dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
-    max_dissim = dissim_per_school.max()
-
-    df_merged_mega["dissim_opacity"] = dissim_per_school.fillna(0) / max_dissim
+    df_merged_mega["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
 
     for i, r in df_merged_mega.iterrows():
         geo_j = gpd.GeoSeries(r["geometry"]).to_json()
