@@ -217,20 +217,17 @@ def viz_assignments(
         tiles="CartoDB positron",
     )
 
-    def add_shape_to_map(curr_map, geo_shape, fill_color, fill_opacity, weight):
-        if np.isnan(fill_opacity):
-            fill_opacity = 0.2
-            fill_color = "gray"
+    m_both_pre = folium.Map(
+        location=district_centroids[district.id],
+        zoom_start=12,
+        tiles="CartoDB positron",
+    )
 
-        geo_j = folium.GeoJson(
-            data=geo_shape,
-            style_function=lambda x: {
-                "fillOpacity": fill_opacity,
-                "fillColor": fill_color,
-                "weight": weight,
-            },
-        )
-        geo_j.add_to(curr_map)
+    m_both_post = folium.Map(
+        location=district_centroids[district.id],
+        zoom_start=12,
+        tiles="CartoDB positron",
+    )
 
     def add_school_markers(curr_map, school_markers):
         for m in school_markers:
@@ -240,9 +237,14 @@ def viz_assignments(
                 popup=school_markers[m][2],
             ).add_to(curr_map)
 
-    print(len(df_orig))
+    add_school_markers(m_orig, school_markers)
+    add_school_markers(m_dissim_pre, school_markers)
+    add_school_markers(m_dissim_post, school_markers)
+    add_school_markers(m_pop_pre, school_markers)
+    add_school_markers(m_pop_post, school_markers)
+    add_school_markers(m_merged, school_markers)
+
     df_orig_mega = df_orig.dissolve(by="ncessch", as_index=False)
-    print(len(df_orig_mega))
 
     # Pre-merger population map calculations
     total_capacity_pre = 0
@@ -282,40 +284,37 @@ def viz_assignments(
     else:
         df_orig_mega["pop_opacity"] = 0
 
+    def add_shape_to_map(curr_map, geo_shape, fill_color, fill_opacity, weight):
+        if np.isnan(fill_opacity):
+            fill_opacity = 0.2
+            fill_color = "gray"
+
+        geo_j = folium.GeoJson(
+            data=geo_shape,
+            style_function=lambda x: {
+                "fillOpacity": fill_opacity,
+                "fillColor": fill_color,
+                "weight": weight,
+            },
+        )
+        geo_j.add_to(curr_map)
+
+    def dissim_pre(ncessch_idx):
+        return 1 - (
+            per_cat_per_school["num_white"][df_orig_mega["ncessch"][ncessch_idx]]
+            / per_cat_per_school["num_total"][df_orig_mega["ncessch"][ncessch_idx]]
+        )
+
     for i, r in df_orig_mega.iterrows():
         # Adding to orig map
         sim_geo = gpd.GeoSeries(r["geometry"])
         geo_j = sim_geo.to_json()
         add_shape_to_map(m_orig, geo_j, colors[df_orig_mega["ncessch"][i]], 0.5, ".5")
 
-        add_shape_to_map(
-            m_pop_pre,
-            geo_j,
-            "red",
-            r["pop_opacity"],
-            ".5",
-        )
-
-    add_school_markers(m_orig, school_markers)
-    add_school_markers(m_pop_pre, school_markers)
-
-    for i, r in df_orig_mega.iterrows():
-        # Adding to pre-merger dissimilarity map
-        sim_geo = gpd.GeoSeries(r["geometry"])
-        geo_j = sim_geo.to_json()
-        add_shape_to_map(
-            m_dissim_pre,
-            geo_j,
-            "blue",
-            1
-            - (
-                per_cat_per_school["num_white"][df_orig_mega["ncessch"][i]]
-                / per_cat_per_school["num_total"][df_orig_mega["ncessch"][i]]
-            ),
-            ".5",
-        )
-
-    add_school_markers(m_dissim_pre, school_markers)
+        add_shape_to_map(m_dissim_pre, geo_j, "blue", dissim_pre(i), ".5")
+        add_shape_to_map(m_both_pre, geo_j, "blue", dissim_pre(i), ".5")
+        add_shape_to_map(m_pop_pre, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(m_both_pre, geo_j, "red", r["pop_opacity"], ".5")
 
     df_merged = gpd.GeoDataFrame(pd.merge(df_orig, df_cluster_assgn, on="ncessch"))
 
@@ -378,34 +377,17 @@ def viz_assignments(
     )
     df_merged_mega["pop_opacity"] = df_merged_mega["divergence"] / max_divergence_post
 
+    def dissim_post(cluster_id):
+        return 1 - (
+            per_cat_per_cluster["num_white"][cluster_id]
+            / per_cat_per_cluster["num_total"][cluster_id]
+        )
+
     for i, r in df_merged_mega.iterrows():
         # Adding to post-merger dissimilarity map
         sim_geo = gpd.GeoSeries(r["geometry"])
         geo_j = sim_geo.to_json()
         cluster_id = r["cluster_id"]
-        add_shape_to_map(
-            m_dissim_post,
-            geo_j,
-            "blue",
-            1
-            - (
-                per_cat_per_cluster["num_white"][cluster_id]
-                / per_cat_per_cluster["num_total"][cluster_id]
-            ),
-            ".5",
-        )
-        add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
-
-    add_school_markers(m_dissim_post, school_markers)
-    if total_capacity_post > 0:
-        add_school_markers(m_pop_post, school_markers)
-
-    print("Mega num rows: ", len(df_merged_mega))
-    print("Mega fields: ", df_merged_mega.keys())
-    for i, r in df_merged_mega.iterrows():
-        # Adding to mergers map
-        sim_geo = gpd.GeoSeries(r["geometry"])
-        geo_j = sim_geo.to_json()
         add_shape_to_map(
             m_merged,
             geo_j,
@@ -413,7 +395,11 @@ def viz_assignments(
             0.5,
             ".5",
         )
-    add_school_markers(m_merged, school_markers)
+
+        add_shape_to_map(m_dissim_post, geo_j, "blue", dissim_post(cluster_id), ".5")
+        add_shape_to_map(m_both_post, geo_j, "blue", dissim_post(cluster_id), ".5")
+        add_shape_to_map(m_pop_post, geo_j, "red", r["pop_opacity"], ".5")
+        add_shape_to_map(m_both_post, geo_j, "red", r["pop_opacity"], ".5")
 
     m_orig.save(f"{results_dir}/{district.state}/{district.id}/orig.html")
     m_dissim_pre.save(f"{results_dir}/{district.state}/{district.id}/dissim_pre.html")
