@@ -99,7 +99,9 @@ def viz_assignments(
 
     # TODO: remedy this warning (better log output)
     df_lat_long = pd.read_csv(
-        "data/school_data/nces_21_22_lat_longs.csv", dtype={"nces_id": str}
+        "data/school_data/nces_21_22_lat_longs.csv",
+        dtype={"nces_id": str},
+        low_memory=False,  # suppress warning on mixed data in columns not used here
     )[["nces_id", "lat", "long"]].rename(
         columns={"lat": "zoned_lat", "long": "zoned_long"}
     )
