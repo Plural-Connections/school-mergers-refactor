@@ -45,19 +45,14 @@ def identify_moderate_district_large_decrease_in_dissim(
     )
 
 
-def population_opacities(capacities, demographics):
-    district_utilization = demographics["num_total"].sum() / capacities.sum()
+def utilization_opacities(capacities, demographics):
     utilizations = demographics["num_total"] / capacities
-    divergences = np.abs(utilizations - district_utilization)
-    return np.sqrt(divergences / divergences.max())
+    return np.sqrt(utilizations / utilizations.max())
 
 
-def dissimilarity_opacities(demographics):
-    white_shares = demographics["num_white"] / demographics["num_white"].sum()
-    nonwhite = demographics["num_total"] - demographics["num_white"]
-    nonwhite_shares = (nonwhite) / nonwhite.sum()
-    dissim_per_school = np.abs(white_shares - nonwhite_shares)
-    return np.sqrt(dissim_per_school / dissim_per_school.max())
+def racial_opacities(demographics):
+    nonwhite_shares = 1 - (demographics["num_white"] / demographics["num_total"])
+    return np.sqrt(nonwhite_shares / nonwhite_shares.max())
 
 
 def viz_assignments(
@@ -226,14 +221,14 @@ def viz_assignments(
         folium.GeoJson(
             data=pre,
             style_function=identity_style_function,
-            name=f"{name} pre-merger",
+            name=f"pre-merger {name}",
         ).add_to(pre_layer)
 
         post_layer = folium.FeatureGroup(f"{name} post-merger").add_to(map)
         folium.GeoJson(
             data=post,
             style_function=identity_style_function,
-            name=f"{name} post-merger",
+            name=f"post-merger {name}",
         ).add_to(post_layer)
 
         layers.extend((pre_layer, post_layer))
@@ -241,14 +236,14 @@ def viz_assignments(
     add_layers("boundaries")
 
     pre["color"] = post["color"] = "blue"
-    pre["opacity"] = population_opacities(capacities, pre_nums)
-    post["opacity"] = population_opacities(capacities, post_nums)
-    add_layers("population")
+    pre["opacity"] = utilization_opacities(capacities, pre_nums)
+    post["opacity"] = utilization_opacities(capacities, post_nums)
+    add_layers("% utilization")
 
     pre["color"] = post["color"] = "red"
-    pre["opacity"] = dissimilarity_opacities(pre_nums)
-    post["opacity"] = dissimilarity_opacities(post_nums)
-    add_layers("dissimilarity")
+    pre["opacity"] = racial_opacities(pre_nums)
+    post["opacity"] = racial_opacities(post_nums)
+    add_layers("racial concentration")
 
     folium.plugins.GroupedLayerControl(
         groups={"maps": layers},
