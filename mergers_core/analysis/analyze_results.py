@@ -44,6 +44,21 @@ def identify_moderate_district_large_decrease_in_dissim(
     )
 
 
+def _calculate_population_metrics(capacities, demographics):
+    district_utilization = demographics["num_total"].sum() / capacities.sum()
+    utilizations = demographics["num_total"] / capacities
+    divergences = np.abs(utilizations - district_utilization)
+    return np.sqrt(divergences / divergences.max())
+
+
+def _calculate_dissimilarity_metrics(demographics):
+    white_shares = demographics["num_white"] / demographics["num_white"].sum()
+    nonwhite = demographics["num_total"] - demographics["num_white"]
+    nonwhite_shares = (nonwhite) / nonwhite.sum()
+    dissim_per_school = np.abs(white_shares - nonwhite_shares)
+    return np.sqrt(dissim_per_school / dissim_per_school.max())
+
+
 def viz_assignments(
     # of the format data/results/{district.state}/{district.id}/{run}
     dir: str,
@@ -65,7 +80,7 @@ def viz_assignments(
         f"{dir}/schools_in_play.csv",
         dtype={"NCESSCH": str},
     )
-    school_capacities = df_schools_in_play.set_index("NCESSCH")["student_capacity"]
+    capacities = df_schools_in_play.set_index("NCESSCH")["student_capacity"]
 
     school_clusters = {}
     for idx, row in df_mergers.iterrows():
@@ -138,7 +153,7 @@ def viz_assignments(
     )
     state_blocks["GEOID20"] = state_blocks["GEOID20"].astype(int)
 
-    df_pre = (
+    pre = (
         gpd.GeoDataFrame(
             pd.merge(
                 df_asgn_orig,
@@ -157,135 +172,65 @@ def viz_assignments(
         )
     )
 
-    school_markers = df_pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
-
     def gen_color(nces_id):
         random.seed(int(nces_id))
         return f"#{random.randint(0, 0xFFFFFF):06x}"
 
-    df_pre["color"] = df_pre.index.map(gen_color)
+    school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
+    demographics = pre[["num_white", "num_total"]]
+    pre = pre[["geometry"]]
+    pre["color"] = pre.index.map(gen_color)
+    pre["weight"] = 0.2
+    pre["opacity"] = 1
 
-    def make_map():
-        return folium.Map(
-            location=district_centroids[district.id],
-            zoom_start=12,
-            tiles="CartoDB positron",
-        )
-
-    pre_map = make_map()
-    post_map = make_map()
-    dissim_pre_map = make_map()
-    dissim_post_map = make_map()
-    pop_pre_map = make_map()
-    pop_post_map = make_map()
-    both_pre_map = make_map()
-    both_post_map = make_map()
-
-    def add_school_markers(map, school_markers):
-        for _, r in school_markers.iterrows():
-            folium.Marker(
-                location=[r["zoned_lat"], r["zoned_long"]],
-                icon=folium.Icon(color="blue", icon_color="white", icon="info-sign"),
-                popup=r["SCH_NAME"],
-            ).add_to(map)
-
-    add_school_markers(pre_map, school_markers)
-    add_school_markers(dissim_pre_map, school_markers)
-    add_school_markers(dissim_post_map, school_markers)
-    add_school_markers(pop_pre_map, school_markers)
-    add_school_markers(pop_post_map, school_markers)
-    add_school_markers(post_map, school_markers)
-
-    def add_shape_to_map(map, geo_shape, fill_color, fill_opacity, weight):
-        if np.isnan(fill_opacity):
-            fill_opacity = 0.2
-            fill_color = "gray"
-
-        geo_j = folium.GeoJson(
-            data=geo_shape,
-            style_function=lambda x: {
-                "fillOpacity": fill_opacity,
-                "fillColor": fill_color,
-                "weight": weight,
-            },
-        )
-        geo_j.add_to(map)
-
-    # compute pre-pop opacities
-    total_population = df_pre["num_total"].sum()
-    total_capacity = school_capacities.sum()
-    district_utilization = total_population / total_capacity
-    utilizations = df_pre["num_total"] / school_capacities
-    divergences = np.abs(utilizations - district_utilization)
-    df_pre["pop_opacity"] = divergences / divergences.max()
-    df_pre["pop_opacity"] = np.sqrt(df_pre["pop_opacity"])
-
-    # compute pre-dissim opacities
-    total_white = df_pre["num_white"].sum()
-    percent_white_per_school = df_pre["num_white"] / total_white
-    total_nonwhite = df_pre["num_total"].sum() - total_white
-    percent_nonwhite_per_school = (
-        df_pre["num_total"] - df_pre["num_white"]
-    ) / total_nonwhite
-
-    dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
-    df_pre["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
-    df_pre["dissim_opacity"] = np.sqrt(df_pre["dissim_opacity"])
-
-    for i, r in df_pre.iterrows():
-        geo_j = gpd.GeoSeries(r["geometry"]).to_json()
-
-        add_shape_to_map(pre_map, geo_j, r["color"], 0.5, ".5")
-
-        add_shape_to_map(dissim_pre_map, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(both_pre_map, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(pop_pre_map, geo_j, "red", r["pop_opacity"], ".5")
-        add_shape_to_map(both_pre_map, geo_j, "red", r["pop_opacity"], ".5")
-
-    df_post = (
-        gpd.GeoDataFrame(df_pre.merge(df_cluster_assgn, on="ncessch"))
+    post = (
+        gpd.GeoDataFrame(pre.merge(df_cluster_assgn, on="ncessch"))
         .dissolve("cluster_id")
         .set_index("ncessch")
     )
 
-    # compute post-pop opacities
-    total_population = df_post["num_total"].sum()
-    district_utilization = total_population / total_capacity
-    utilizations = df_post["num_total"] / school_capacities
-    divergences = np.abs(utilizations - district_utilization)
-    df_post["pop_opacity"] = divergences / divergences.max()
-    df_post["pop_opacity"] = np.sqrt(df_post["pop_opacity"])
+    map = folium.Map(
+        location=district_centroids[district.id],
+        zoom_start=12,
+        tiles="CartoDB positron",
+    )
 
-    # compute post-dissim opacities
-    total_white = df_post["num_white"].sum()
-    percent_white_per_school = df_post["num_white"] / total_white
-    total_nonwhite = df_post["num_total"].sum() - total_white
-    percent_nonwhite_per_school = (
-        df_post["num_total"] - df_post["num_white"]
-    ) / total_nonwhite
+    for _, r in school_markers.iterrows():
+        folium.Marker(
+            location=[r["zoned_lat"], r["zoned_long"]],
+            icon=folium.Icon(color="blue", icon_color="white", icon="info-sign"),
+            popup=r["SCH_NAME"],
+        ).add_to(map)
 
-    dissim_per_school = np.abs(percent_white_per_school - percent_nonwhite_per_school)
-    df_post["dissim_opacity"] = dissim_per_school / dissim_per_school.max()
-    df_post["dissim_opacity"] = np.sqrt(df_post["dissim_opacity"])
+    def identity_style_function(feature):
+        return {
+            "fillColor": feature["properties"]["color"],
+            "fillOpacity": feature["properties"]["opacity"],
+            "weight": feature["properties"]["weight"],
+        }
 
-    for i, r in df_post.iterrows():
-        geo_j = gpd.GeoSeries(r["geometry"]).to_json()
+    folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
+    folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
 
-        add_shape_to_map(post_map, geo_j, r["color"], 0.5, ".5")
+    pre["color"] = post["color"] = "blue"
 
-        add_shape_to_map(dissim_post_map, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(both_post_map, geo_j, "blue", r["dissim_opacity"], ".5")
-        add_shape_to_map(pop_post_map, geo_j, "red", r["pop_opacity"], ".5")
-        add_shape_to_map(both_post_map, geo_j, "red", r["pop_opacity"], ".5")
+    pre["opacity"] = _calculate_population_metrics(capacities, demographics)
+    folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
 
-    pre_map.save(f"{dir}/pre.html")
-    post_map.save(f"{dir}/post.html")
-    dissim_pre_map.save(f"{dir}/dissim_pre.html")
-    dissim_post_map.save(f"{dir}/dissim_post.html")
-    pop_pre_map.save(f"{dir}/pop_pre.html")
-    pop_post_map.save(f"{dir}/pop_post.html")
-    both_pre_map.save(f"{dir}/both_pre.html")
-    both_post_map.save(f"{dir}/both_post.html")
+    post["opacity"] = _calculate_population_metrics(capacities, demographics)
+    folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
+
+    pre["color"] = post["color"] = "red"
+
+    pre["opacity"] = _calculate_dissimilarity_metrics(demographics)
+    folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
+
+    post["opacity"] = _calculate_dissimilarity_metrics(demographics)
+    folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
+
+    folium.LayerControl().add_to(map)
+
+    map.save(f"{dir}/map.html")
 
 
 def compare_to_redistricting(
