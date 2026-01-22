@@ -44,14 +44,14 @@ def identify_moderate_district_large_decrease_in_dissim(
     )
 
 
-def _calculate_population_metrics(capacities, demographics):
+def population_opacities(capacities, demographics):
     district_utilization = demographics["num_total"].sum() / capacities.sum()
     utilizations = demographics["num_total"] / capacities
     divergences = np.abs(utilizations - district_utilization)
     return np.sqrt(divergences / divergences.max())
 
 
-def _calculate_dissimilarity_metrics(demographics):
+def dissimilarity_opacities(demographics):
     white_shares = demographics["num_white"] / demographics["num_white"].sum()
     nonwhite = demographics["num_total"] - demographics["num_white"]
     nonwhite_shares = (nonwhite) / nonwhite.sum()
@@ -216,27 +216,31 @@ def viz_assignments(
             "weight": feature["properties"]["weight"],
         }
 
-    def add_layer(name):
+    def add_layers(name):
         nonlocal map, pre, post
+        folium.GeoJson(
+            data=pre,
+            style_function=identity_style_function,
+            name=f"{name} pre-merger",
+        ).add_to(map)
 
-    folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
-    folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
+        folium.GeoJson(
+            data=post,
+            style_function=identity_style_function,
+            name=f"{name} post-merger",
+        ).add_to(map)
+
+    add_layers("boundaries")
 
     pre["color"] = post["color"] = "blue"
-
-    pre["opacity"] = _calculate_population_metrics(capacities, pre_nums)
-    folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
-
-    post["opacity"] = _calculate_population_metrics(capacities, post_nums)
-    folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
+    pre["opacity"] = population_opacities(capacities, pre_nums)
+    post["opacity"] = population_opacities(capacities, post_nums)
+    add_layers("population")
 
     pre["color"] = post["color"] = "red"
-
-    pre["opacity"] = _calculate_dissimilarity_metrics(pre_nums)
-    folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
-
-    post["opacity"] = _calculate_dissimilarity_metrics(post_nums)
-    folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
+    pre["opacity"] = dissimilarity_opacities(pre_nums)
+    post["opacity"] = dissimilarity_opacities(post_nums)
+    add_layers("dissimilarity")
 
     folium.LayerControl().add_to(map)
 
