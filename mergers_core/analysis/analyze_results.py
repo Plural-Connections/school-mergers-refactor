@@ -47,12 +47,12 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 def utilization_opacities(capacities, demographics):
     utilizations = demographics["num_total"] / capacities
-    return np.sqrt(utilizations / utilizations.max())
+    return utilizations / utilizations.max()
 
 
 def racial_opacities(demographics):
     nonwhite_shares = 1 - (demographics["num_white"] / demographics["num_total"])
-    return np.sqrt(nonwhite_shares / nonwhite_shares.max())
+    return nonwhite_shares / nonwhite_shares.max()
 
 
 def viz_assignments(
