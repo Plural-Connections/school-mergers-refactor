@@ -103,6 +103,10 @@ def viz_assignments(
     with open("data/school_district_2021_boundaries/district_centroids.json") as f:
         district_centroids = json.load(f)
 
+    if district.id not in district_centroids:
+        print(f"{district} has no centroid data, skipping")
+        return
+
     df_asgn_orig = (
         pd.read_csv(
             f"data/attendance_boundaries/2122/{district.state}"
