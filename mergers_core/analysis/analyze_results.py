@@ -161,7 +161,7 @@ def viz_assignments(
 
     def gen_color(nces_id):
         random.seed(int(nces_id))
-        return f'#{"%06x" % random.randint(0, 0xFFFFFF)}'
+        return f"#{random.randint(0, 0xFFFFFF):06x}"
 
     df_pre["color"] = df_pre.index.map(gen_color)
 
