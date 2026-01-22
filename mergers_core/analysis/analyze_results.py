@@ -1,5 +1,6 @@
 import geopandas as gpd
 import folium
+import folium.plugins
 import us
 import pandas as pd
 import numpy as np
@@ -216,19 +217,26 @@ def viz_assignments(
             "weight": feature["properties"]["weight"],
         }
 
+    layers = []
+
     def add_layers(name):
-        nonlocal map, pre, post
+        nonlocal map, pre, post, layers
+
+        pre_layer = folium.FeatureGroup(f"{name} pre-merger").add_to(map)
         folium.GeoJson(
             data=pre,
             style_function=identity_style_function,
             name=f"{name} pre-merger",
-        ).add_to(map)
+        ).add_to(pre_layer)
 
+        post_layer = folium.FeatureGroup(f"{name} post-merger").add_to(map)
         folium.GeoJson(
             data=post,
             style_function=identity_style_function,
             name=f"{name} post-merger",
-        ).add_to(map)
+        ).add_to(post_layer)
+
+        layers.extend((pre_layer, post_layer))
 
     add_layers("boundaries")
 
@@ -242,7 +250,11 @@ def viz_assignments(
     post["opacity"] = dissimilarity_opacities(post_nums)
     add_layers("dissimilarity")
 
-    folium.LayerControl().add_to(map)
+    folium.plugins.GroupedLayerControl(
+        groups={"maps": layers},
+        exclusive_groups=["maps"],
+        collapsed=False,
+    ).add_to(map)
 
     map.save(f"{dir}/map.html")
 
