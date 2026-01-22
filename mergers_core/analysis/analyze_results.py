@@ -252,7 +252,6 @@ def viz_assignments(
 
     folium.plugins.GroupedLayerControl(
         groups={"maps": layers},
-        exclusive_groups=["maps"],
         collapsed=False,
     ).add_to(map)
 
