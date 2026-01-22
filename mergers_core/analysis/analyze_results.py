@@ -176,19 +176,25 @@ def viz_assignments(
         random.seed(int(nces_id))
         return f"#{random.randint(0, 0xFFFFFF):06x}"
 
-    school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
-    pre_nums = pre[["num_white", "num_total"]]
-    post_nums = post[["num_white", "num_total"]]
-    pre = pre[["geometry"]]
     pre["color"] = pre.index.map(gen_color)
     pre["weight"] = 0.2
     pre["opacity"] = 1
 
     post = (
-        gpd.GeoDataFrame(pre.merge(df_cluster_assgn, on="ncessch"))
+        gpd.GeoDataFrame(
+            pd.merge(
+                pre,
+                df_cluster_assgn,
+                on="ncessch",
+            )
+        )
         .dissolve("cluster_id")
         .set_index("ncessch")
     )
+
+    school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
+    pre_nums = pre[["num_white", "num_total"]]
+    post_nums = post[["num_white", "num_total"]]
 
     map = folium.Map(
         location=district_centroids[district.id],
