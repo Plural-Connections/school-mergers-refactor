@@ -177,7 +177,8 @@ def viz_assignments(
         return f"#{random.randint(0, 0xFFFFFF):06x}"
 
     school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
-    demographics = pre[["num_white", "num_total"]]
+    pre_nums = pre[["num_white", "num_total"]]
+    post_nums = post[["num_white", "num_total"]]
     pre = pre[["geometry"]]
     pre["color"] = pre.index.map(gen_color)
     pre["weight"] = 0.2
@@ -209,23 +210,26 @@ def viz_assignments(
             "weight": feature["properties"]["weight"],
         }
 
+    def add_layer(name):
+        nonlocal map, pre, post
+
     folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
     folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
 
     pre["color"] = post["color"] = "blue"
 
-    pre["opacity"] = _calculate_population_metrics(capacities, demographics)
+    pre["opacity"] = _calculate_population_metrics(capacities, pre_nums)
     folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
 
-    post["opacity"] = _calculate_population_metrics(capacities, demographics)
+    post["opacity"] = _calculate_population_metrics(capacities, post_nums)
     folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
 
     pre["color"] = post["color"] = "red"
 
-    pre["opacity"] = _calculate_dissimilarity_metrics(demographics)
+    pre["opacity"] = _calculate_dissimilarity_metrics(pre_nums)
     folium.GeoJson(data=pre, style_function=identity_style_function).add_to(map)
 
-    post["opacity"] = _calculate_dissimilarity_metrics(demographics)
+    post["opacity"] = _calculate_dissimilarity_metrics(post_nums)
     folium.GeoJson(data=post, style_function=identity_style_function).add_to(map)
 
     folium.LayerControl().add_to(map)
