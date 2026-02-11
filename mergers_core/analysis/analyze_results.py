@@ -56,10 +56,9 @@ def racial_opacities(numbers):
 
 def generate_map_for_run(pre, cluster_assignments, run):
     pre = pd.merge(pre, cluster_assignments, on="ncessch")
-    post_nums = pre.groupby("cluster_id")[["capacity", "num_white", "num_total"]].sum()
-    post = gpd.GeoDataFrame(pre).dissolve("cluster_id").set_index("ncessch")
-
+    post = gpd.GeoDataFrame(pre).dissolve("cluster_id")
     pre_nums = pre[["capacity", "num_white", "num_total"]]
+    post_nums = pre.groupby("cluster_id")[["capacity", "num_white", "num_total"]].sum()
 
     def identity_style_function(feature):
         return {
