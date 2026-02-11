@@ -112,7 +112,7 @@ def viz_assignments(dir: str):
     df_schools_in_play = pd.read_csv(
         glob.glob(f"{dir}/*/schools_in_play.csv")[0],
         dtype={"NCESSCH": str},
-    )
+    ).set_index("NCESSCH")
 
     df_lat_long = pd.read_csv(
         "data/school_data/nces_21_22_lat_longs.csv",
@@ -239,7 +239,6 @@ def viz_assignments(dir: str):
         run = run_names[subdirectory.split("_")[1]]
         layers.extend(generate_map_for_run(pre, df_cluster_assgn, run))
 
-    print(layers)
     for layer in layers:
         layer.add_to(map)
     folium.plugins.GroupedLayerControl(
