@@ -47,12 +47,12 @@ def identify_moderate_district_large_decrease_in_dissim(
 
 def utilization_opacities(capacities, demographics):
     utilizations = demographics["num_total"] / capacities
-    return utilizations / utilizations.max()
+    return utilizations
 
 
 def racial_opacities(demographics):
     nonwhite_shares = 1 - (demographics["num_white"] / demographics["num_total"])
-    return nonwhite_shares / nonwhite_shares.max()
+    return nonwhite_shares
 
 
 def viz_assignments(
@@ -180,21 +180,12 @@ def viz_assignments(
     pre["weight"] = 0.2
     pre["opacity"] = 1
 
-    post = (
-        gpd.GeoDataFrame(
-            pd.merge(
-                pre,
-                df_cluster_assgn,
-                on="ncessch",
-            )
-        )
-        .dissolve("cluster_id")
-        .set_index("ncessch")
-    )
+    pre = pd.merge(pre, df_cluster_assgn, on="ncessch")
+    post_nums = pre.groupby("cluster_id")[["num_white", "num_total"]].sum()
+    post = gpd.GeoDataFrame(pre).dissolve("cluster_id").set_index("ncessch")
 
     school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
     pre_nums = pre[["num_white", "num_total"]]
-    post_nums = post[["num_white", "num_total"]]
 
     map = folium.Map(
         location=district_centroids[district.id],
@@ -239,15 +230,22 @@ def viz_assignments(
 
     add_layers("boundaries")
 
+    test = pd.DataFrame()
+
     pre["color"] = post["color"] = "blue"
     pre["opacity"] = utilization_opacities(capacities, pre_nums)
+    test["po"] = pre["opacity"]
     post["opacity"] = utilization_opacities(capacities, post_nums)
+    test["Po"] = post["opacity"]
     add_layers("% utilization")
 
     pre["color"] = post["color"] = "red"
     pre["opacity"] = racial_opacities(pre_nums)
+    test["ro"] = pre["opacity"]
     post["opacity"] = racial_opacities(post_nums)
+    test["Ro"] = post["opacity"]
     add_layers("racial concentration")
+    print(test)
 
     folium.plugins.GroupedLayerControl(
         groups={"maps": layers},
