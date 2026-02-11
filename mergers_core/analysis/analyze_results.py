@@ -46,14 +46,12 @@ def identify_moderate_district_large_decrease_in_dissim(
     )
 
 
-def utilization_opacities(demographics):
-    utilizations = demographics["num_total"] / demographics["capacity"]
-    return utilizations
+def utilization_opacities(numbers):
+    return numbers["num_total"] / numbers["capacity"]
 
 
-def racial_opacities(demographics):
-    nonwhite_shares = 1 - (demographics["num_white"] / demographics["num_total"])
-    return nonwhite_shares
+def racial_opacities(numbers):
+    return 1 - (numbers["num_white"] / numbers["num_total"])
 
 
 def generate_map_for_run(pre, cluster_assignments, run):
