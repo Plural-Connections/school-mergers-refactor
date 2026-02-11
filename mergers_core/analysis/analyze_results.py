@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import json
 import sys
 from models.config import District
+import glob
 
 
 def quick_analysis(
@@ -45,8 +46,8 @@ def identify_moderate_district_large_decrease_in_dissim(
     )
 
 
-def utilization_opacities(capacities, demographics):
-    utilizations = demographics["num_total"] / capacities
+def utilization_opacities(demographics):
+    utilizations = demographics["num_total"] / demographics["capacity"]
     return utilizations
 
 
@@ -55,42 +56,65 @@ def racial_opacities(demographics):
     return nonwhite_shares
 
 
-def viz_assignments(
-    # of the format data/results/{district.state}/{district.id}/{run}
-    dir: str,
-    save_file=False,
-):
-    _, _, state, district_id, run = dir.split("/")
+def generate_map_for_run(pre, cluster_assignments, run):
+    pre = pd.merge(pre, cluster_assignments, on="ncessch")
+    post_nums = pre.groupby("cluster_id")[["capacity", "num_white", "num_total"]].sum()
+    post = gpd.GeoDataFrame(pre).dissolve("cluster_id").set_index("ncessch")
+
+    pre_nums = pre[["capacity", "num_white", "num_total"]]
+
+    def identity_style_function(feature):
+        return {
+            "fillColor": feature["properties"]["color"],
+            "fillOpacity": feature["properties"]["opacity"],
+            "weight": feature["properties"]["weight"],
+        }
+
+    layers = []
+
+    def add_layers(name):
+        pre_layer = folium.FeatureGroup(f"{run}: pre-merger {name}")
+        folium.GeoJson(
+            data=pre,
+            style_function=identity_style_function,
+            name=f"{run}: pre-merger {name}",
+        ).add_to(pre_layer)
+
+        post_layer = folium.FeatureGroup(f"{run}: post-merger {name}")
+        folium.GeoJson(
+            data=post,
+            style_function=identity_style_function,
+            name=f"{run}: post-merger {name}",
+        ).add_to(post_layer)
+
+        layers.extend((pre_layer, post_layer))
+
+    add_layers("boundaries")
+
+    pre["color"] = post["color"] = "blue"
+    pre["opacity"] = utilization_opacities(pre_nums)
+    post["opacity"] = utilization_opacities(post_nums)
+    add_layers("% utilization")
+
+    pre["color"] = post["color"] = "red"
+    pre["opacity"] = racial_opacities(pre_nums)
+    post["opacity"] = racial_opacities(post_nums)
+    add_layers("racial concentration")
+
+    return layers
+
+
+def viz_assignments(dir: str):
+    _, _, state, district_id = dir.split("/")
     district = District(state=state, id=district_id)
 
     df_names = pd.read_csv("data/all_schools_with_names.csv", dtype={"NCESSCH": str})[
         ["NCESSCH", "SCH_NAME"]
     ]
 
-    df_mergers = pd.read_csv(
-        f"{dir}/school_mergers.csv",
-        dtype={"school_cluster": str},
-    )
-
     df_schools_in_play = pd.read_csv(
-        f"{dir}/schools_in_play.csv",
+        glob.glob(f"{dir}/*/schools_in_play.csv")[0],
         dtype={"NCESSCH": str},
-    )
-    capacities = df_schools_in_play.set_index("NCESSCH")["student_capacity"]
-
-    school_clusters = {}
-    for idx, row in df_mergers.iterrows():
-        schools_in_cluster = row["school_cluster"].split(", ")
-        for s in schools_in_cluster:
-            school_clusters[s] = schools_in_cluster
-
-    df_mergers_temp = df_mergers.copy()
-    df_mergers_temp["cluster_id"] = df_mergers_temp.index
-    df_mergers_temp["schools_list"] = df_mergers_temp["school_cluster"].str.split(", ")
-
-    df_cluster_assgn = df_mergers_temp.explode("schools_list")
-    df_cluster_assgn = df_cluster_assgn[["schools_list", "cluster_id"]].rename(
-        columns={"schools_list": "ncessch"}
     )
 
     df_lat_long = pd.read_csv(
@@ -172,6 +196,8 @@ def viz_assignments(
         )
     )
 
+    pre["capacity"] = df_schools_in_play["student_capacity"]
+
     def gen_color(nces_id):
         random.seed(int(nces_id))
         return f"#{random.randint(0, 0xFFFFFF):06x}"
@@ -180,19 +206,15 @@ def viz_assignments(
     pre["weight"] = 0.2
     pre["opacity"] = 1
 
-    pre = pd.merge(pre, df_cluster_assgn, on="ncessch")
-    post_nums = pre.groupby("cluster_id")[["num_white", "num_total"]].sum()
-    post = gpd.GeoDataFrame(pre).dissolve("cluster_id").set_index("ncessch")
-
-    school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
-    pre_nums = pre[["num_white", "num_total"]]
+    run_names = {"1,1": "both", "0,1": "population", "1,0": "dissimilarity"}
 
     map = folium.Map(
         location=district_centroids[district.id],
         zoom_start=12,
         tiles="CartoDB positron",
     )
-
+    layers = []
+    school_markers = pre[["zoned_lat", "zoned_long", "SCH_NAME"]]
     for _, r in school_markers.iterrows():
         folium.Marker(
             location=[r["zoned_lat"], r["zoned_long"]],
@@ -200,53 +222,29 @@ def viz_assignments(
             popup=r["SCH_NAME"],
         ).add_to(map)
 
-    def identity_style_function(feature):
-        return {
-            "fillColor": feature["properties"]["color"],
-            "fillOpacity": feature["properties"]["opacity"],
-            "weight": feature["properties"]["weight"],
-        }
+    for subdirectory in os.listdir(dir):
+        if not os.path.isdir(f"{dir}/{subdirectory}"):
+            continue
 
-    layers = []
+        df_mergers = pd.read_csv(
+            f"{dir}/{subdirectory}/school_mergers.csv",
+            dtype={"school_cluster": str},
+        )
 
-    def add_layers(name):
-        nonlocal map, pre, post, layers
+        df_mergers["cluster_id"] = df_mergers.index
+        df_mergers["schools_list"] = df_mergers["school_cluster"].str.split(", ")
 
-        pre_layer = folium.FeatureGroup(f"{name} pre-merger").add_to(map)
-        folium.GeoJson(
-            data=pre,
-            style_function=identity_style_function,
-            name=f"pre-merger {name}",
-        ).add_to(pre_layer)
+        df_cluster_assgn = df_mergers.explode("schools_list")
+        df_cluster_assgn = df_cluster_assgn[["schools_list", "cluster_id"]].rename(
+            columns={"schools_list": "ncessch"}
+        )
 
-        post_layer = folium.FeatureGroup(f"{name} post-merger").add_to(map)
-        folium.GeoJson(
-            data=post,
-            style_function=identity_style_function,
-            name=f"post-merger {name}",
-        ).add_to(post_layer)
+        run = run_names[subdirectory.split("_")[1]]
+        layers.extend(generate_map_for_run(pre, df_cluster_assgn, run))
 
-        layers.extend((pre_layer, post_layer))
-
-    add_layers("boundaries")
-
-    test = pd.DataFrame()
-
-    pre["color"] = post["color"] = "blue"
-    pre["opacity"] = utilization_opacities(capacities, pre_nums)
-    test["po"] = pre["opacity"]
-    post["opacity"] = utilization_opacities(capacities, post_nums)
-    test["Po"] = post["opacity"]
-    add_layers("% utilization")
-
-    pre["color"] = post["color"] = "red"
-    pre["opacity"] = racial_opacities(pre_nums)
-    test["ro"] = pre["opacity"]
-    post["opacity"] = racial_opacities(post_nums)
-    test["Ro"] = post["opacity"]
-    add_layers("racial concentration")
-    print(test)
-
+    print(layers)
+    for layer in layers:
+        layer.add_to(map)
     folium.plugins.GroupedLayerControl(
         groups={"maps": layers},
         collapsed=False,
@@ -353,7 +351,10 @@ def plot_dissimilarity_vs_population_consistency(run_paths):
 
     for i in range(len(combined_df)):
         print(
-            f"{combined_df['pre_population_consistency'][i]}, {combined_df['pre_dissim_col'][i]} -> {combined_df['post_population_consistency'][i]}, {combined_df['post_dissim_col'][i]}"
+            f"{combined_df['pre_population_consistency'][i]}, "
+            f"{combined_df['pre_dissim_col'][i]} -> "
+            f"{combined_df['post_population_consistency'][i]}, "
+            f"{combined_df['post_dissim_col'][i]}"
         )
         plt.plot(
             [
