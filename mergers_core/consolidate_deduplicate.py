@@ -2,7 +2,6 @@
 
 import pandas as pd
 
-
 df = pd.read_csv("data/results/results.csv", dtype={"district": str})
 columns_to_deduplicate = [
     "district",
