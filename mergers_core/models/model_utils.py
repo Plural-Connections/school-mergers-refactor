@@ -456,7 +456,7 @@ def output_analytics(
         )
 
     except Exception as e:
-        print(f"ERROR!!!! {e}")
+        print(f"ERROR!!!! {e.__class__.__name__}: {e}")
         traceback.print_exc()
         errors = {"error_message": str(e)}
         with open(os.path.join(output_dir, "errors.json"), "w") as f:
@@ -482,10 +482,19 @@ def output_analytics(
 
         try:
             print(
-                f"Switchers: {num_students_switching['num_total_switched'] / num_total_students['num_total_all'] * 100:05.2f}%\n",
-                f"SQ avg. travel time - all: {travel_time_impacts['status_quo_total_driving_times_per_cat']['all_status_quo_time_num_total'] / num_total_students['num_total_all'] / 60:.4f}\n",
-                f"SQ avg. travel time - switchers: {travel_time_impacts['current_total_switcher_driving_times']['switcher_status_quo_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}\n",
-                f"New avg. travel time - switchers: {travel_time_impacts['new_total_switcher_driving_times']['switcher_new_time_num_total'] / num_students_switching['num_total_switched'] / 60:.4f}",
+                f"Switchers: {
+                    num_students_switching['num_total_switched'] /
+                    num_total_students['num_total_all'] * 100:05.2f}%\n",
+                f"SQ avg. travel time - all: {
+                    travel_time_impacts['status_quo_total_driving_times_per_cat']
+                    ['all_status_quo_time_num_total'] /
+                    num_total_students['num_total_all'] / 60:.4f}\n",
+                f"SQ avg. travel time - switchers:"
+                f"{travel_time_impacts['status_quo']['num_total'].sum() /
+                    num_students_switching['num_total_switched'] / 60:.4f}\n",
+                f"New avg. travel time - switchers:"
+                f"{travel_time_impacts['post_merger']['num_total'].sum()
+                    / num_students_switching['num_total_switched'] / 60:.4f}",
             )
         except (KeyError, ZeroDivisionError) as e:
             print(f"Could not print travel time stats: {e}")
