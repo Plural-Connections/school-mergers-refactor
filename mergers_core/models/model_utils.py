@@ -16,23 +16,6 @@ DF_BLOCKS = None
 TRAVEL_TIMES = None
 
 
-def _calculate_status_quo_driving_times(df_schools_in_play, category_columns):
-    status_quo_total_driving_times_per_cat = Counter()
-    for _, school_in_play in df_schools_in_play.iterrows():
-        nces_id = school_in_play["NCESSCH"]
-        df_blocks_school = DF_BLOCKS[DF_BLOCKS["ncessch"] == nces_id].reset_index(
-            drop=True
-        )
-        for col in category_columns:
-            for _, block in df_blocks_school.iterrows():
-                driving_time = TRAVEL_TIMES[block["block_id"]][nces_id]
-                if driving_time and not np.isnan(driving_time):
-                    status_quo_total_driving_times_per_cat[
-                        f"all_status_quo_time_{col}"
-                    ] += (driving_time * block[col])
-    return status_quo_total_driving_times_per_cat
-
-
 def _calculate_student_switching_data(
     school_cluster_lists, df_current_grades, df_schools_in_play
 ):
@@ -128,10 +111,6 @@ def estimate_travel_time_impacts(
 ):
     category_columns = [col for col in DF_BLOCKS.keys() if col.startswith("num_")]
 
-    status_quo_total_times_per_cat = _calculate_status_quo_driving_times(
-        df_schools_in_play, category_columns
-    )
-
     num_students_switching_per_school_per_cat = _calculate_student_switching_data(
         school_cluster_lists, df_current_grades, df_schools_in_play
     )
@@ -141,7 +120,6 @@ def estimate_travel_time_impacts(
     )
 
     return {
-        "status_quo_total_times_per_cat": status_quo_total_times_per_cat,
         "status_quo": status_quo,
         "post_merger": post_merger,
     }
@@ -462,10 +440,6 @@ dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
                 f"Switchers: {
                     num_students_switching['num_total_switched'] /
                     num_total_students['num_total_all'] * 100:05.2f}%\n",
-                f"SQ avg. travel time - all: {
-                    impacts['status_quo_total_times_per_cat']
-                    ['all_status_quo_time_num_total'] /
-                    num_total_students['num_total_all'] / 60:.4f}\n",
                 f"SQ avg. travel time - switchers: "
                 f"{impacts['status_quo']['num_total'].sum() /
                     num_students_switching['num_total_switched'] / 60:.4f}\n",
@@ -492,7 +466,6 @@ dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
     update_with_prefix(data_to_output, post_population_metrics, "post_population_")
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
-    data_to_output.update(impacts["status_quo_total_times_per_cat"])
     update_with_prefix(data_to_output, impacts["status_quo"], "status_quo_time_")
     update_with_prefix(data_to_output, impacts["post_merger"], "post_merger_time_")
 
