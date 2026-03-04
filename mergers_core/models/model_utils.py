@@ -118,7 +118,7 @@ def _estimate_switcher_driving_times(
     status_quo = (status_quo / totals).fillna(0)
     post_merger = (post_merger / totals).fillna(0)
 
-    return status_quo, post_merger
+    return status_quo.mean().to_dict(), post_merger.mean().to_dict()
 
 
 def estimate_travel_time_impacts(
@@ -445,7 +445,7 @@ def output_analytics(
         return f"{pre:.4f} -> {post:.4f} ({(post - pre) / pre * 100:+06.2f}%)"
 
     if print_to_stdout:
-        print(f"""
+        print(f"""\
 dissim             wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}
 dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
 
@@ -476,9 +476,6 @@ dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
         except (KeyError, ZeroDivisionError) as e:
             print(f"Could not print travel time stats: {e}")
             traceback.print_exc()
-
-    impacts["status_quo"] = impacts["status_quo"].mean().to_dict()
-    impacts["post_merger"] = impacts["post_merger"].mean().to_dict()
 
     def update_with_prefix(target_dict, source, prefix):
         for k, v in source.items():
