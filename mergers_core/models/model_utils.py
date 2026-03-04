@@ -81,62 +81,44 @@ def _calculate_student_switching_data(
 def _estimate_switcher_driving_times(
     num_students_switching_per_school_per_cat, category_columns
 ):
-    current_total_switcher_driving_times = Counter()
-    current_total_switcher_driving_times_per_school = defaultdict(Counter)
-    new_total_switcher_driving_times = Counter()
-    new_total_switcher_driving_times_per_school = defaultdict(Counter)
+    schools = num_students_switching_per_school_per_cat.keys()
+    status_quo = pd.DataFrame(0.0, columns=category_columns, index=schools)
+    post_merger = pd.DataFrame(0.0, columns=category_columns, index=schools)
 
     for school_1, school_2_data in num_students_switching_per_school_per_cat.items():
         df_blocks_school = DF_BLOCKS[DF_BLOCKS["ncessch"] == school_1].reset_index(
             drop=True
         )
         for school_2, switcher_data in school_2_data.items():
-            switchers_per_block_and_cat = defaultdict(Counter)
-            for col in category_columns:
-                df_blocks_school[f"percent_of_total_{col}"] = (
-                    df_blocks_school[col] / df_blocks_school[col].sum()
+            switchers = defaultdict(Counter)
+            for cat in category_columns:
+                df_blocks_school[f"percent_{cat}"] = (
+                    df_blocks_school[cat] / df_blocks_school[cat].sum()
                 )
                 df_blocks_school = df_blocks_school.fillna(0)
+
                 for _, block in df_blocks_school.iterrows():
-                    switchers_per_block_and_cat[block["block_id"]][col] += (
-                        block[f"percent_of_total_{col}"] * switcher_data[col]
+                    block_id = block["block_id"]
+
+                    switchers[block_id][cat] += (
+                        block[f"percent_{cat}"] * switcher_data[cat]
                     )
-                    if TRAVEL_TIMES[block["block_id"]][school_1] and not np.isnan(
-                        TRAVEL_TIMES[block["block_id"]][school_1]
-                    ):
-                        current_total_switcher_driving_times[
-                            f"switcher_status_quo_time_{col}"
-                        ] += (
-                            switchers_per_block_and_cat[block["block_id"]][col]
-                            * TRAVEL_TIMES[block["block_id"]][school_1]
-                        )
-                        current_total_switcher_driving_times_per_school[school_1][
-                            f"switcher_status_quo_time_{col}"
-                        ] += (
-                            switchers_per_block_and_cat[block["block_id"]][col]
-                            * TRAVEL_TIMES[block["block_id"]][school_1]
-                        )
-                    if TRAVEL_TIMES[block["block_id"]][school_2] and not np.isnan(
-                        TRAVEL_TIMES[block["block_id"]][school_2]
-                    ):
-                        new_total_switcher_driving_times[
-                            f"switcher_new_time_{col}"
-                        ] += (
-                            switchers_per_block_and_cat[block["block_id"]][col]
-                            * TRAVEL_TIMES[block["block_id"]][school_2]
-                        )
-                        new_total_switcher_driving_times_per_school[school_1][
-                            f"switcher_new_time_{col}"
-                        ] += (
-                            switchers_per_block_and_cat[block["block_id"]][col]
-                            * TRAVEL_TIMES[block["block_id"]][school_2]
-                        )
-    return (
-        current_total_switcher_driving_times,
-        current_total_switcher_driving_times_per_school,
-        new_total_switcher_driving_times,
-        new_total_switcher_driving_times_per_school,
+                    s1_time = TRAVEL_TIMES[block_id][school_1] or 0
+                    s2_time = TRAVEL_TIMES[block_id][school_2] or 0
+
+                    status_quo.loc[school_1, cat] += switchers[block_id][cat] * s1_time
+                    post_merger.loc[school_2, cat] += switchers[block_id][cat] * s2_time
+
+    totals = (
+        DF_BLOCKS[DF_BLOCKS["ncessch"].isin(schools)]
+        .groupby("ncessch")
+        .sum()[category_columns]
+        .replace(0, np.nan)
     )
+    status_quo = (status_quo / totals).fillna(0)
+    post_merger = (post_merger / totals).fillna(0)
+
+    return status_quo, post_merger
 
 
 def estimate_travel_time_impacts(
@@ -146,7 +128,7 @@ def estimate_travel_time_impacts(
 ):
     category_columns = [col for col in DF_BLOCKS.keys() if col.startswith("num_")]
 
-    status_quo_total_driving_times_per_cat = _calculate_status_quo_driving_times(
+    status_quo_total_times_per_cat = _calculate_status_quo_driving_times(
         df_schools_in_play, category_columns
     )
 
@@ -154,21 +136,14 @@ def estimate_travel_time_impacts(
         school_cluster_lists, df_current_grades, df_schools_in_play
     )
 
-    (
-        current_total_switcher_driving_times,
-        current_total_switcher_driving_times_per_school,
-        new_total_switcher_driving_times,
-        new_total_switcher_driving_times_per_school,
-    ) = _estimate_switcher_driving_times(
+    status_quo, post_merger = _estimate_switcher_driving_times(
         num_students_switching_per_school_per_cat, category_columns
     )
 
     return {
-        "status_quo_total_driving_times_per_cat": status_quo_total_driving_times_per_cat,
-        "current_total_switcher_driving_times": current_total_switcher_driving_times,
-        "new_total_switcher_driving_times": new_total_switcher_driving_times,
-        "current_total_switcher_driving_times_per_school": current_total_switcher_driving_times_per_school,
-        "new_total_switcher_driving_times_per_school": new_total_switcher_driving_times_per_school,
+        "status_quo_total_times_per_cat": status_quo_total_times_per_cat,
+        "status_quo": status_quo,
+        "post_merger": post_merger,
     }
 
 
@@ -206,7 +181,9 @@ def _validate_solution(
     for cluster in grades_served_per_cluster:
         if len(grades_served_per_cluster[cluster]) != len(constants.GRADE_TO_INDEX):
             raise Exception(
-                f"Only {len(grades_served_per_cluster[cluster])} of {len(constants.GRADE_TO_INDEX)} grades represented across cluster {cluster}"
+                f"Only {len(grades_served_per_cluster[cluster])} of "
+                f"{len(constants.GRADE_TO_INDEX)} grades represented across cluster "
+                f"{cluster}"
             )
 
     if total_students_dict != total_students_df:
@@ -225,7 +202,8 @@ def _validate_solution(
                 continue
             if start_grade and end_grade and g:
                 raise Exception(
-                    f"Grade levels schools are serving are not contiguous: {row['NCESSCH']}, {', '.join(map(str, curr_grade_seq))}"
+                    f"Grade levels schools are serving are not contiguous: "
+                    f"{row['NCESSCH']}, {', '.join(map(str, curr_grade_seq))}"
                 )
 
 
@@ -450,7 +428,7 @@ def output_analytics(
             num_total_students,
             num_students_switching,
             num_students_switching_per_school,
-            travel_time_impacts,
+            impacts,
         ) = check_solution_validity_and_compute_outcomes(
             df_mergers_g, df_grades, df_schools_in_play
         )
@@ -467,10 +445,9 @@ def output_analytics(
         return f"{pre:.4f} -> {post:.4f} ({(post - pre) / pre * 100:+06.2f}%)"
 
     if print_to_stdout:
-        print(f"dissim{' ' * 13}wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}")
-        print(
-            f"dissim{' ' * 11}bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}"
-        )
+        print(f"""
+dissim             wnw: {present_stat(pre_dissim_wnw, post_dissim_wnw)}
+dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
 
         for metric in pre_population_metrics.keys():
             stats = present_stat(
@@ -486,61 +463,41 @@ def output_analytics(
                     num_students_switching['num_total_switched'] /
                     num_total_students['num_total_all'] * 100:05.2f}%\n",
                 f"SQ avg. travel time - all: {
-                    travel_time_impacts['status_quo_total_driving_times_per_cat']
+                    impacts['status_quo_total_times_per_cat']
                     ['all_status_quo_time_num_total'] /
                     num_total_students['num_total_all'] / 60:.4f}\n",
-                f"SQ avg. travel time - switchers:"
-                f"{travel_time_impacts['status_quo']['num_total'].sum() /
+                f"SQ avg. travel time - switchers: "
+                f"{impacts['status_quo']['num_total'].sum() /
                     num_students_switching['num_total_switched'] / 60:.4f}\n",
-                f"New avg. travel time - switchers:"
-                f"{travel_time_impacts['post_merger']['num_total'].sum()
+                f"New avg. travel time - switchers: "
+                f"{impacts['post_merger']['num_total'].sum()
                     / num_students_switching['num_total_switched'] / 60:.4f}",
             )
         except (KeyError, ZeroDivisionError) as e:
             print(f"Could not print travel time stats: {e}")
             traceback.print_exc()
 
-    # Output results
+    impacts["status_quo"] = impacts["status_quo"].mean().to_dict()
+    impacts["post_merger"] = impacts["post_merger"].mean().to_dict()
+
+    def update_with_prefix(target_dict, source, prefix):
+        for k, v in source.items():
+            target_dict.update({prefix + k: v})
+
     data_to_output = {
-        name: locals()[name]
-        for name in [
-            "pre_dissim_wnw",
-            "post_dissim_wnw",
-            "pre_dissim_bh_wa",
-            "post_dissim_bh_wa",
-        ]
+        "pre_dissim_wnw": pre_dissim_wnw,
+        "post_dissim_wnw": post_dissim_wnw,
+        "pre_dissim_bh_wa": pre_dissim_bh_wa,
+        "post_dissim_bh_wa": post_dissim_bh_wa,
     }
     data_to_output.update(config.to_dict())
-    data_to_output.update(
-        {"pre_population_" + k: v for k, v in pre_population_metrics.items()}
-    )
-    data_to_output.update(
-        {"post_population_" + k: v for k, v in post_population_metrics.items()}
-    )
+    update_with_prefix(data_to_output, pre_population_metrics, "pre_population_")
+    update_with_prefix(data_to_output, post_population_metrics, "post_population_")
     data_to_output.update(num_total_students)
     data_to_output.update(num_students_switching)
-    # if travel_time_impacts are empty, populate with NaNs
-    if len(travel_time_impacts["new_total_switcher_driving_times"]) == 0:
-        for race in [
-            "num_white",
-            "num_black",
-            "num_asian",
-            "num_native",
-            "num_hispanic",
-            "num_total",
-        ]:  # list was taken from DF_BLOCKS[CUR_STATE]
-            travel_time_impacts["status_quo_total_driving_times_per_cat"][
-                "all_status_quo_time_" + race
-            ] = "NaN"
-            travel_time_impacts["current_total_switcher_driving_times"][
-                "switcher_status_quo_time_" + race
-            ] = "NaN"
-            travel_time_impacts["new_total_switcher_driving_times"][
-                "switcher_new_time_" + race
-            ] = "NaN"
-    data_to_output.update(travel_time_impacts["status_quo_total_driving_times_per_cat"])
-    data_to_output.update(travel_time_impacts["current_total_switcher_driving_times"])
-    data_to_output.update(travel_time_impacts["new_total_switcher_driving_times"])
+    data_to_output.update(impacts["status_quo_total_times_per_cat"])
+    update_with_prefix(data_to_output, impacts["status_quo"], "status_quo_time_")
+    update_with_prefix(data_to_output, impacts["post_merger"], "post_merger_time_")
 
     # We need to do this dictionary comprehension because otherwise pandas sees the
     # district namedtuple in the config and decides that the dataframe must have two
@@ -549,13 +506,10 @@ def output_analytics(
         os.path.join(output_dir, "analytics.csv"), index=False
     )
 
-    impacts = travel_time_impacts | {
-        name: locals()[name]
-        for name in [
-            "num_per_school_per_grade_per_cat",
-            "num_per_cat_per_school",
-            "num_students_switching_per_school",
-        ]
+    impacts = impacts | {
+        "num_per_school_per_grade_per_cat": num_per_school_per_grade_per_cat,
+        "num_per_cat_per_school": num_per_cat_per_school,
+        "num_students_switching_per_school": num_students_switching_per_school,
     }
 
     if config.write_to_s3:
@@ -819,7 +773,7 @@ def compare_batch_totals(
     df = pd.merge(df_1, df_2, on="district_id", how="inner")
     df["diff_totals"] = df["num_total_all"] != df["num_total_all_2"]
     print(df["diff_totals"].sum())
-    df_diff = df[df["diff_totals"] == True].reset_index(drop=True)
+    df_diff = df[df["diff_totals"]].reset_index(drop=True)
     print(len(df_diff) / len(df))
     print(df_diff.head(10))
 
