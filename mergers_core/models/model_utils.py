@@ -98,8 +98,8 @@ def _estimate_switcher_driving_times(
         .sum()[category_columns]
         .replace(0, np.nan)
     )
-    status_quo = (status_quo / totals).fillna(0)
-    post_merger = (post_merger / totals).fillna(0)
+    status_quo = status_quo / totals
+    post_merger = post_merger / totals
 
     return status_quo.mean().to_dict(), post_merger.mean().to_dict()
 
@@ -119,10 +119,7 @@ def estimate_travel_time_impacts(
         num_students_switching_per_school_per_cat, category_columns
     )
 
-    return {
-        "status_quo": status_quo,
-        "post_merger": post_merger,
-    }
+    return {"status_quo": status_quo, "post_merger": post_merger}
 
 
 def _calculate_student_distributions(school_clusters, df_grades, df_schools_in_play):
@@ -441,11 +438,9 @@ dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
                     num_students_switching['num_total_switched'] /
                     num_total_students['num_total_all'] * 100:05.2f}%\n",
                 f"SQ avg. travel time - switchers: "
-                f"{impacts['status_quo']['num_total'].sum() /
-                    num_students_switching['num_total_switched'] / 60:.4f}\n",
+                f"{impacts['status_quo']['num_total'] / 60:.4f}\n",
                 f"New avg. travel time - switchers: "
-                f"{impacts['post_merger']['num_total'].sum()
-                    / num_students_switching['num_total_switched'] / 60:.4f}",
+                f"{impacts['post_merger']['num_total'] / 60:.4f}",
             )
         except (KeyError, ZeroDivisionError) as e:
             print(f"Could not print travel time stats: {e}")
