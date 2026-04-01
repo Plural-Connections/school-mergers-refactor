@@ -88,20 +88,13 @@ def _estimate_switcher_driving_times(
                     )
                     s1_time = TRAVEL_TIMES[block_id][school_1] or 0
                     s2_time = TRAVEL_TIMES[block_id][school_2] or 0
+                    s1_time = 0 if np.isnan(s1_time) else s1_time
+                    s2_time = 0 if np.isnan(s2_time) else s2_time
 
                     status_quo.loc[school_1, cat] += switchers[block_id][cat] * s1_time
                     post_merger.loc[school_2, cat] += switchers[block_id][cat] * s2_time
 
-    totals = (
-        DF_BLOCKS[DF_BLOCKS["ncessch"].isin(schools)]
-        .groupby("ncessch")
-        .sum()[category_columns]
-        .replace(0, np.nan)
-    )
-    status_quo = status_quo / totals
-    post_merger = post_merger / totals
-
-    return status_quo.mean().to_dict(), post_merger.mean().to_dict()
+    return status_quo.sum().to_dict(), post_merger.sum().to_dict()
 
 
 def estimate_travel_time_impacts(
@@ -433,14 +426,17 @@ dissim           bh/wa: {present_stat(pre_dissim_bh_wa, post_dissim_bh_wa)}""")
         print()
 
         try:
+            print(num_total_students)
             print(
                 f"Switchers: {
                     num_students_switching['num_total_switched'] /
                     num_total_students['num_total_all'] * 100:05.2f}%\n",
                 f"SQ avg. travel time - switchers: "
-                f"{impacts['status_quo']['num_total'] / 60:.4f}\n",
+                f"{impacts['status_quo']['num_total'] /
+                    num_total_students['num_total_switched'] / 60:.4f}\n",
                 f"New avg. travel time - switchers: "
-                f"{impacts['post_merger']['num_total'] / 60:.4f}",
+                f"{impacts['post_merger']['num_total'] /
+                   num_total_students['num_total_switched'] / 60:.4f}",
             )
         except (KeyError, ZeroDivisionError) as e:
             print(f"Could not print travel time stats: {e}")
